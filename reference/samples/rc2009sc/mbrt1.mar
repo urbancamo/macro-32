@@ -1,0 +1,430 @@
+.TITLE  Chaotic Dusty Curls Generation Using VAX Macro
+
+;++
+; This program will produce a set of coordinate and value tuples
+; for a window on a Mandelbrot set to the standard output.
+;
+; References:
+;	VAX Macro and Instruction Set Reference Manual
+;	VMS Run-Time Library (LIB$) Reference Manual
+;	VMS System Services Reference Manual
+;	VMS Run-Time Math Library (MTH$) Reference Manual
+;	Sara Baase 'VAX Assembler Language Programming'
+;
+; Author	: Mark Wickens
+; Date  	: 11-Jul-2009
+;--
+;    ALGORITHM:  Calculation of chaotic dusty curls
+;          Variables:  rz, iz = real, imaginary component of complex number
+;                      i = iteration counter
+;                      u, z = complex numbers
+;          Note:       Choose one of the three different tests for divergence.
+;
+;          u = -.74 + .11 i;
+;          DO rrz = -1 to 1 by 0.001;
+;            DO iiz = -1 to 1 by 0.001;
+;              z = cplx(rrz, iiz);
+;              InnerLoop: DO i = 1 to 100;
+;                z = z**2 + u;
+;                rz = real(z); iz = imag(z);
+;                if sqrt(rz**2 + iz**2) > 2 then leave InnerLoop;
+;              END;
+;              color = i;
+;              if convergence_test = 1 then
+;                if rz**2 + iz**2 > 4 then PRINTDOT(rrz,iiz,color);
+;              if convergence_test = 2 then
+;                if ((abs(rz)<2) & (abs(iz)<2)) then PRINTDOT(rrz,iiz,color);
+;              if convergence_test = 3 then
+;                if rz**2+iz**2>4 & mod(i,2) = 0 then PRINTDOT(rrz,iiz,color);
+;            END;
+;          END; 
+;--
+
+; Define symbols, constants, etc. used in this module
+
+; Debugging aids
+; Debug the inner loop by outputting each value calculated for sqrt(rz**2 + iz**2)
+	DEBUG_INNER	= 0
+
+; Offset in bytes in real/imaginary pair of the real and imaginary value
+	COMP_REAL	= 0
+	COMP_IMAG	= 4
+
+	.PSECT MBRT1_RWDATA	WRT,NOSHR,NOEXE,PAGE
+	.ALIGN LONG
+
+; Real and imaginary values for constant 'u'
+U:	 .F_FLOATING	0.74, 0.11
+
+; Convergence test 1, comparison value
+CONV1_MAX: .F_FLOATING	6.0
+
+; Real axis dimensions and increment
+RRZ_POINTS:	.BLKL	1
+RRZ_MIN: .F_FLOATING	-0.45
+RRZ_MAX: .F_FLOATING	-0.425
+RRZ_INC:	.BLKF	1
+RRZ_ITER:	.LONG	0
+IMAGE_SIZE:	.LONG	1000
+
+POW2:	 .LONG		2
+
+; Imaginary axis dimensions and increment
+IIZ_POINTS:	.BLKL	1
+IIZ_MIN: 	.F_FLOATING	-0.625
+IIZ_MAX: 	.F_FLOATING	-0.60
+IIZ_INC:	.BLKF	1
+IIZ_ITER:	.LONG	0
+
+TWOF:	.F_FLOATING	2.0
+
+; Number of iterations to perform in convergence loop
+	LOOP_MAX	= 99
+
+; Convergence test to use
+	CONV_TEST_VALUE	= 1
+
+; Output buffer maximum size
+	MAX_SIZE	= 132
+
+; Fortran E Format buffer max size
+	FEF_MAX_SIZE	= 16
+
+; Setup a text buffer for use as an output line
+
+OUT_BUFFER:	.BLKB MAX_SIZE
+
+OUT_DESC:	.WORD MAX_SIZE
+		.BYTE DSC$K_DTYPE_T
+		.BYTE DSC$K_CLASS_S
+		.ADDRESS OUT_BUFFER
+
+FEF_BUFFER:	.BLKB FEF_MAX_SIZE
+
+FEF_DESC:  	.WORD FEF_MAX_SIZE
+		.BYTE DSC$K_DTYPE_T
+		.BYTE DSC$K_CLASS_S
+		.ADDRESS FEF_BUFFER
+FEF_VAL:	.F_FLOATING 0.0
+
+ASC_SPACE:	.ASCII	/ /
+	NULL	= 00
+ASC_NULL:	.ASCII  <NULL>
+
+; Allocate a longword to store any failure status value we might see
+
+ERROR_CODE:	.BLKL 1
+
+; Real axis loop counter
+RRZ:		.BLKL 1
+
+; Imaginary axis loop counter
+IIZ:		.BLKL 1
+
+; Z Complex value (real/imaginary pair)
+Z:		.BLKF 2
+
+; Complex temporary
+COMP_TEMP:	.BLKF 2
+
+RZ:		.BLKF 1
+IZ:		.BLKF 1
+RZPOW2:		.BLKF 1
+IZPOW2:		.BLKF 1
+SQRTZ:		.BLKF 1
+ZPOW2:		.BLKF 1
+COLOUR_F:	.BLKF 1
+COLOUR_L:	.BLKL 1
+
+; Convergence test
+CONV_TEST:	.BYTE	CONV_TEST_VALUE
+
+; Netpbm Stuff
+MAGIC_NUMBER:	.ASCID /P2/	; Plain PGM format magic number
+PACKED_LONG:	.ASCII /        /
+		.ASCII <NULL>
+
+; Conversion between long and leading separate numeric via packed decimal
+LSN:		.BLKB	7       ; Leading separate numeric
+PKD:		.BLKB	3       ; Packed decimal
+
+LONG_SIZE:	.LONG	4           ; number of characters in output number
+MAX_GRAY:	.ASCID	/256/
+
+COUNT:		.LONG 0
+MARKER:		.ASCID /+/
+
+	.PSECT MBRT1_CODE NOWRT,SHR,EXE,PAGE
+	.ALIGN PAGE
+;*******************************************************************************
+; Program Entry Point
+;*******************************************************************************
+
+	.ENTRY MBRT1,^M<R2,R3,R4,R5,R7>
+
+; Initialize
+
+START:
+	MOVB	#SS$_NORMAL, ERROR_CODE		; error code to normal
+	MOVB	#CONV_TEST_VALUE, CONV_TEST	; convergence test to use
+
+; Output magic number
+	PUSHAQ	MAGIC_NUMBER
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+; Calculate width and height of image
+
+; rrz_inc = (rrz_max - rrz_min) / image_size
+	SUBF3	RRZ_MIN, RRZ_MAX, R2
+	CVTLF	IMAGE_SIZE, RRZ_INC
+	DIVF3	RRZ_INC, R2, RRZ_INC
+
+	PUSHL	IMAGE_SIZE
+	CALLS	#1, G^LONG2STR
+	PUSHAQ	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+; iiz_inc = (iiz_max - iiz_min) / image_size
+	SUBF3	IIZ_MIN, IIZ_MAX, R2
+	CVTLF	IMAGE_SIZE, IIZ_INC
+	DIVF3	IIZ_INC, R2, IIZ_INC
+
+	PUSHL	IMAGE_SIZE
+	CALLS	#1, G^LONG2STR
+	PUSHAQ	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+; Output max gray
+	PUSHAQ	MAX_GRAY
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+	MOVF	RRZ_MIN, RRZ 			; init real axis value
+
+RRZ_LOOP:
+	MOVL	#0, IIZ_ITER
+	MOVF	IIZ_MIN, IIZ			; init imaginary axis value
+
+;	PUSHAQ	MARKER
+;	CALLS	#1, G^LIB$PUT_OUTPUT
+;	PUSHL	COUNT
+;	CALLS	#1, G^LONG2STR
+;	PUSHAQ	OUT_DESC
+;	CALLS	#1, G^LIB$PUT_OUTPUT
+;	INCL	COUNT
+
+; Set value of complex variable Z, stored in R2
+IIZ_LOOP:
+	MOVAF	Z, R2
+        MOVF	RRZ, COMP_REAL(R2)
+	MOVF	IIZ, COMP_IMAG(R2)
+
+; Initialize inner loop counter, stored in R3
+	MOVL	#1, R3
+
+; Within loop
+LOOP:		
+; z**2
+	PUSHL   POW2
+	PUSHL	COMP_IMAG(R2)
+	PUSHL	COMP_REAL(R2)
+	CALLS	#3, G^OTS$POWCJ
+	MOVAF	COMP_TEMP, R4
+	MOVF	R0, COMP_REAL(R4)
+	MOVF	R1, COMP_IMAG(R4) 
+
+;R4 now contains address of z**2, COMP_TEMP
+;; z = z**2 + u
+
+	MOVAL	U, R5
+	ADDF3	COMP_IMAG(R4), COMP_IMAG(R5), COMP_IMAG(R2)
+	ADDF3	COMP_REAL(R4), COMP_REAL(R5), COMP_REAL(R2)
+
+; rz = real(z)
+	MOVF	COMP_REAL(R2), RZ
+; iz = imag(z)
+	MOVF	COMP_IMAG(R2), IZ
+
+	MULF3	RZ, RZ, RZPOW2
+	MULF3	IZ, IZ, IZPOW2
+	ADDF3	RZPOW2, IZPOW2, R5
+
+; R5 = rz**2 + iz**2
+	MOVF	R5, ZPOW2
+	PUSHAF	ZPOW2
+	CALLS	#1, G^MTH$SQRT
+	MOVF	R0, SQRTZ
+
+; R0 = SQRT(rz**2 + iz**2)
+
+	.IF	DEFINED DEBUG_INNER
+	PUSHAL	SQRTZ
+	CALLS	#1, G^FLOAT2STR
+	.ENDC
+
+	CMPF	SQRTZ, TWOF
+	BGTR	EXIT_LOOP	
+	
+	CMPL	#LOOP_MAX, R3
+	BEQLU	EXIT_LOOP
+
+	ADDL	#1, R3	
+	JMP	LOOP
+
+EXIT_LOOP:
+	CVTLF	R3, COLOUR_F
+	MOVL	R3, COLOUR_L
+
+	JSB	CONVERGENCE_TEST
+
+; IIZ = IIZ + IIZ_INC
+	ADDF3	IIZ, IIZ_INC, IIZ
+	ADDL2	#1, IIZ_ITER
+; IF IIZ_ITER < IMAGE_SIZE THEN GOTO iiz_loop
+	CMPL	IIZ_ITER, IMAGE_SIZE
+	BGEQ	EXIT_IIZ_LOOP
+	JMP	IIZ_LOOP
+
+EXIT_IIZ_LOOP:
+	ADDF3	RRZ, RRZ_INC, RRZ
+	ADDL2	#1, RRZ_ITER
+; if rrz < rrz_max then goto rrz_loop
+	CMPL	RRZ_ITER, IMAGE_SIZE
+	BGEQ	EXIT_RRZ_LOOP
+	JMP	RRZ_LOOP
+
+CONVERGENCE_TEST:
+	CMPF	R5, CONV1_MAX
+	BLEQ	NO_CONVERGENCE
+	JSB	PRINTPIXEL
+;       JSB	PRINTDOT
+	JMP	CONVERGENCE_TEST_END
+
+NO_CONVERGENCE:
+	MOVL	#0, COLOUR_L
+	JSB	PRINTPIXEL
+
+CONVERGENCE_TEST_END:
+	RSB
+	
+EXIT_RRZ_LOOP:
+; Normal Exit
+	MOVL	#SS$_NORMAL, ERROR_CODE
+	BRB	COMMON_EXIT
+
+FAILURE_EXIT:
+	MOVL	R0, ERROR_CODE
+        MOVW	#MAX_SIZE, OUT_DESC
+
+	PUSHAQ	OUT_DESC
+	PUSHAW	OUT_DESC
+	PUSHAL	ERROR_CODE
+	CALLS	#3, G^LIB$SYS_GETMSG
+
+	PUSHAQ	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+COMMON_EXIT:
+	$EXIT_S	ERROR_CODE
+
+;---------------------------------------------------
+PRINTDOT:
+	PUSHAL	RRZ
+	CALLS	#1, FLOAT2STR
+
+; Append string to the output buffer
+	MOVC3	#FEF_MAX_SIZE, FEF_BUFFER, OUT_BUFFER
+	MOVC3	#1, ASC_SPACE, OUT_BUFFER+16
+
+	PUSHAL	IIZ
+	CALLS	#1, FLOAT2STR
+	MOVC3	#FEF_MAX_SIZE, FEF_BUFFER, OUT_BUFFER+17
+	MOVC3	#1, ASC_SPACE, OUT_BUFFER+33
+
+	PUSHAL	COLOUR_F
+	CALLS	#1, FLOAT2STR
+	MOVC3	#FEF_MAX_SIZE, FEF_BUFFER, OUT_BUFFER+34
+	MOVC3	#1, ASC_NULL, OUT_BUFFER+50
+	
+; Set the length
+	MOVW	#50, OUT_DESC
+	RSB
+
+;---------------------------------------------------
+PRINTPIXEL:
+	MOVL	COLOUR_L, R2
+	MOVL	LONG_SIZE, R3
+	MOVAB	PACKED_LONG, R4			; R4 contains ascii destination
+	BSBW	CVTLS
+	MOVC3	LONG_SIZE, PACKED_LONG+1, OUT_BUFFER
+	MOVC3	#1, ASC_NULL, OUT_BUFFER+5
+
+	MOVW	LONG_SIZE, OUT_DESC
+	PUSHAQ	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	
+	RSB
+
+;---------------------------------------------------
+; Convert min,max,inc long to string
+	.ENTRY	TUPLE2STR,^M<R2,R3,R4>
+
+	MOVF	12(AP), R2		; MAX
+	MOVF	8(AP), R4		; MIN
+	MOVF	4(AP), R3		; INC 
+	SUBF	R4, R2
+	DIVF3	R3, R2, R4
+
+	CVTFL	R4, R2                          ; R2 contains width in pixels
+	MOVAB	PACKED_LONG, R4			; R4 contains ascii destination
+	BSBW	CVTLS
+	MOVC3	LONG_SIZE, PACKED_LONG+1, OUT_BUFFER
+	MOVC3	#1, ASC_NULL, OUT_BUFFER+5
+
+	MOVW	LONG_SIZE, OUT_DESC
+	RET
+
+;---------------------------------------------------
+; Convert long to string
+	.ENTRY	LONG2STR,^M<R2,R4>
+
+	MOVL	4(AP), R2
+	MOVAB	PACKED_LONG, R4
+	BSBW	CVTLS
+	MOVC3	LONG_SIZE, PACKED_LONG+1, OUT_BUFFER
+	MOVC3	#1, ASC_NULL, OUT_BUFFER+5
+
+	MOVW	LONG_SIZE, OUT_DESC
+	RET
+
+;---------------------------------------------------
+; Convert float to string
+	.ENTRY	FLOAT2STR,^M<>
+
+	MOVL	@4(AP),FEF_VAL
+
+	MOVW	#FEF_MAX_SIZE, FEF_DESC
+	PUSHL	#6
+	PUSHAQ	FEF_DESC
+	PUSHAQ	FEF_VAL
+	CALLS	#3, G^OTS$CNVOUT
+        RET
+
+;---------------------------------------------------
+; Convert long to string
+;	R2 contains long value to convert
+;	R3 contains number of digits in output
+;	R4 contains address to store leading separate numeric value
+CVTLS:	CVTLP	R2,LONG_SIZE,PKD
+	CVTPS	LONG_SIZE,PKD,LONG_SIZE,(R4)
+	RSB
+	
+;---------------------------------------------------
+; Output string to terminal
+	.ENTRY	PRTSTR,^M<>
+
+	PUSHAQ	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	RET
+	
+	.END MBRT1
+                                         

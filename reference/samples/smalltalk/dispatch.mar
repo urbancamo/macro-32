@@ -1,0 +1,245 @@
+.title	dispatch
+;	dispatch.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the dispatch tables for the interpreter
+;
+;	Written: September 2, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 2, 1981 by S.B. - Written
+;	October 1, 1981 by S.B. - Add hook to priminitialpc
+;	October 28, 1981 by S.S. - Add stream primitives
+;	November 4, 1981 by S.B. - Add file primitives
+;	December 31, 1981 by S.B. - Add gctheworld primitive
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	pure
+
+; this is the dispatch table for bytecodes
+disptab::
+.rept	16
+	.address pushinstvar	; 0-15
+.endr
+.rept	16
+	.address pushtempvar	; 16-31
+.endr
+.rept	32
+	.address pushlitconst	; 32-63
+.endr
+.rept	32
+	.address pushlitvar	; 64-95
+.endr
+.rept	8
+	.address popstoinstvar	; 96-103
+.endr
+.rept	8
+	.address popstotempvar	; 104-111
+.endr
+.rept	8
+	.address pushcomobj	; 112-119
+.endr
+.rept	4
+	.address retcomobj	; 120-123
+.endr
+	.address rettopmes	; 124
+	.address rettopblk	; 125
+.rept	2
+	.address mainloop	; 126-127
+.endr
+	.address pushgen	; 128
+	.address storegen	; 129
+	.address popstoregen	; 130
+	.address sendlitshort	; 131
+	.address sendlitlong	; 132
+	.address supersendshort	; 133
+	.address supersendlong	; 134
+	.address poptop		; 135
+	.address duptop		; 136
+	.address pushactivecontext ; 137
+.rept	6
+	.address mainloop	; 138-143
+.endr
+.rept	8
+	.address jumpshort	; 144-151
+.endr
+.rept	8
+	.address jumpfalseshort	; 152-159
+.endr
+.rept	8
+	.address jumplong	; 160-167
+.endr
+.rept	4
+	.address jumptruelong	; 168-171
+.endr
+.rept	4
+	.address jumpfalselong	; 172-175
+.endr
+.rept	16
+	.address sendarithprim	; 176-191
+.endr
+.rept	16
+	.address sendcommonprim	; 192-207
+.endr
+.rept	16
+	.address sendlit0	; 208-223
+.endr
+.rept	16
+	.address sendlit1	; 224-239
+.endr
+.rept	16
+	.address sendlit2	; 240-255
+.endr
+enddisptab = .
+.if	ne	<enddisptab-disptab>-<256*4>
+.error	; wrong number of elements in disptab
+.endc
+
+; here is the primitive dispatch table
+primitivedispatch::
+	.address activatemethod	; 0 prim 0 is used by interpreter
+	.address primplus	; 1 SmallInteger +
+	.address primminus	; 2 SmallInteger -
+	.address primlss	; 3 SmallInteger <
+	.address primgtr	; 4 SmallInteger >
+	.address primleq	; 5 SmallInteger <=
+	.address primgeq	; 6 SmallInteger >=
+	.address primequal	; 7 SmallInteger =
+	.address primnequal	; 8 SmallInteger ~=
+	.address primtimes	; 9 SmallInteger *
+	.address primdivide	; 10 SmallInteger /
+	.address primmod	; 11 SmallInteger \\
+	.address primdiv	; 12 SmallInteger //
+	.address primquo	; 13 SmallInteger quo:
+	.address primbitand	; 14 SmallInteger bitAnd:
+	.address primbitor	; 15 SmallInteger bitOr:
+	.address primbitxor	; 16 SmallInteger bitXor:
+	.address primbitshift	; 17 SmallInteger bitShift:
+	.address primpoint	; 18 SmallInteger @
+.rept	2
+	.address primfail	; 19-20 these 2 are undefined
+.endr
+	.address primfail	; 21 LargePositiveInteger +
+	.address primfail	; 22 LargePositiveInteger -
+	.address primfail	; 23 LargePositiveInteger <
+	.address primfail	; 24 LargePositiveInteger >
+	.address primfail	; 25 LargePositiveInteger <=
+	.address primfail	; 26 LargePositiveInteger >=
+	.address primfail	; 27 LargePositiveInteger =
+	.address primfail	; 28 LargePositiveInteger ~=
+	.address primfail	; 29 LargePositiveInteger *
+	.address primfail	; 30 LargePositiveInteger /
+	.address primfail	; 31 LargePositiveInteger \\
+	.address primfail	; 32 LargePositiveInteger //
+	.address primfail	; 33 LargePositiveInteger quo:
+	.address primfail	; 34 LargePositiveInteger bitAnd:
+	.address primfail	; 35 LargePositiveInteger bitOr:
+	.address primfail	; 36 LargePositiveInteger bitXor:
+	.address primfail	; 37 LargePositiveInteger bitShift:
+.rept	2
+	.address primfail	; 38-39 these 2 are undefined
+.endr
+	.address primasfloat	; 40 SmallInteger asFloat
+	.address primfloatadd	; 41 Float +
+	.address primfloatminus	; 42 Float -
+	.address primfloatlss	; 43 Float <
+	.address primfloatgtr	; 44 Float >
+	.address primfloatleq	; 45 Float <=
+	.address primfloatgeq	; 46 Float >=
+	.address primfloatequal	; 47 Float =
+	.address primfloatnequal ; 48 Float ~=
+	.address primfloatmul	; 49 Float *
+	.address primfloatdiv	; 50 Float /
+	.address primfloattrunc	; 51 Float truncated
+	.address primfloatfracpart ; 52 Float fractionPart
+	.address primfloatexponent ; 53 Float exponent
+	.address primfloatpower	; 54 Float timesTwoPower
+.rept	5
+	.address primfail	; 55-59 these 5 are undefined
+.endr
+	.address primat		; 60 Object at:
+	.address primatput	; 61 Object at:put:
+	.address primsize	; 62 Object size
+	.address primstringat	; 63 String at:
+	.address primstringatput ; 64 String at:put:
+	.address primnext	; 65 ReadStream next
+	.address primnextput	; 66 WriteStream nextPut:
+	.address primatend	; 67 PositionableStream atEnd
+	.address primobjectat	; 68 CompiledMethod objectAt:
+	.address primobjectatput ; 69 CompiledMethod objectAt:put:
+	.address primnew	; 70 Behavior new
+	.address primnewvar	; 71 Behavior new:
+	.address primbecome	; 72 Object become:
+	.address priminstvarat	; 73 Object instVarAt:
+	.address priminstvaratput ; 74 Object instVarAt:put:
+	.address primasoop	; 75 Object asOop
+	.address primasobject	; 76 SmallInteger asObject
+	.address primsomeinstance ; 77 Behavior someInstance
+	.address primnextinstance ; 78 Object nextInstance
+	.address primnewmethod	; 79 CompiledMethod class newMethod:header:
+	.address primblockcopy	; 80 Context blockCopy:
+	.address primvalue	; 81 BlockContext value[: [value: ...]]
+	.address primvaluewithargs ; 82 BlockContext valueWithArguments:
+	.address primfail	; 83 Object perform:[with:[with: ...]]
+	.address primperformwithargs ; 84 Object perform:withArguments:
+	.address primsignal	; 85 Semaphore signal
+	.address primwait	; 86 Semaphore wait
+	.address primresume	; 87 Process resume
+	.address primsuspend	; 88 Process suspend
+	.address primflushcache	; 89 Behavior flushCache
+	.address primmousepoint	; 90 Sensor mousePoint
+	.address primcursorlocput ; 91 InputState primCursorLocPut:
+	.address primcursorlink	; 92 CursorForm cursorLink:
+	.address priminputsemaphore ; 93 InputState primInputSemaphore:
+	.address primsampleinterval ; 94 InputState primSampleInterval:
+	.address priminputword	; 95 InputState primInputWord
+	.address primcopybits	; 96 BitBlt copyBits
+	.address primsnapshot	; 97 SystemDictionary snapshotPrimitive
+	.address primtimewordsinto ; 98 Time class timeWordsInto:
+	.address primtickwordsinto ; 99 Time class tickWordsInto:
+	.address primsignalattick ; 100 ProcessorScheduler signal:atTick:
+	.address primbecursor	; 101 CursorForm beCursor
+	.address primbedisplay	; 102 DisplayForm beDisplay
+	.address primscancharacters ; 103 TextScanner scanCharactersFrom:to:in:...
+	.address primfail	; 104 Turtle drawLoopX:Y:
+.rept	5
+	.address primfail	; 105-109 these 5 are undefined
+.endr
+	.address primeq		; 110 Object ==
+	.address primclass	; 111 Object class
+	.address primcoreleft	; 112 SystemDictionary coreLeft
+	.address primquit	; 113 SystemDictionary quit
+	.address primexittodebugger ; 114 SystemDictionary exitToDebugger
+.rept	12
+	.address primfail	; 115-126 these 12 are undefined
+.endr
+	.address primGC		; 127 SystemDictionary garbageCollect
+	.address priminitialpc	; 128 CompiledMethod initialPC
+	.address primhibernate	; 129 SystemDictionary hibernate
+	.address primfail	; 130 VMSFileStream fileNextPut:
+	.address primfileopen	; 131 VMSFile primOpen
+	.address primfileclose	; 132 VMSFile primClose
+	.address primfileread	; 133 VMSFile primRead:
+	.address primfilewrite	; 134 VMSFile primWrite:
+	.address primfail	; 135
+	.address primfail	; 136
+	.address primfail	; 137
+	.address primfilesize	; 138 VMSFile primSize
+	.address primgctheworld	; 139 SystemDictionary primgctheworld
+	.address primfileaddentry ; 140 VMSFileDirectory primAddEntry:
+	.address primfileremoveentry ; 141 VMSFileDirectory primRemoveEntry:
+	.address primfilenextentry ; 142 VMSFileDirectory primNextEntry:
+	.address primfilereset	; 143 VMSFileDirectory primReset
+.rept	112
+	.address primfail	; 144-255 are undefined for now
+.endr
+endprimtab = .
+.if	ne	<endprimtab-primitivedispatch>-<256*4>
+.error	; wrong number of elements in primitivedispatch
+.endc
+
+	.end

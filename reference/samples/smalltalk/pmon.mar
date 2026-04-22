@@ -1,0 +1,529 @@
+.title	pmon
+;	pmon.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains performance monitor and tracing support
+;
+;	Written: September 10, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 10, 1981 by S.B. - Written
+;	September 11, 1981 by S.B. - Make Smallintegers print as numbers
+;	September 14, 1981 by S.B. - Delete level stuff
+;	September 25, 1981 by S.S. - Collect stack usage statistics
+;	September 28, 1981 by S.S. - Print a page on a Printronix LP
+;	January 13, 1981 by S.B.   - Report jump stats
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	misc
+
+
+; prints various statistics
+
+	entry	printstats,<r2>
+
+	pushr	#^M<r0,r1>
+	tstl	bccount		; any bytecodes executed?
+	bneq	2$
+	brw	1$		; no
+2$:	printf	<<10>/Allocated %d bytes in %d objects/<13>>,-
+		allocbytes,allocnum
+	printf	<<10>/%d bytes in %d blocks, %d bytes in %d methods/<13>>,-
+		ablkbyt,ablknum,amthbyt,amthnum
+	tstl	sendcount	; any sends?
+	bneq	3$
+	brw	1$		; no
+3$:	mull3	#100,sendcount,r2 ; calculate send percentage
+	divl	bccount,r2
+	pushl	r2
+	pushal	senmsg
+	calls	#2,printf	; print send percentage
+	mull3	#100,actcount,r2 ; calculate activation percentage
+	divl	sendcount,r2
+	pushl	r2
+	pushal	actmsg
+	calls	#2,printf	; print activation percentage
+	tstl	actcount	; any activations?
+	beql	4$		; no
+	mull3	#100,ctxcachehit,r2 ; calculate ctx cache hit rate
+	divl	actcount,r2
+	pushl	r2
+	pushal	ctxhitmsg
+	calls	#2,printf	; print ctx hits
+4$:	tstl	cachetries	; any cache tries?
+	beql	5$		; no
+	mull3	#100,cachehits,r2 ; compute cache hit rate
+	divl	cachetries,r2
+	pushl	r2
+	pushal	chmsg
+	calls	#2,printf	; print it
+5$:	addl	bccount,morebytes ; total number of bytes in I stream
+	cvtlf	bccount,r0	; compute avg inst length
+	cvtlf	morebytes,r1
+	divf	r0,r1
+	cvtfd	r1,-(sp)	; push as double
+	pushal	bimsg
+	calls	#3,printf
+	addl3	jumpstaken,actcount,r0 ; compute seq inst len
+	addl	retcount,r0
+	addl	procswitches,r0
+	addl	valcount,r0
+	cvtlf	r0,r0
+	cvtlf	bccount,r1
+	divf	r0,r1
+	cvtfd	r1,-(sp)	; push as double
+	pushal	islmsg
+	calls	#3,printf
+	printf	<<10>/%d process switches/<13>>,procswitches
+	printf	<<10>/%d Value[:] sends/<13>>,valcount
+1$:	clrl	cachehits	; reset cache stats
+	clrl	cachetries
+	clrl	actcount
+	clrl	sendcount
+	clrl	allocbytes
+	clrl	allocnum
+	clrl	ablkbyt
+	clrl	ablknum
+	clrl	amthbyt
+	clrl	amthnum
+	clrl	ctxcachehit
+	clrl	morebytes
+	clrl	jumpstaken
+	clrl	retcount
+	clrl	procswitches
+	clrl	valcount
+	popr	#^M<r0,r1>
+	ret
+
+.save_psect
+.psect	static
+ablkbyt::
+	.long	0
+ablknum::
+	.long	0
+amthbyt::
+	.long	0
+amthnum::
+	.long	0
+morebytes::
+	.long	0
+jumpstaken::
+	.long	0
+retcount::
+	.long	0
+procswitches::
+	.long	0
+valcount::
+	.long	0
+.psect	text
+islmsg:	.asciz	<10>/%f instructions between jumps/<13>
+bimsg:	.asciz	<10>"%f bytes/instruction"<13>
+chmsg:	.asciz	<10>/Cache hit ratio = %d%%/<13>
+senmsg:	.asciz	<10>/%d%% of bytecodes are sends/<13>
+actmsg:	.asciz	<10>/%d%% of sends are activations/<13>
+ctxhitmsg: .asciz <10>/Context hit rate is %d%%/<13>
+.restore_psect
+
+
+; initialize cpu statistics gathering
+
+	entry	initstats,<>
+
+	clrl	handle		; get your own memory!
+	pushal	handle		; one parameter
+	calls	#1,g^lib$init_timer ; initialize the cpu timer
+	ret
+
+; prints cpu performance statistics
+
+	entry	cpustats,<>
+
+	pushr	#^M<r0,r1>	; save these regs in case they get killed
+	pushal	cpustatsmes	; print a message
+	calls	#1,printf
+	movl	#1,switch	; print out the collected statistics
+	pushal	switch
+	pushal	handle
+	calls	#2,g^lib$show_timer
+	movl	#2,switch
+	pushal	switch
+	pushal	handle
+	calls	#2,g^lib$show_timer
+	movl	#5,switch
+	pushal	switch
+	pushal	handle
+	calls	#2,g^lib$show_timer
+	pushal	handle		; get bytecodes/second
+	pushal	cputime
+	movl	#2,switch
+	pushal	switch
+	calls	#3,g^lib$stat_timer
+	movl	bccount,r0	; get the number of bytecodes done
+	mull	#100,r0		; correct for the following discrepency
+	divl	cputime,r0	; divide by cpu time in 10 millisecond units
+	pushl	r0		; print it out
+	pushal	cpubytecodemes
+	calls	#2,printf
+.if df	performance
+	call	printstats
+.endc
+	pushal	cpuendmsg
+	calls	#1,printf
+	popr	#^M<r0,r1>	; get the old registers back
+	ret
+
+.save_psect
+.psect	static
+handle:		.long	0
+switch:		.long	0
+cputime:	.long	0
+.psect	text
+cpustatsmes:	.asciz	<10><27>/[1mOverall CPU statistics:/<13>
+cpubytecodemes:	.asciz	<10>/ BYTECODES PER SECOND = %d/<13>
+cpuendmsg:	.asciz	<27>/[0m/
+.restore_psect
+
+	.if df	debug
+
+; prints a send
+
+class_title = 6
+metaclass_class = 6
+behavior_superclass = 0
+oop_class = ^X46
+oop_metaclass = ^X3C
+
+	entry	printsend,<r2,r3,r4>,sel,acnt,cls
+
+	cmpl	cls(ap),clstrap	; trap this send?
+	bneq	ps_cont		; no
+sendtrap::
+	nop			; put breakpoint here for class trap
+ps_cont:
+	tstl	spswitch	; shall we print sends?
+	bneq	7$		; yep
+	brw	1$		; nope
+
+7$:	call	stringtoasciz,sel(ap),#selbuf ; extract the selector chars
+	call	classtoasciz,cls(ap),#clsbuf ; extract the class name
+	mnegl	acnt(ap),r2	; get the arg count negated
+	movl	(r10)[r2],r2	; get the receiver
+	blbc	r2,4$		; it is not a SmallInteger
+	movw	#^A/ (/,(r0)+	; set up to print integer value
+	call	sinttoasciz,r2,r0 ; get the digits
+	movb	#^A/)/,(r0)+	; terminate the SmallInteger
+	clrb	(r0)		; null terminate the string
+4$:	pushl	acnt(ap)	; setup args for printf
+	pushal	clsbuf
+	pushal	selbuf
+	pushl	bccount
+	pushal	sendtext
+	calls	#4,printf	; print it
+	mnegl	acnt(ap),r2	; get the arg count
+	beql	1$		; no args
+	incl	r2		; index the 1st arg
+	pushal	argtext		; print the arg leader
+	calls	#1,printf
+	moval	argbuf,r3	; get pointer to arg buffer
+3$:	movl	(r10)[r2],r4	; get an arg
+	call	objtoasciz,r4,r3 ; cvt to asciz string
+	movl	r0,r3		; save pointer to end
+	incl	r2		; next arg
+	bgtr	2$		; done
+	movw	#^A/, /,(r3)+	; delimit the names
+	brb	3$		; and loop for more
+	
+2$:	movb	#13,(r3)+	; terminate with cr
+	clrb	(r3)		; and null
+	pushal	argbuf		; print the arg list
+	calls	#1,printf
+1$:	ret
+
+.save_psect
+.psect	static
+bcpswitch::
+	.long	0	; set non-zero to print bytecodes
+spswitch::
+	.long	0	; set non-zero to print sends
+bctrap::
+	.long	-1	; traps on bytecode count here
+clstrap::
+	.long	0	; set to oop of class to trap msgs to
+selbuf:	.blkb	256	; buffer for selector text
+clsbuf:	.blkb	256	; buffer for class name
+argbuf: .blkb	256	; buffer for arg classes
+.psect	text
+mclstr:
+	.asciz	/ class/
+sendtext:
+	.asciz	<10>/(%d) Sending '%s' to %s with %d args/<13>
+argtext:
+	.asciz	<10>/Args are: /
+.restore_psect
+
+; prints "activating"
+
+	entry	printactivation,<>
+
+	tstl	spswitch	; shall we print it?
+	beql	1$		; no
+	pushal	actmsg2
+	calls	#1,printf
+1$:	ret
+
+.save_psect
+.psect	text
+actmsg2:.asciz	<10>/{Activating}/<13>
+.restore_psect
+
+; prints a return value
+
+	entry	printreturn,<>,rval
+
+	tstl	spswitch	; shall we print it?
+	beql	1$		; no
+	call	objtoasciz,rval(ap),#argbuf ; cvt return value to string
+	pushal	argbuf		; print it
+	pushal	retmsg
+	calls	#2,printf
+1$:	ret
+
+.save_psect
+.psect	text
+retmsg:	.asciz	<10>/{Returning: %s}/<13>
+.restore_psect
+
+; utility for constructing the class of an object as an asciz string
+; r0 points to null byte on return
+
+	entry	classtoasciz,<r2,r3>,cls,strptr
+
+	romlc	cls(ap)		; get its class
+	movl	r0,r2		; save it
+3$:	cmpl	r2,#oop_class	; is it a class?
+	beql	2$		; yep
+	cmpl	r2,#oop_metaclass ; is it a metaclass?
+	beql	4$		; yep
+	romlp	#behavior_superclass,r2 ; get its superclass
+	movl	r0,r2		; save it
+	brb	3$		; and loop
+
+2$:	romlp	#class_title,cls(ap) ; get the class' title
+	call	stringtoasciz,r0,strptr(ap) ; extract its contents
+	brw	10$
+
+4$:	romlp	#metaclass_class,cls(ap) ; get the class for this metaclass
+	romlp	#class_title,r0	; get the class' title
+	call	stringtoasciz,r0,strptr(ap) ; extract the chars
+	moval	mclstr,r2	; get a pointer to string " class"
+7$:	movb	(r2)+,(r0)+	; copy it in
+	bneq	7$		; loop til null
+	decl	r0		; back up to point r0 at null
+10$:	ret
+
+; utility for converting a SmallInteger to a decimal asciiz string
+; r0 points to last byte on return
+
+	entry	sinttoasciz,<r2,r3,r4>,num,bufptr
+
+	movl	bufptr(ap),r0	; get the buffer pointer
+	ashl	#-1,num(ap),r2	; get the SmallInteger as integer
+	bneq	1$		; it is not 0
+	movb	#^A/0/,(r0)+	; just return '0'
+	clrb	(r0)		; null terminate it
+	brb	2$
+
+1$:	bgtr	3$		; branch if number is positive
+	movb	#^A/-/,(r0)+	; put a '-' sign in
+	mnegl	r2,r2		; make the number positive
+3$:	moval	digbuf,r4	; get a pointer to digit buffer
+	clrl	r3		; clear high part of quadword
+4$:	ediv	#10,r2,r2,r1	; divide the number by 10 and get remainder
+	addb	#^A/0/,r1	; cvt to ascii
+	movb	r1,(r4)+	; put in digit buffer
+	tstl	r2		; more to do?
+	bneq	4$		; yep - loop
+5$:	movb	-(r4),(r0)+	; copy the digits in reverse order to string
+	bneq	5$		; loop til null
+	decl	r0		; point back at null
+2$:	ret
+
+.save_psect
+.psect	static
+	.long	0		; leading null
+digbuf:	.blkb	32		; buffer for digits
+.restore_psect
+
+; utility for extracting the contents of a String to an asciz buffer
+; r0 points to last byte on return
+
+	entry	stringtoasciz,<r2,r3>,str,bufptr
+
+	getobj	str(ap),r2	; open the string object
+	bicl3	#obj_size,(r2),r3 ; get size in bytes
+	subl	#hdr_len*4,r3	; get its byte length
+	addl	#hdr_len*4,r2	; offset to text area
+	movl	bufptr(ap),r0	; get pointer to buffer for it
+1$:	movb	(r2)+,(r0)+	; copy a byte
+	beql	3$		; it was a null
+	sobgtr	r3,1$		; loop til done
+	clrb	(r0)		; null terminate it
+	brb	4$
+
+3$:	decl	r0		; backup r0 to point at null
+4$:	ret
+
+; cvts an object to asciz string, cvting Smallintegers to digits
+; r0 points to null byte on return
+
+	entry	objtoasciz,<r2>,obj,sbuf
+
+	movl	obj(ap),r2	; get the object
+	blbc	r2,2$		; its not a SmallInteger
+	call	sinttoasciz,r2,sbuf(ap) ; get the digits
+	brb	1$
+
+2$:	romlc	r2		; get an arg's class
+	call	classtoasciz,r0,sbuf(ap) ; print it
+1$:	ret
+
+; prints a bytecode and its name
+
+	entry	printbytecode,<r2>,bc
+
+	tstl	bcpswitch	; shall we print bytecodes?
+	bneq	4$		; yep
+	brw	1$		; nope
+
+4$:	movl	bc(ap),r2	; get the bytecode
+	pushl	bctext[r2]	; push a pointer to the bytecode name
+	pushl	r2		; push the bytecode value
+	pushl	bccount		; push the bytecode count
+	pushal	bcstring	; push the bytecode print string
+	calls	#4,printf	; print it
+1$:	ret
+
+.save_psect
+.psect	text
+bcstring:
+	.asciz	<10>/Bytecode %d: %d, %s/<13>
+.psect	pure
+bctext:
+.rept	16
+	.address bc0
+.endr
+.rept	16
+	.address bc16
+.endr
+.rept	32
+	.address bc32
+.endr
+.rept	32
+	.address bc64
+.endr
+.rept	8
+	.address bc96
+.endr
+.rept	8
+	.address bc104
+.endr
+.rept	8
+	.address bc112
+.endr
+.rept	4
+	.address bc120
+.endr
+	.address bc124
+	.address bc125
+.rept	2
+	.address bc126
+.endr
+	.address bc128
+	.address bc129
+	.address bc130
+	.address bc131
+	.address bc132
+	.address bc133
+	.address bc134
+	.address bc135
+	.address bc136
+	.address bc137
+.rept	6
+	.address bc138
+.endr
+.rept	8
+	.address bc144
+.endr
+.rept	8
+	.address bc152
+.endr
+.rept	8
+	.address bc160
+.endr
+.rept	4
+	.address bc168
+.endr
+.rept	4
+	.address bc172
+.endr
+.rept	16
+	.address bc176
+.endr
+.rept	16
+	.address bc192
+.endr
+.rept	16
+	.address bc208
+.endr
+.rept	16
+	.address bc224
+.endr
+.rept	16
+	.address bc240
+.endr
+.if	ne	<.-bctext>-<256*4>
+.error	; bad form for bctext
+.endc
+
+.psect	text
+bc0:	.asciz	/Push Receiver Variable/
+bc16:	.asciz	/Push Temporary Variable/
+bc32:	.asciz	/Push Literal Constant/
+bc64:	.asciz	/Push Literal Variable/
+bc96:	.asciz	/Pop and Store Receiver Variable/
+bc104:	.asciz	/Pop and Store Temporary Variable/
+bc112:	.asciz	/Push Common Object/
+bc120:	.asciz	/Return Common Object from Message/
+bc124:	.asciz	/Return Stack Top from Message/
+bc125:	.asciz	/Return Stack Top from Block/
+bc126:	.asciz	/!!!Unused Bytecode!!!/
+bc128:	.asciz	/Push (I, T, DL, IL) Variable/
+bc129:	.asciz	/Store (I, T, x, IL) Variable/
+bc130:	.asciz	/Pop and Store (I, T, x, IL) Variable/
+bc131:	.asciz	/Send Literal Selector with jjj Args/
+bc132:	.asciz	/Send Literal Selector with jjjjjjjj Args/
+bc133:	.asciz	/Send Literal Selector to Superclass with jjj Args/
+bc134:	.asciz	/Send Literal Selector to Superclass with jjjjjjjj Args/
+bc135:	.asciz	/Pop Stack Top/
+bc136:	.asciz	/Duplicate Stack Top/
+bc137:	.asciz	/Push Active Context/
+bc138:	.asciz	/!!!Unused Bytecode!!!/
+bc144:	.asciz	/Jump Short/
+bc152:	.asciz	/Pop and Jump on False Short/
+bc160:	.asciz	/Jump Long/
+bc168:	.asciz	/Pop and Jump on True Long/
+bc172:	.asciz	/Pop and Jump on False Long/
+bc176:	.asciz	/Send Arithmetic Primitive/
+bc192:	.asciz	/Send Common Primitive/
+bc208:	.asciz	/Send Literal Selector with No Arguments/
+bc224:	.asciz	/Send Literal Selector with 1 Argument/
+bc240:	.asciz	/Send Literal Selector with 2 Arguments/
+.restore_psect
+
+	.endc
+
+	.end

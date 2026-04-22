@@ -1,0 +1,175 @@
+.title	process
+;	process.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains subroutines for process control
+;
+;	Written: August 28, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 28, 1981 by S.B. - Written
+;	August 31, 1981 by S.B. - Bug fixing
+;	October 28, 1981 by S.B. - Add wakeup in asynchsignal & ast disabling
+;	November 13, 1981 by S.B. - Allow semaphores to have nil contexts
+;	December 16, 1981 by S.B. - Fix process list management
+;	December 31, 1981 by S.B. - Handle static space
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+
+; asynchronous signal routine. Called with the semaphore to signal
+; Can only be called from interrupt handlers!!!!
+
+	entry	asyncsignal,<r2>,semap
+
+	
+	$setast_s #0		; lock out all ASTs
+	movl	semaphoreputindex,r2 ; put in reg for indexing
+	movl	semap(ap),semaphorebuffer[r2] ; put semaphore in array
+	incl	r2		; bump index
+	bicl	#^C<semaphorebuflen-1>,r2 ; wrap index
+	movl	r2,semaphoreputindex ; replace index
+	movl	#1,processevent	; flag a process event
+	tstl	hibernating	; are we hibernating?
+	beql	1$		; no
+	$wake_s			; yep - wake up!!
+	clrl	hibernating	; note we are not hibernating
+1$:	$setast_s #1		; enable ASTs
+	ret
+
+
+; synchronously signals a semaphore
+
+	entry	syncsignal,<r2,r3,r4>,semap
+
+	getobj	semap(ap),r2	; open the semaphore
+	addl	#hdr_len*4,r2	; offset past header
+				; get a process waiting on it
+5$:	movl	linkedlist_firstlink*4(r2),r3
+	cmpl	r3,#oop_nil	; anything there?
+	bneq	1$		; there is
+	addl	#2,semaphore_excesssignals*4(r2) ; nope - bump count
+	brw	2$
+
+1$:	movl	linkedlist_lastlink*4(r2),r4	; get the last link
+	getobj	r3		; open the process link
+	cmpl	r3,r4		; first=last?
+	bneq	3$		; nope
+	movl	#oop_nil,linkedlist_firstlink*4(r2) ; yep - nil the links
+	movl	#oop_nil,linkedlist_lastlink*4(r2)
+	brb	4$
+
+				; make next link first
+3$:	movl	<hdr_len+link_nextlink>*4(r0),linkedlist_firstlink*4(r2)
+4$:	movl	#oop_nil,<hdr_len+link_nextlink>*4(r0) ; nil the slot in link
+	romsp	#process_mylist,r3,#oop_nil ; nil the backlink to list
+	romlp	#process_context,r3 ; see if context exists
+	cmpl	r0,#oop_nil	; is it nil?
+	bneq	10$
+	brw	5$		; yep - look for another one
+
+10$:	call	resume,r3	; resume the process
+2$:	ret
+
+; suspends the active process
+
+	entry	suspendactive,<r2,r3,r4,r5>
+
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_processlists,r0 ; get the process lists
+	getobj	r0,r2		; open it
+	bicl3	#obj_size,(r2),r3 ; get object size in bytes
+	ashl	#-2,r3,r3	; get length in longwords
+	subl	#hdr_len+1,r3	; account for header & cvt to index
+2$:	movl	hdr_len*4(r2)[r3],r4 ; get a list
+	getobj	r4,r1		; open it
+	movl	<hdr_len+linkedlist_firstlink>*4(r1),r5 ; get head of list
+	cmpl	r5,#oop_nil	; process there?
+	bneq	1$		; yep
+	sobgeq	r3,2$		; nope - loop
+	movl	#oop_nil,r5	; note no process runnable
+	brw	3$
+
+1$:	getobj	r5		; open the process object
+	movl	#oop_nil,<hdr_len+process_mylist>*4(r0) ; snap backlink
+	movl	<hdr_len+link_nextlink>*4(r0),-
+		<hdr_len+linkedlist_firstlink>*4(r1) ; make rest first
+	movl	#oop_nil,<hdr_len+link_nextlink>*4(r0) ; nil out field
+	cmpl	r5,<hdr_len+linkedlist_lastlink>*4(r1) ; was there only 1 link
+	bneq	3$		; nope
+	movl	#oop_nil,<hdr_len+linkedlist_lastlink>*4(r1) ; yep - zap it
+3$:	movl	r5,newprocess	; make one we found new
+	vstored	r5		; mark it
+	movl	#1,processevent	; note the happy event
+	ret
+
+; resumes a process
+
+	entry	resume,<r2,r3>,proc
+
+	movl	newprocess,r3	; get the new process if there
+	cmpl	r3,#oop_nil	; was there one?
+	bgtr	3$		; there was one
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_activeprocess,r0 ; get the active proc
+	movl	r0,r3		; save it
+3$:	romlp	#process_priority,r3	; get its priority
+	movl	r0,r2		; save it
+	romlp	#process_priority,proc(ap) ; get priority of new process
+	cmpl	r0,r2		; is new > old?
+	bgtr	1$		; yep
+	call	sleep,proc(ap)	; no, sleep the new process
+	brb	2$
+
+1$:	call	sleep,r3	; yep - sleep the old process
+	movl	proc(ap),newprocess ; make this process new
+	vstored	proc(ap)	; mark it
+	movl	#1,processevent	; note the event
+2$:	ret
+
+; sleeps a process
+
+	entry	sleep,<r2,r3,r4>,proc
+
+	movl	proc(ap),r4	; get the process to sleep
+	romlp	#process_priority,r4 ; get its priority
+	ashl	#-1,r0,r2	; cvt to integer and save
+	decl	r2		; cvt to 0 origin index
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_processlists,r0 ; get the process lists
+	romlp	r2,r0		; get the process list for this priority
+	movl	r0,r3		; save r0 from bashing
+	romsp	#process_mylist,r4,r3 ; setup backlink to process list
+	getobj	r3,r3		; open the list
+	addl	#hdr_len*4,r3	; offset past header
+	cmpl	linkedlist_firstlink*4(r3),#oop_nil ; anything there?
+	bneq	1$		; yep
+	movl	r4,linkedlist_firstlink*4(r3) ; nope - install in list
+	brb	2$
+
+				; tack this process on last in list
+1$:	romsp	#link_nextlink,linkedlist_lastlink*4(r3),r4
+2$:	movl	r4,linkedlist_lastlink*4(r3) ; make it the last
+	ret
+
+;; statics for process/semaphores
+.save_psect
+.psect	static
+semaphoregetindex::
+	.long	0
+semaphoreputindex::
+	.long	0
+.psect	gcstatic
+semaphorebuffer::
+.rept	semaphorebuflen		; insure the list starts with 0's
+	.long	0
+.endr
+.restore_psect
+
+
+	.end

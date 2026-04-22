@@ -1,0 +1,706 @@
+.title	realmem
+;	Realmem.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the real memory code
+;
+;	Written: August 13, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 13, 1981 by S.B. - Written
+;	August 17, 1981 by S.B. - changed allocate to not use chunks
+;	August 26, 1981 by S.B. - removed statics, add savedoop
+;	September 16, 1981 by S.B. - added gc
+;	October 5, 1981 by S.S. - Moved context save/restore to gc
+;	October 8, 1981 by S.S. - Added to and from spaces
+;	October 13, 1981 by S.S. - Minor changes to complete Baker algorithm
+;	October 15, 1981 by S.S. - Added move_oop subroutine
+;	October 16, 1981 by S.S. - Speeded up allocate routine
+;	October 26, 1981 by S.S. - Properly initialize tail of free ote list
+;	October 30, 1981 by S.S. - Add last gasp mark/sweep gc
+;	November 10, 1981 by S.S. - Implement high water mark for oops
+;	November 16, 1981 by S.S. - Add usage statistics
+;	November 24, 1981 by S.S. - Eliminate pause in garbage collections
+;	December 29, 1981 by S.B. - make sweepoops & moveobject faster
+;	December 31, 1981 by S.B. - Add hooks for static region
+;	January 1, 1981 by S.B. - Clean up a bit
+;	January 4, 1981 by S.B. - Add becomelist
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	memman
+
+; allocates a new object given the length in bytes
+; on return, r0 points to base of new obj, whose oop is in newoop
+
+allocate::
+	clrl	gcdone		; note we haven't gc'd the world
+	addl	#hdr_len*4,r0	; account for header
+.if	df	performance
+	addl	r0,allocbytes	; accumulate the total of bytes
+	incl	allocnum	; and of objects
+.endc
+	pushl	r0		; save exact length to allocate
+	addl	#3,r0		; round length up to longwords
+	bicl	#3,r0
+	cmpl	r0,coreleft	; enough free core?
+	bgtru	2$		; nope
+	tstl	freeote		; is there a free oop?
+	bneq	1$		; yep
+2$:	pushl	r0		; this guy has good information now
+	call	initgc		; do a gc
+	popl	r0		; restore him
+6$:	cmpl	r0,coreleft	; enough now?
+	bgtru	3$		; nope
+	tstl	freeote		; is there a free oop?
+	bneq	1$		; yep
+3$:	tstl	gcdone		; are we looping?
+	bneq	7$		; yep - DIE!!
+	pushl	r0		; save size
+	call	gctheworld	; AARGH!! re-build the world
+	incl	gcdone		; note that we just gc'd
+	popl	r0		; restore size
+	brb	6$		; try again
+7$:	printf	<<10><7>/Dynamic space or Oops exhausted/<13>>
+	halt
+
+1$:	subl	r0,freetop	; move base down to point to this object
+	subl	r0,coreleft	; account for core being allocated
+	tstl	nogc		; is gc done?
+	bneq	4$		; yep - don't make the call
+	ashl	#2,r0,r0	; scavenge 4 times what we just asked for
+	subl	r0,totalmoved	; say that we got this much
+	bgeq	4$		; don't call the gc
+	call	incrementalgc,r0 ; try to free up some bytes
+4$:	movl	freeote,r1	; get an oop
+	movl	r1,newoop	; save for return
+	cmpl	r1,highoop	; is this the highest oop used yet?
+	bleq	5$		; nope
+	movl	r1,highoop	; yep, remember it
+5$:	getote	r1		; get a pointer to ote
+	bicl3	#ote_addr,(r0),freeote	; tack rest of free ote list on head
+	movl	freetop,(r0)	; setup ote for base of this area
+	popl	@(r0)		; setup base of free space for length
+	rsb
+
+.save_psect
+.psect	static
+gcdone:	.long	0
+.restore_psect
+
+; garbage collector
+
+	entry	gc,<>
+
+	ccc			; clear condition codes
+	tstl	nogc		; gc still needed?
+	bneq	2$		; nope
+	pushal	mes10
+	calls	#1,printf
+	tstl	noigcneeded	; do we need some igc?
+	bneq	10$		; no
+	call	incrementalgc,#2048 ; move some bytes
+	brb	4$
+
+10$:	call	sweepoops,#4096,#4096 ; sweep some oops
+	brb	4$
+
+2$:	ashl	#-4,regionsize,r0 ; 1/16th of region size
+	cmpl	coreleft,r0	; should we bother?
+	bgtru	3$		; nope
+	pushal	mes10
+	calls	#1,printf
+	call	initgc		; switch to and from spaces
+4$:	pushal	mes11
+	calls	#1,printf
+	brb	1$
+
+3$:	set	v		; show failure
+1$:	ret
+
+.save_psect
+.psect	text
+mes10:	.asciz	<27>"7"<27>"[24;4H"<27>"[J"<27>"[0;1mGC"<27>"8"
+mes11:	.asciz	<27>"7"<27>"[24;4H"<27>"[J"<27>"8"
+.restore_psect
+
+; initiate a new garbage collection
+
+	entry	initgc,<r2,r3,r4,r5,r6>
+
+	call	incrementalgc,#1@24 ; tell incrementalgc to finish up
+	call	sweepoops,#1@24,#1@24	; and sweepup all oops
+
+	incl	gcflag		; count another gc
+	pushl	gcflag		; tell us about it
+	pushal	gcmsg
+	calls	#2,printf
+	xorl	#ote_swept_mask,ote_sweptbit ; flip swept bit
+	movl	fromspacebase,r0 ; get base of fromspace
+	movl	tospacebase,fromspacebase ; switch tospace and fromspace
+	movl	r0,tospacebase
+	movl	fromspacetop,r1
+	movl	tospacetop,fromspacetop
+	movl	r1,tospacetop
+	movl	r0,gcbase	; point to first object to garbage collect
+	movl	r1,freetop	; update the top of free memory
+	subl3	r0,r1,coreleft	; and the number of bytes left
+
+	movl	#2,r2		; sweep all literal known objects
+1$:	getote	r2,r5		; get the ote
+	bbs	#ote_static_bit,(r5),4$	; skip object if static
+	bsbw	moveobject	; move this object
+4$:	acbl	#lastknownoop,#2,r2,1$ ; loop til done
+	moval	firstgcstatic,r6 ; now sweep all gc statics
+2$:	cmpl	r6,#lastgcstatic ; done?
+	bgequ	3$		; yep
+	movl	(r6)+,r2	; get an oop
+	beql	2$		; ignore bad oops
+	blbs	r2,2$		; ignore SmallIntegers
+	getote	r2,r5		; get the ote
+	bbs	#ote_static_bit,(r5),2$	; skip object if static
+	bsbw	moveobject	; move this object
+	brb	2$		; loop til done
+
+3$:	moval	becomelist,r6	; sweep the become list
+20$:	cmpl	r6,nextbecome	; done?
+	bgequ	10$		; yep
+	movl	(r6)+,r2	; get an oop
+	beql	20$		; nothing there
+	bsbw	moveobject	; move this object
+	brb	20$		; loop til done
+
+10$:	movl	r0,freebase	; update the base of free memory
+	movl	entrybase,gcentryptr ; reset gc ptr to entry table
+	clrl	contextlist	; invalidate the cache of contexts
+	clrl	totalmoved	; zap accumulated size
+	movl	#2,thisoop	; and current oop to sweep
+	clrl	nogc		; note that gc can run
+	clrl	noigcneeded
+	clrl	nosoopneeded
+	ret
+
+.save_psect
+.psect text
+gcmsg:	.asciz	<10><7>/GC #%d/<13>
+.restore_psect
+
+; incremental gc
+
+	entry	incrementalgc,<r2,r3,r4,r5,r6>,nbytes
+
+	call	sweepoops,#4,#1024 ; sweep up some oops
+	movl	nbytes(ap),movesize ; this is how much to move
+	movl	freebase,r0	; get base of memory to use
+	
+1$:	movl	gcentryptr,r1	; get current ptr to entry table
+	cmpl	r1,nextentry	; anything there left to scan?
+	bgequ	10$		; nope
+	addl	#4,gcentryptr	; update entry pointer
+	movl	(r1),r1		; get address of object to scan
+	bicl3	#obj_size,(r1),r6 ; get length of this object
+	addl	#3,r6		; round up to a longword boundary
+	bicl	#3,r6
+	brb	11$		; merge below
+
+10$:	movl	gcbase,r1	; get memory address of next object to mark
+	cmpl	r1,r0		; have we scavanged the whole region?
+	bgeq	7$		; yep, sure have
+	bicl3	#obj_size,(r1),r6 ; get length of this object
+	addl	#3,r6		; round up to a longword boundary
+	bicl	#3,r6
+	addl	r6,gcbase	; update memory pointer
+11$:	bitl	#obj_ptrs,(r1)+	; does this object have pointer fields?
+	beql	5$		; nope
+	ashl	#-2,r6,r6	; convert to longword count
+	decl	r6		; do not count size
+	brb	3$
+5$:	cmpl	(r1),#oop_compiledmethod ; is it a method?
+	beql	2$		; yep
+	movl	#1,r6		; nope -- only one field to look at
+	brb	3$
+2$:	extzv	#mheader_litbase,#mheader_litlen,-
+		<<hdr_len+method_header>*4>-4(r1),r6 ; get count of literals
+	addl	#2,r6		; count header and class, too
+3$:	movl	(r1)+,r2	; get the next oop
+	blbs	r2,4$		; ignore SmallIntegers
+	bsbw	moveobject	; move this object if needed
+4$:	sobgtr	r6,3$		; do each field
+
+	tstl	movesize	; have we moved enough?
+	bleq	20$
+	brw	1$		; nope, not yet
+20$:	movl	r0,freebase	; update freebase pointer
+	ret
+
+7$:	movl	regionsize,totalmoved ; help out allocate
+	movl	r0,freebase	; update freebase pointer
+	incl	noigcneeded	; flag no igc needed
+	tstl	nosoopneeded	; oop sweeping still needed?
+	beql	8$		; yep
+	incl	nogc		; no gc at all needed
+8$:	ret
+
+; reclaims noops oops
+
+	entry	sweepoops,<r2,r3,r4,r5,r6,r7,r8,r9>,noops,nobjs
+
+	tstl	gcflag		; is this before the first gc?
+	beql	30$		; yep
+	tstl	nosoopneeded	; are we disabled?
+	beql	2$		; nope
+30$:	brw	1$		; yep
+
+2$:	clrl	r8		; no oops reclaimed yet
+	movl	thisoop,r2	; sweep through the ote
+	cmpl	r2,highoop	; any work to do?
+	blss	20$		; yep
+	incl	nosoopneeded	; no more oop sweeping til flip
+	tstl	noigcneeded	; still more igc needed?
+	beql	50$		; yep
+	incl	nogc		; stop all gc til flip
+50$:	brw	1$		; leave
+
+20$:	ashl	#1,nobjs(ap),r9 ; calculate limit for oop sweeping
+	addl	r2,r9
+	cmpl	r9,highoop	; beyond end?
+	blss	40$		; nope
+	movl	highoop,r9	; yep - clamp to top
+40$:	getote	r2,r3		; point to the first ote to do
+	moval	freeote,r4	; get a pointer to free ote base
+	pushl	(r4)		; save current contents
+	xorl3	#ote_swept_mask,ote_sweptbit,r5 ; form bit masks
+	movl	#ote_swept_mask!ote_free!ote_static,r6
+4$:	bitl	r6,(r3)		; is the next one live or already free?
+	bneq	5$		; yep
+	incl	r8		; count as reclaimed
+	bisl3	#ote_free,r2,(r4) ; nope, set free bit
+	movl	r3,r4		; point to the new ote free list base
+5$:	bicl	r5,(r3)+	; clear extraneous bit
+	cmpl	r8,noops(ap)	; reclaimed enough yet?
+	bgeq	10$		; yep - break out of loop
+	acbl	r9,#2,r2,4$	; loop until given area is exhausted
+	cmpl	r9,highoop	; anything left undone?
+	blss	10$		; yep
+	incl	nosoopneeded	; no more oop sweeping til flip
+	tstl	noigcneeded	; still more igc needed?
+	beql	10$		; yep
+	incl	nogc		; stop all gc til flip
+10$:	popl	(r4)		; insert the link
+	bisl	#ote_free,(r4)	; make sure last entry is marked free
+	bicl	#ote_free,freeote ; clear free bit in first entry
+	movl	r2,thisoop	; update the pointer
+1$:	ret
+
+; move an object from one Baker space to the other
+
+moveobject::
+	getote	r2,r3		; get the oop's ote
+	movl	(r3),r4
+	bisl3	#ote_static,ote_sweptbit,r5 ; form test mask
+	bitl	r5,r4		; does it need to be moved?
+	beql	altmoveobject	; nope
+	rsb
+
+altmoveobject::
+	bisl	ote_sweptbit,r4	; signal that the object has been moved
+	bicl3	#ote_addr,r4,r5 ; get its current address
+	bicl	r5,r4		; clear out old address
+	bisl3	r0,r4,(r3)	; put in its new address and store it
+	addl	#obj_age_inc,(r5) ; the object is now older
+	bcc	10$		; not old enough yet
+	bisl	#obj_age,(r5)	; overflow count - stick at all 1s
+10$:	bicl3	#obj_size,(r5),r4 ; get the object size
+	cmpl	r4,coreleft	; is there room for it?
+	blequ	2$		; yep
+	bicl	r0,(r3)		; restore address before gc
+	bisl	r5,(r3)
+	printf	<<10><7>/No room to move object/<13>>
+	halt			; gctheworld may not be safe as no one now
+				; expects to trash their pointers here
+;	call	gctheworld	; re-build everything
+;	rsb			; needn't move it now
+
+2$:	cmpl	r2,method	; are we moving anything important?
+	bneq	4$		; probably not
+	subl	r5,r7		; adjust registers
+	addl	r0,r7
+	subl	r5,r8
+	addl	r0,r8
+	brb	8$
+4$:	cmpl	r2,home		; try again
+	bneq	6$
+	addl3	#hdr_len*4,r0,homepointer
+	subl	r5,r9
+	addl	r0,r9
+6$:	cmpl	r2,activecontext ; one last try
+	bneq	7$
+	addl3	#hdr_len*4,r0,activecontextptr
+	subl	r5,r10
+	addl	r0,r10
+	brb	8$
+7$:	cmpl	r2,self		; check here too
+	bneq	8$
+	addl3	#hdr_len*4,r0,selfpointer
+
+8$:	addl	#3,r4		; round size up to a longword boundary
+	bicl	#3,r4
+	subl	r4,coreleft	; adjust the amount of core left
+	subl	r4,movesize	; and say we have moved this much
+	addl	r4,totalmoved
+	ashl	#-2,r4,r4	; convert to longword count
+3$:	movl	(r5)+,(r0)+	; move an object longword
+	sobgtr	r4,3$		; do the whole thing
+	rsb
+
+
+; move this object to tospace if it is in fromspace
+
+	entry	move_oop,<r2,r3>,oop
+
+	movl	oop(ap),r2	; get the oop in question
+	blbs	r2,1$		; ignore SmallIntegers here
+	getote	r2,r3		; get a pointer to the ote
+	bisl3	#ote_static,ote_sweptbit,r0 ; form test mask
+	bitl	r0,(r3)		; does it need to be moved?
+	bneq	1$		; nope
+	pushr	#^M<r0,r1,r4,r5> ; save these registers
+	movl	freebase,r0	; init address to move this guy to
+	movl	(r3),r4		; get the ote contents
+	bsbw	altmoveobject	; move this object
+	movl	r0,freebase	; put new base back
+	popr	#^M<r0,r1,r4,r5> ; retrieve our registers
+1$:	ret
+
+;; gc's everything exhaustively and re-builds all the spaces
+
+	entry	gctheworld,<r2,r3,r4,r5>
+
+	printf	<<10>/Hang on to your hats! GCing the World!/<13>>
+	bsbw	dumpcontext	; dump the current context
+	call	clearmarks	; wipe all the marks just in case
+	printf	<<10>/Marking/<13>>
+	call	marktheworld	; mark all live objects
+	printf	<<10>/Collecting free oops/<13>>
+	call	collectfreeoops	; reclaim all the free oops and unmark
+	printf	<<10>/Collecting statics/<13>>
+	call	createstatics	; convert old objects to statics
+				;  and re-build the entry table
+	printf	<<10>/Compacting dynamics/<13>>
+	call	fixdynamics	; re-build the dynamic region
+	printf	<<10>/Whew! Done/<13>>
+	printf	<<10>/There are %d bytes in %d static objects now/<13>>,-
+		realstaticlen,staticoopcount
+	clrl	contextlist	; wipe cached contexts
+	moval	becomelist,r0	; wipe the become list
+	subl3	r0,nextbecome,r1 ; number of bytes
+	beql	1$		; nothing there
+	ashl	#-2,r1,r1	; cvt to lword count
+2$:	clrl	(r0)+		; wipe an entry
+	sobgtr	r1,2$		; loop thru table
+	moval	becomelist,nextbecome ; reset insertion pointer
+1$:	movl	#1,nogc		; turn off gc til flip
+	movl	#1,nosoopneeded
+	movl	#1,noigcneeded
+	clrl	thisoop		; reset sweepoops start oop
+	bsbw	loadcontext	; load up the current context
+	ret
+
+; marks all live objects
+
+	entry	marktheworld,<r2,r3,r4,r5,r6>
+
+	movl	#2,r2		; mark the known objects
+1$:	pushl	r2		; save it
+	bsbw	markobject
+	popl	r2		; restore it
+	acbl	#lastknownoop,#2,r2,1$ ; loop til done
+	moval	firstgcstatic,r6 ; mark the gc statics
+2$:	cmpl	r6,#lastgcstatic ; done?
+	bgequ	3$		; yep
+	movl	(r6)+,r2	; get an oop
+	beql	2$		; ignore empty slots
+	blbs	r2,2$		; ignore smallintegers
+	bsbw	markobject	; mark it
+	brb	2$		; get the next one
+
+3$:	ret
+
+; mark an object (and, recursively, everbody he points to)
+; input oop is in r2
+; bashes r0,r1,r2,r3,r4,r5 
+
+markobject::
+	getote	r2,r3		; get the ote of this guy
+	bitl	#ote_mark,(r3)	; has everyone he points to been marked yet?
+	bneq	1$		; yep, forget him
+	bisl	#ote_mark,(r3)	; mark him up
+	bicl3	#ote_addr,(r3),r1 ; get his current address
+	bicl3	#obj_size,(r1),r4 ; get length of this object
+	addl	#3,r4		; round up to a longword boundary
+	bicl	#3,r4
+	bitl	#obj_ptrs,(r1)+	; does this object have pointer fields?
+	beql	5$		; nope
+	ashl	#-2,r4,r4	; convert to longword count
+	decl	r4		; do not count size
+	brb	7$
+
+5$:	cmpl	(r1),#oop_compiledmethod ; is it a method?
+	beql	2$		; yep
+	movl	#1,r4		; nope -- only one field to look at
+	brb	7$
+2$:	extzv	#mheader_litbase,#mheader_litlen,-
+		<1+method_header>*4(r1),r4 ; get count of literals
+	addl	#2,r4		; count header and class, too
+7$:	movl	(r1)+,r2	; get the next oop
+	blbs	r2,4$		; ignore SmallIntegers
+6$:	pushr	#^M<r1,r4>	; save the important registers again
+	bsbw	markobject	; mark this object
+	popr	#^M<r1,r4>	; recursively!
+4$:	sobgtr	r4,7$		; do each field
+1$:	rsb
+
+; collects all free oops
+
+	entry	collectfreeoops,<r2,r3,r4,r5>
+
+	moval	freeote,r2	; get ptr to head of ote list
+	movl	#1,r3		; init oop scanner
+	ashl	#-1,maxoop,r5	; limit of scan
+3$:	bitl	#ote_mark,(r11)[r3] ; is this oop marked?
+	beql	1$		; nope, it's free
+	bicl	#ote_mark,(r11)[r3] ; unmark it
+	bisl	ote_sweptbit,(r11)[r3] ; insure it looks swept
+	movl	r3,r4		; save oop (/2) of last used oop
+	brb	2$
+
+1$:	ashl	#1,r3,(r2)	; tack this oop on free list
+	bisl	#ote_free,(r2)	; set previous oop's free bit
+	moval	(r11)[r3],r2	; update backpointer
+2$:	aobleq	r5,r3,3$	; loop thru all oops
+	bisl	#ote_free,(r2)	; set previous oop's free bit
+	bicl	#ote_free,freeote ; cleanup root
+	ashl	#1,r4,highoop	; save last used oop
+	ret
+
+; creates a new static region from the live statics and old dynamics
+
+	entry	createstatics,<r2,r3,r4,r5,r6,r7,r8,r9>
+
+	clrl	newstaticlen	; assume no statics will be found
+	clrl	realstaticlen
+	movl	staticoopcount,oldstaticcount
+	clrl	staticoopcount
+	clrl	newstaticcount
+	clrl	r3		; init static size accumulator
+	movl	#1,r2		; init oop scanner
+	ashl	#-1,maxoop,r6	; and oop count
+1$:	movl	(r11)[r2],r4	; get an ote
+	bicl	#ote_needs_entry,(r11)[r2] ; insure it is marked this way
+	bbs	#ote_free_bit,r4,2$ ; ignore dead objects
+	bicl3	#ote_addr,r4,r5	; get the object's address
+	bbs	#ote_static_bit,r4,3$ ; branch if static already
+	cmpv	#obj_age_bits,#obj_age_size,(r5),#obj_age@-obj_age_bits
+				; is it old?
+	bneq	2$		; no - leave dynamic
+	bisl	#ote_static,(r11)[r2] ; set the static bit in ote
+	incl	newstaticcount	; count it
+3$:	bicl3	#obj_size,(r5),r0 ; get the object's length
+	addl	#3,r0		; round up to lwords
+	bicl	#3,r0
+	addl	r0,r3		; accumulate the size
+2$:	aobleq	r6,r2,1$	; loop thru all oops
+	tstl	entrylen	; is there an entry table?
+	beql	4$		; no
+	call	G^lib$free_vm,!entrylen,!entrybase ; release the entry table
+4$:	clrl	entrybase	; assume no new one is created
+	clrl	entrylen
+	tstl	r3		; any static region needed?
+	bneq	5$		; yep
+	brw	210$		; nope
+5$:	addl	#511,r3		; round up to pages
+	bicl	#511,r3
+	movl	r3,newstaticlen	; get a new static region
+	call	G^lib$get_vm,!newstaticlen,!newstaticbase
+	blbs	r0,10$		; success
+	printf	<<10><7>/Unable to acquire %d bytes of new static region/<13>>,newstaticlen
+	halt			; bomb (actually not necessary if we undo the
+				; setting of the static bit in the dynamics)
+10$:	movl	newstaticbase,r3 ; point to base of new static region
+	clrl	r8		; count of objects copied to static region
+	moval	4(r11),r4	; point to first oop to scan
+	ashl	#-1,maxoop,r5	; count of oops to scan
+15$:	bitl	#ote_static,(r4) ; is this object static now?
+	beql	20$		; no, skip it
+	bicl3	#ote_addr,(r4),r6 ; get the current address of the object
+	bicl	r6,(r4)		; wipe old address
+	bisl	r3,(r4)		; put new address in
+	bicl3	#obj_size,(r6),r7 ; get the size of this object
+	addl	#3,r7		; round up to lwords
+	bicl	#3,r7
+	ashl	#-2,r7,r7	; cvt to lword count
+18$:	movl	(r6)+,(r3)+	; copy object to new space
+	sobgtr	r7,18$		; loop thru object
+	incl	r8		; count it
+20$:	addl	#4,r4		; skip to next oop
+	sobgtr	r5,15$		; and loop thru ot
+210$:	tstl	staticlen	; is there an old region?
+	beql	200$		; no
+	call	G^lib$free_vm,!staticlen,!staticbase ; delete the old region
+200$:	movl	newstaticbase,staticbase ; copy the new region base
+	movl	newstaticlen,staticlen ; and length
+	movl	r8,staticoopcount ; save number of oops for snapshot
+	subl3	newstaticbase,r3,realstaticlen ; and actual len of region
+
+; now, scan the static region looking for pointers to dynamic objects
+; to construct the entry table
+
+	ashl	#2,r8,r8	; compute size of new entry table
+	bneq	130$
+	brw	30$		; none needed
+130$:	addl	#511,r8		; round to pages
+	bicl3	#511,r8,entrylen
+	call	G^lib$get_vm,!entrylen,!entrybase ; get the entry table region
+	blbs	r0,35$		; ok
+	printf	<<10><7>/Unable to acquire %d bytes for entry table/<13>>,entrylen
+	halt			; bomb
+
+35$:	movl	entrybase,nextentry ; init entry insertion pointer
+	moval	4(r11),r2	; init oop pointer
+	ashl	#-1,maxoop,r3	; init oop count
+50$:	bitl	#ote_free,(r2)	; is it live?
+	bneq	52$		; nope
+	bitl	#ote_static,(r2) ; is this object static?
+	bneq	110$		; yep
+	bicl	#ote_needs_entry,(r2) ; nope - it doesn't need an entry
+52$:	brw	100$		; skip it
+
+110$:	bisl	#ote_needs_entry,(r2) ; assume it may need an entry
+	bicl3	#ote_addr,(r2),r4 ; point to base of object
+	bicl3	#obj_size,(r4),r5 ; get length of this object
+	addl	#3,r5		; round to lwords
+	bicl	#3,r5
+	bitl	#obj_ptrs,(r4)+	; does this object have pointers?
+	beql	40$		; nope
+	ashl	#-2,r5,r5	; yep - cvt length to lword count
+	decl	r5		; skip length lword
+	brb	80$
+
+40$:	cmpl	(r4),#oop_compiledmethod ; is this object a compiled method?
+	beql	70$		; yep
+	movl	#1,r5		; only one field to look at
+	brb	80$
+
+70$:	extzv	#mheader_litbase,#mheader_litlen,-
+		<1+method_header>*4(r4),r5 ; get count of literals
+	addl	#2,r5		; count class and header fields too
+80$:	blbc	(r4),140$	; it's not a smallinteger
+	addl	#4,r4		; bump past a smallinteger
+	brb	120$
+
+140$:	getote	(r4)+		; open the object referred to
+	bitl	#ote_static,(r0) ; is it static?
+	beql	90$		; no
+120$:	sobgtr	r5,80$		; loop thru fields
+	brb	100$
+90$:	bicl3	#ote_addr,(r2),@nextentry ; add this object to entry table
+	addl	#4,nextentry	; bump pointer
+	bicl	#ote_needs_entry,(r2) ; doesn't need an entry any more
+100$:	addl	#4,r2		; point to next oop
+	decl	r3		; and loop thru all objects
+	bleq	30$		; done
+	brw	50$
+30$:	movl	entrybase,gcentryptr ; insure this points to new entry base
+	subl3	newstaticcount,staticoopcount,r0 ; number of left-over statics
+	subl3	r0,oldstaticcount,r0 ; number of deleted statics
+	printf	<<10>/%d statics deleted, %d added/<13>>,-
+		r0,newstaticcount
+	ret			; Done!!!
+
+.save_psect
+.psect	static
+newstaticcount:
+	.long	0
+oldstaticcount:
+	.long	0
+.restore_psect
+
+; fixes up the dynamic region by moving all live dynamic objects to a new
+; region
+
+	entry	fixdynamics,<r2,r3,r4,r5,r6,r7>
+
+	movl	regionsize,newbakerbase ; setup parameters for new region
+	call	G^lib$get_vm,!regionsize,!newbakerbase ; get the memory
+	blbs	r0,1$		; got it
+	printf	<<10><7>/Unable to acquire %d bytes for Baker region/<13>>,regionsize
+	halt			; Bomb!!
+
+1$:	moval	4(r11),r2	; setup pointer to ot
+	ashl	#-1,maxoop,r3	; count of oops
+	movl	newbakerbase,r4	; ptr to base of new Baker region
+	xorl3	ote_sweptbit,#ote_swept_mask,r7 ; get mask for fromspace bit
+3$:	bitl	#ote_free,(r2)	; is this object live?
+	bneq	2$		; no
+	bitl	#ote_static,(r2) ; is this object static?
+	bneq	2$		; yep - skip it
+	bisl	ote_sweptbit,(r2) ; set its swept bit
+	bicl	r7,(r2)		; clear the other (fromspace) bit
+	bicl3	#ote_addr,(r2),r5 ; get ptr to base of dynamic object
+	bicl	r5,(r2)		; wipe old address
+	bisl	r4,(r2)		; put new address in
+	bicl3	#obj_size,(r5),r6 ; get length of object
+	addl	#3,r6		; round to lwords
+	bicl	#3,r6
+	ashl	#-2,r6,r6	; cvt to lword count
+4$:	movl	(r5)+,(r4)+	; copy to new region
+	sobgtr	r6,4$		; loop thru object
+2$:	addl	#4,r2		; bump to next oop
+	sobgtr	r3,3$		; and loop til done
+	call	G^lib$free_vm,!regionsize,!tospacebase ; delete old tospace
+	movl	r4,freebase	; note top of used space
+	movl	r4,gcbase	; tell igc there is nothing to do
+	movl	newbakerbase,tospacebase ; new space is now tospace
+	addl3	regionsize,tospacebase,tospacetop ; setup top pointer
+	movl	tospacetop,freetop ; allocate from here
+	subl3	freebase,freetop,coreleft ; calculate core left
+	ret
+
+.save_psect
+.psect	static
+newbakerbase:	.long	0
+.restore_psect
+
+; wipes all the mark and swept bits
+
+	entry	clearmarks,<r2,r3,r4>
+
+	ashl	#-1,maxoop,r3	; get count of oops
+	moval	4(r11),r2	; init ptr to ot
+	bisl3	#ote_mark,#ote_swept_mask,r4 ; generate mask
+1$:	bicl	r4,(r2)+	; wipe mark bit
+	sobgtr	r3,1$		; loop thru all oops
+	ret
+
+
+; statics for gc
+.save_psect
+.psect	static
+newoop::	.long	0
+highoop::	.long	0
+movesize::	.long	0
+totalmoved::	.long	0
+ote_sweptbit::	.long	ote_swept_1
+thisoop::	.long	0
+noigcneeded::	.long	1
+nosoopneeded::	.long	1
+nogc::		.long	1
+allocbytes::	.long	0
+allocnum::	.long	0
+gcentryptr::	.long	0
+.restore_psect
+
+	.end

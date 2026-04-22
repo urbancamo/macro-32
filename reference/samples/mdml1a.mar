@@ -1,0 +1,1055 @@
+	.TITLE MDML1A
+;
+	.IDENT	/2.0/
+;
+; Machine dependent logic for ML/I macro processor on DEC VAX-11 under VMS
+;
+; Initialisation/finalisation and high level input/output
+;
+; Copyright (C) R.D. Eager   University of Kent   MCMLXXXVI
+;
+;
+; Version numbers
+; ------- -------
+;
+	VERSION		= 2		; Major version number
+	EDIT		= 0		; Edit number within major version
+;
+	.DISABLE GLOBAL
+	.ENABLE	SUPPRESSION
+;
+;
+; External symbols in the MI-logic
+; -------- ------- -- --- --------
+;
+	.EXTERNAL BEGIN,ERSIC,LOHALT,PRERR,PRVIZ
+	.EXTERNAL FFPT,LFPT,MEVAL,SVARPT
+;
+;
+; External symbols in the VMS run-time library
+; -------- ------- -- --- --- -------- -------
+;
+	.EXTERNAL LIB$GET_FOREIGN,LIB$PUT_OUTPUT
+	.EXTERNAL SS$_NORMAL
+;
+;
+; External symbols in the miscellaneous routines and tables module
+; -------- ------- -- --- ------------- -------- --- ------ ------
+;
+	.EXTERNAL MDDIGTAB,MDCONV
+;
+;
+; External symbols in the low level I/O module
+; -------- ------- -- --- --- ----- --- ------
+;
+	.EXTERNAL INITIO,FOPEN,FCLOSE,RDCH,WRCH
+;
+;
+; Global symbols defined in this module
+; ------ ------- ------- -- ---- ------
+;
+	.GLOBAL	MDSPBASE
+;
+;
+; Global message codes
+; ------ ------- -----
+;
+	.GLOBAL	ML1_DEBFILOUT,ML1_FILNAMTOO,ML1_INSVIRMEM
+	.GLOBAL	ML1_VERSION,ML1_PROCERRS,ML1_TOOMANINP
+	.GLOBAL	ML1_TOOMANPAR,ML1_IVKEYW,ML1_MISFILNAM
+	.GLOBAL	ML1_OPENIN,ML1_OPENOUT,ML1_IVWORCHA
+	.GLOBAL	ML1_IVWORVAL,ML1_DUPQUA,ML1_UNWVALVER
+	.GLOBAL	ML1_ERRCLOPRI,ML1_ERRCLOSEC,ML1_ERRCLOLIS
+	.GLOBAL	ML1_ERRCLODEB,ML1_ERRREAINP,ML1_NULQUAL
+;
+;
+; Constants
+; ---------
+;
+	DEBMAX	=	72		; Max line length on debugging file
+	DEFSTK	=	5000		; Default stack size (bytes)
+	MAXFILE	=	255		; Maximum size of a filename
+	MAXINPUT=	3		; Maximum number of input files
+	MAXINT	=	^X7FFFFFFF	; Largest positive integer
+	MAXPARM	=	255		; Maximum size of parameter string
+	MAXSTR	=	255		; Maximum length of a message string
+	NL	=	^X0A		; Newline character
+	PAGSIZ	=	512		; Size of a memory page
+	SLREP	=	^X80		; Startline character
+	STOPCD	=	^X1A		; Internal end of file character
+	TAB	=	^X09		; Tab character
+	WORKMAX	=	100000		; Maximum stack size (bytes)
+	WORKMIN	=	1000		; Minimum stack size (bytes)
+;
+	Q$PRI	=	^X01		; Bitmap bit for primary output qualifier
+	Q$SEC	=	^X02		; Bitmap bit for secondary output qualifier
+	Q$LIS	=	^X04		; Bitmap bit for listing file qualifier
+	Q$DEB	=	^X08		; Bitmap bit for debugging file qualifier
+	Q$WOR	=	^X10		; Bitmap bit for workspace size qualifier
+	Q$VER	=	^X20		; Bitmap bit for verbosity qualifier
+	Q$INP	=	^X40		; Bitmap bit for input stream 1
+;
+	S$PRI	=	MAXINPUT+1	; Stream for primary output
+	S$SEC	=	MAXINPUT+2	; Stream for secondary output
+	S$LIS	=	MAXINPUT+3	; Stream for listing output
+	S$DEB	=	MAXINPUT+4	; Stream for debugging file
+;
+	.SUBTITLE	Impure data areas
+	.PAGE
+;
+	.PSECT	IMPURE,LONG,NOEXE
+;
+; Miscellaneous data
+;
+MDSPBASE:.BLKL	1			; Saves base of subroutine call stack
+STKSIZE:.BLKL	1			; Size of main stack
+STKADRS:.BLKL	2			; Area to receive address of stack area
+QMAP:	.BYTE	0			; Bitmap of qualifiers...
+					; ...specified in parameters
+MDNLSW:	.BYTE	1			; New line flag (1=next char on new line)
+					;               (0=within a line)
+DCOUNT:	.BYTE	0			; Count of characters on current
+					; line in debugging file
+FNAME:	.BLKB	MAXFILE+1		; Area for reading filenames
+;
+; Area for program parameter string
+;
+PLEN:	.BYTE	0			; Length of parameter string area
+PBUF:	.BLKB	MAXPARM+1		; Buffer area for parameter string
+					; (extra for terminator)
+PDESC:	.WORD	MAXPARM			; Descriptor: length
+	.BYTE	14			;             type (string)
+	.BYTE	1			;             allocation (static)
+	.ADDRESS PBUF			;             address
+;
+; Message areas used by MDSYSM
+;
+MSGL:	.BLKW	1			; Message length
+MSGBUF:	.BLKB	MAXSTR			; Message buffer
+MSGDESC:.WORD	MAXSTR			; Descriptor: length
+	.BYTE	14			;             type (string)
+	.BYTE	1			;             allocation (static)
+	.ADDRESS MSGBUF			;             address
+;
+OUTL:	.BLKW	1			; Message length
+OUTBUF:	.BLKB	MAXSTR			; Message buffer
+OUTDESC:.WORD	MAXSTR			; Descriptor: length
+	.BYTE	14			;             type (string)
+	.BYTE	1			;             allocation (static)
+	.ADDRESS OUTBUF			;             address
+
+;
+; S-variables
+;
+; These are stored in reverse order, terminated by a word
+; containing the actual number of S-variables.
+;
+	.ALIGN	LONG
+;
+S24:	.BLKL	1			; Number of bytes of storage available
+S23:	.LONG	1			; Reverted input switch
+S22:	.LONG	0			; Secondary output switch
+S21:	.LONG	1			; Primary output switch
+S20:	.LONG	0			; Listing output switch
+S19:	.LONG	0			; Current output line number
+S18:	.LONG	0			; Environment printout switch
+S17:	.BLKL	1			; Translated input character
+S16:	.LONG	-1			; Character to be translated on input
+S15:	.BLKL	1			; Not currently used
+S14:	.BLKL	1			; Not currently used
+S13:	.BLKL	1			; Not currently used
+S12:	.LONG	500			; Debugging file line quota
+S11:	.LONG	SS$_NORMAL		; Exit status
+S10:	.LONG	1			; Input switch
+S9:	.LONG	0			; Not currently used
+S8:	.LONG	0			; Not currently used
+S7:	.LONG	0			; Not currently used
+S6:	.LONG	0			; Not currently used
+S5:	.LONG	0			; Used by MI-logic (count of errors)
+S4:	.LONG	0			; Used by MI-logic
+S3:	.LONG	0			; Used by MI-logic
+S2:	.LONG	0			; Used by MI-logic
+S1:	.LONG	0			; Used by MI-logic
+SVEC:	.LONG	24			; Number of S-variables
+;
+	.SUBTITLE	Pure data areas
+	.PAGE
+;
+	.PSECT	PURE,LONG,SHR,NOWRT,NOEXE
+;
+; Messages
+;
+MES1:	.ASCIC	\$S10 has illegal value\
+MES2:	.ASCIC	\$Primary output failure$\
+MES3:	.ASCIC	\$Secondary output failure$\
+MES4:	.ASCIC	\$Listing output failure$\
+MES5:	.ASCIC	\$Process aborted due to above error$\
+MES6:	.ASCIC	\$Debugging file lines quota exhausted$\
+;
+; System logical names
+;
+SYSIN:	.ASCIC	\SYS$INPUT\
+SYSOUT:	.ASCIC	\SYS$OUTPUT\
+SYSERR:	.ASCIC	\SYS$ERROR\
+;
+; Command line qualifier names
+;
+QTAB:
+QTABPRI:.ASCIC	\PRIMARY_OUTPUT\	; 0 - primary output file
+QTABSEC:.ASCIC	\SECONDARY_OUTPUT\	; 1 - secondary output file
+QTABLIS:.ASCIC	\LISTING_FILE\		; 2 - listing file
+QTABDEB:.ASCIC	\DEBUGGING_FILE\	; 3 - debugging file
+QTABWOR:.ASCIC	\WORKSPACE_SIZE\	; 4 - size of workspace (stack) in bytes
+QTABVER:.ASCIC	\VERBOSE\		; 5 - verbose output
+	.BYTE	0			; Terminator
+;
+; Command line qualifier handler entry points
+;
+	.ALIGN	LONG
+;
+QENTS:	.ADDRESS PRIMOUT
+	.ADDRESS SECOUT
+	.ADDRESS LISTOUT
+	.ADDRESS DEBFILE
+	.ADDRESS WKSIZE
+	.ADDRESS VERBOSE
+;
+	.SUBTITLE	Initialisation code
+	.PAGE
+;
+	.PSECT	CODE,LONG,SHR,NOWRT
+;
+; This is the machine dependent part of the initialisation code.
+; On completion, it passes control to the MI-logic for machine-
+; independent initialisation before processing begins.
+;
+	.ENTRY	MDBEGIN,0
+;
+	MOVL	#DEFSTK,STKSIZE		; set default size for stack
+;
+; Initialise the I/O system
+;
+	PUSHL	#MAXINPUT+4		; number of streams required
+	CALLS	#1,INITIO
+	BRW	INITERR			; j if error - code in R0
+;
+; Set up the S-variables for the MI-logic
+;
+	MOVAL	SVEC,SVARPT
+;
+; Get the parameter string, and strip any trailing spaces from it
+;
+	PUSHAQ	PDESC			; address of parameter string descriptor
+	CALLS	#1,G^LIB$GET_FOREIGN	; ask VMS for the parameter string
+	MOVAB	PBUF+MAXPARM,R0		; point beyond end of parameter string
+1$:	CMPB	-(R0),#^A\ \		; previous character a space?
+	BNEQ	2$			; j if not - finished scan
+	CMPL	R0,#PBUF		; more to do?
+	BNEQ	1$			; j if so
+	DECL	R0			; adjust for autodecrement
+2$:	SUBL2	#PBUF-1,R0		; derive significant length...
+	MOVB	R0,PLEN			; ...and store it
+;
+	MOVAB	PBUF,R1
+	CVTBL	PLEN,R2
+	MOVB	#NL,(R2)[R1]		; plant terminating newline
+;
+; Process any qualifiers
+;
+CHKQUAL:MOVB	(R1)+,R0
+	CMPB	R0,#^A\ \		; skip leading spaces
+	BEQL	CHKQUAL
+	CMPB	R0,#TAB			; skip tabs too
+	BEQL	CHKQUAL
+	DECL	R1			; point back to first non-space character
+	CMPB	(R1)+,#^A\/\		; qualifier follows?
+	BEQL	1$			; j if so
+	DECL	R1			; else point back to character again
+	BRW	DOINPUT			; end of qualifiers - handle input files
+1$:	PUSHL	R1			; save input pointer
+	BSBW	GETQUAL			; look up qualifier
+	TSTL	R3			; apparently recognised?
+	BGEQ	12$			; j if so
+	DECL	R1			; point back to /
+	PUSHL	R1			; stack the address of it
+	PUSHL	R2			; length of unrecognised item
+	PUSHL	#ML1_IVKEYW		; "invalid qualifier keyword"
+	MOVL	#2,R0			; number of arguments
+	BRW	MDSTOP
+12$:	SUBL3	(SP),R1,(SP)		; get length
+	BNEQ	2$			; j if not null
+	PUSHL	#ML1_NULQUAL		; "null qualifier keyword"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+2$:	MOVL	QENTS[R3],R3		; get address of qualifier handler
+	JSB	(R3)			; call it
+;
+	BRB	CHKQUAL			; keep looking
+;
+; Handle qualifier specifying primary output file
+;
+PRIMOUT:BITB	#Q$PRI,QMAP		; already specified?
+	BEQL	1$			; j if not
+	PUSHAB	QTABPRI			; qualifier name
+	BRW	DUPQUAL			; use common error handling code
+;
+1$:	MOVB	#^A\/\,R4		; set alternate terminator
+	BSBW	GETNAME			; read filename
+	TSTB	FNAME			; was there one?
+	BNEQ	2$			; j if so
+	BRW	NONAME			; else give error message
+2$:	PUSHL	R1			; save pointer
+	PUSHL	#1			; open for writing
+	PUSHAB	FNAME			; file to open
+	PUSHL	#S$PRI			; stream to use
+	CALLS	#3,FOPEN		; open file - exit 1 means error
+	BRW	OUTERR			; j if error
+3$:	POPL	R1			; restore pointer
+	BISB2	#Q$PRI,QMAP		; remember file specified
+	RSB
+;
+; Handle qualifier specifying secondary output file
+;
+SECOUT:	BITB	#Q$SEC,QMAP		; already specified?
+	BEQL	1$			; j if not
+	PUSHAB	QTABSEC			; qualifier name
+	BRW	DUPQUAL			; use common error handling code
+;
+1$:	MOVB	#^A\/\,R4		; set alternate terminator
+	BSBW	GETNAME			; read filename
+	TSTB	FNAME			; was there one?
+	BNEQ	2$			; j if so
+	BRW	NONAME			; else give error message
+2$:	PUSHL	R1			; save pointer
+	PUSHL	#1			; open for writing
+	PUSHAB	FNAME			; file to open
+	PUSHL	#S$SEC			; stream to use
+	CALLS	#3,FOPEN		; open file - exit 1 means error
+	BRW	OUTERR			; j if error
+3$:	POPL	R1			; restore pointer
+	BISB2	#Q$SEC,QMAP		; remember file specified
+	RSB
+;
+; Handle qualifier specifying listing file
+;
+LISTOUT:BITB	#Q$LIS,QMAP		; already specified?
+	BEQL	1$			; j if not
+	PUSHAB	QTABLIS			; qualifier name
+	BRW	DUPQUAL			; use common error handling code
+;
+1$:	MOVB	#^A\/\,R4		; set alternate terminator
+	BSBW	GETNAME			; read filename
+	TSTB	FNAME			; was there one?
+	BNEQ	2$			; j if so
+	BRW	NONAME			; else give error message
+2$:	PUSHL	R1			; save pointer
+	PUSHL	#1			; open for writing
+	PUSHAB	FNAME			; file to open
+	PUSHL	#S$LIS			; stream to use
+	CALLS	#3,FOPEN		; open file - exit 1 means error
+	BRW	OUTERR			; j if error
+3$:	POPL	R1			; restore pointer
+	BISB2	#Q$LIS,QMAP		; remember file specified
+	RSB
+;
+; Handle qualifier specifying debugging file
+;
+DEBFILE:BITB	#Q$DEB,QMAP		; already specified?
+	BEQL	1$			; j if not
+	PUSHAB	QTABDEB			; qualifier name
+	BRW	DUPQUAL			; use common error handling code
+;
+1$:	MOVB	#^A\/\,R4		; set alternate terminator
+	BSBW	GETNAME			; read filename
+	TSTB	FNAME			; was there one?
+	BNEQ	2$			; j if so
+	BRW	NONAME			; else give error message
+2$:	PUSHL	R1			; save pointer
+	PUSHL	#1			; open for writing
+	PUSHAB	FNAME			; file to open
+	PUSHL	#S$DEB			; stream to use
+	CALLS	#3,FOPEN		; open file - exit 1 means error
+	BRW	OUTERR			; j if error
+3$:	POPL	R1			; restore pointer
+	BISB2	#Q$DEB,QMAP		; remember file specified
+	RSB
+;
+; Handle qualifier specifying workspace size
+;
+WKSIZE:	BITB	#Q$WOR,QMAP		; already specified?
+	BEQL	1$			; j if not
+	PUSHAB	QTABWOR			; qualifier name
+	BRW	DUPQUAL			; use common error handling code
+;
+1$:	CLRL	R0			; initialise value
+;
+2$:	MOVZBL	(R1)+,R2		; get next byte from parameter
+	CMPB	R2,#NL			; end of line?
+	BEQL	4$			; j if so - end of value
+	CMPB	R2,#^A\ \		; end of qualifier?
+	BEQL	4$			; j if so
+	CMPB	R2,#TAB			; end of qualifier?
+	BEQL	4$			; j if so
+	CMPB	R2,#^A\/\		; start of new qualifier?
+	BEQL	4$			; j if so - end of this one
+	BITB	#^X80,R2		; check for abnormal values
+	BEQL	3$			; j if not found - OK
+	BRW	WKERR1			; else error
+3$:	CVTBL	MDDIGTAB(R2),R2		; convert value of digit
+	CMPL	R2,#^XFFFFFFFF		; is it a digit?
+	BNEQ	35$			; j if so - OK
+	BRW	WKERR1			; j if not - error
+35$:	MULL2	#10,R0			; multiply current value...
+	ADDL2	R2,R0			; ...and add in new digit
+	BRB	2$			; keep scanning
+;
+4$:	DECL	R1			; point back to terminator
+	CMPL	R0,#WORKMIN		; check range
+	BLSS	WKERR2			; j if too small
+	CMPL	R0,#WORKMAX
+	BGTR	WKERR2			; j if too large
+	MOVL	R0,STKSIZE		; set new value
+	BISB2	#Q$WOR,QMAP		; remember qualifier seen
+	RSB
+;
+; Handle qualifier specifying verbosity
+;
+VERBOSE:BITB	#Q$VER,QMAP		; already specified?
+	BEQL	99$			; j if not
+	PUSHAB	QTABVER			; qualifier name
+	BRB	DUPQUAL			; use common error handling code
+;
+99$:	BISB2	#Q$VER,QMAP		; remember qualifier seen
+	CMPB	R4,#^A\ \		; check terminator
+	BEQL	1$			; j if space - OK
+	CMPB	R4,#TAB
+	BEQL	1$			; j if tab - OK
+	CMPB	R4,#^A\/\
+	BEQL	1$			; j if start of new qualifier - OK
+	CMPB	R4,#NL
+	BNEQ	VERBERR			; j if not end of parameters - error
+1$:	RSB
+;
+; Error cases in handling qualifiers
+;
+DUPQUAL:PUSHL	#ML1_DUPQUA		; "duplicate qualifier ..."
+	MOVL	#1,R0			; number of arguments
+	BRW	MDSTOP
+;
+NONAME:	PUSHL	#ML1_MISFILNAM		; "missing file name after qualifier"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+OUTERR:	PUSHAB	FNAME			; name of offending file
+	PUSHL	#ML1_OPENOUT		; "error opening .. as output"
+	MOVL	#1,R0			; number of arguments
+	BRW	MDSTOP
+;
+WKERR1:	PUSHL	#ML1_IVWORCHA		; "invalid character in ... qualifier"
+	CLRL	R0			; argument count
+	BRW	MDSTOP
+;
+WKERR2:	PUSHL	#ML1_IVWORVAL		; "invalid value for ... qualifier"
+	CLRL	R0			; argument count
+	BRW	MDSTOP
+;
+VERBERR:PUSHL	#ML1_UNWVALVER		; "unwanted value given ... qualifier"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+; Handle input files
+;
+DOINPUT:MOVB	(R1)+,R0		; skip leading spaces
+	CMPB	R0,#^A\ \
+	BEQL	DOINPUT
+	CMPB	R0,#TAB
+	BEQL	DOINPUT			; skip tabs too
+	DECL	R1			; point back to first non-space
+;
+	MOVL	#1,R7			; stream number for first input file
+;
+1$:	MOVB	#^A\,\,R4		; set alternate terminator
+	BSBW	GETNAME			; get next filename to FNAME
+					; terminator returns in R0
+	TSTB	FNAME			; null filename?
+	BEQL	5$			; j if so - ignore
+	PUSHL	R0			; save terminator
+	PUSHL	R1			; save pointer
+	PUSHL	#0			; open for reading
+	PUSHAB	FNAME			; file to open
+	PUSHL	R7			; stream to use
+	CALLS	#3,FOPEN		; result in R0
+	BRW	2$			; j if error
+	POPL	R1			; else OK - restore pointer
+	BRB	3$
+;
+2$:	PUSHAB	FNAME			; name of offending file
+	PUSHL	#ML1_OPENIN		; "error opening .. as input"
+	MOVL	#1,R0			; number of arguments
+	BRW	MDSTOP
+;
+3$:	CMPL	R7,#1			; first input stream?
+	BNEQ	4$			; j if not
+	BISB2	#Q$INP,QMAP		; else remember stream opened
+4$:	POPL	R0			; restore terminator
+;
+5$:	CMPB	R0,#^A\,\		; more input files?
+	BNEQ	6$			; j if not
+	AOBLEQ	#MAXINPUT,R7,1$		; j if more allowed
+	BRB	7$			; else error
+;
+6$:	MOVB	(R1)+,R0
+	CMPB	R0,#^A\ \		; skip trailing spaces
+	BEQL	6$
+	CMPB	R0,#TAB
+	BEQL	6$			; skip tabs too
+;
+	CMPB	R0,#NL			; end of parameters?
+	BEQL	FIXDEFS			; j if so - fix defaults
+	PUSHL	#ML1_TOOMANPAR		; "too many parameters"
+	BRB	8$			; use common code
+;
+7$:	PUSHL	#ML1_TOOMANINP		; "too many input files"
+8$:	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+; Set defaults for the first input file, also for the output files (if
+; none specified) and the debugging file.
+;
+FIXDEFS:BITB	#Q$INP,QMAP		; input stream 1 OK?
+	BNEQ	2$			; j if so
+	PUSHL	#0			; open for reading
+	PUSHAB	SYSIN			; name "SYS$INPUT"
+	PUSHL	#1			; stream to use
+	CALLS	#3,FOPEN		; result in R0
+	BRW	1$			; j if error
+	BRB	2$			; else OK
+;
+1$:	PUSHAB	SYSIN			; name of offending file
+	PUSHL	#ML1_OPENIN		; "error opening ... as input"
+	BRB	7$			; use common code
+;
+2$:	BITB	#Q$PRI!Q$SEC,QMAP	; either output stream OK?
+	BNEQ	4$			; j if so
+	PUSHL	#1			; open for writing
+	PUSHAB	SYSOUT			; name "SYS$OUTPUT"
+	PUSHL	#S$PRI			; stream to use
+	CALLS	#3,FOPEN		; result in R0
+	BRW	3$			; j if error
+	BRB	4$			; else OK
+;
+3$:	PUSHAB	SYSOUT			; name of offending file
+	BRB	6$			; use common code
+;
+4$:	BITB	#Q$DEB,QMAP		; debugging file OK?
+	BNEQ	GETSTK			; j if so
+	PUSHL	#1			; open for writing
+	PUSHAB	SYSERR			; name "SYS$ERROR"
+	PUSHL	#S$DEB			; stream to use
+	CALLS	#3,FOPEN		; result in R0
+	BRW	5$			; j if error
+	BRB	GETSTK			; else OK
+;
+5$:	PUSHAB	SYSERR			; name of offending file
+6$:	PUSHL	#ML1_OPENOUT		; "error opening ... as output"
+7$:	MOVL	#1,R0			; number of arguments
+	BRW	MDSTOP
+;
+; Set up the main stack
+;
+GETSTK:	ADDL3	#PAGSIZ-1,STKSIZE,R1	; round size to nearest page
+	DIVL2	#PAGSIZ,R1
+	$EXPREG_S PAGCNT=R1,RETADR=STKADRS,REGION=#0
+					; expand P0 region to get stack space
+	BLBS	R0,1$			; j if expanded OK
+	PUSHL	#ML1_INSVIRMEM		; "insufficient virtual memory"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP			; join common error handling code
+;
+1$:	MOVL	STKADRS,FFPT		; set up...
+	ADDL3	#1,STKADRS+4,LFPT	; ...stack pointers
+	MOVL	STKSIZE,S24		; size of available workspace
+;
+; Output introductory message and version number if required,
+; then enter the MI-logic
+;
+	BITB	#Q$VER,QMAP		; verbose qualifier supplied?
+	BEQL	2$			; j if not
+	PUSHL	#EDIT
+	PUSHL	#VERSION
+	PUSHL	#ML1_VERSION		; "ML/I macro processor..."
+	CALLS	#3,MDSYSM
+2$:	JMP	BEGIN			; branch to MI-logic
+;
+; Error during initialisation of I/O system; just exit.
+; The error code is already in R0.
+;
+INITERR:$EXIT_S	R0			; exit to VMS 
+;
+	.PAGE
+;
+; Routine to decode and process a qualifier in the parameter string.
+;
+;    On entry: R1 = pointer to first byte of qualifier name
+;
+;     On exit: R1 = pointer to first byte of qualifier value, if any
+;                   (or entry value if no match)
+;              R2 = length of qualifier name (if no match)
+;              R3 = qualifier index in table (-1 if no match)
+;              R4 = terminator byte
+;
+; Never advances beyond the NL character at the end of the parameter string.
+;
+GETQUAL:CLRL	R3			; initialise qualifier index
+	PUSHL	R1			; save input pointer
+	MOVAB	QTAB,R2			; start of qualifier list
+;
+1$:	CVTBL	(R2)+,R0		; length of this qualifier name
+	BEQL	7$			; j if tried all qualifiers
+2$:	MOVB	(R1)+,R4		; get next input byte
+	CMPB	R4,#^A\:\		; end of name?
+	BEQL	5$			; j if so
+	CMPB	R4,#^A\=\		; end of name?
+	BEQL	5$			; j if so
+	CMPB	R4,#^A\/\		; start of new qualifier?
+	BEQL	6$			; j if so
+	CMPB	R4,#NL			; end of parameters?
+	BEQL	6$			; j if so
+	CMPB	R4,#^A\ \		; end of name?
+	BEQL	6$			; j if so
+	CMPB	R4,#TAB			; end of name?
+	BEQL	6$			; j if so
+	CMPB	R4,(R2)+		; compare with current name
+	BNEQ	3$			; j if no match here
+	SOBGTR	R0,2$			; keep checking this one
+	BRB	4$			; complete match
+;
+; At this point, the current name has failed to match. The table pointer
+; is moved to the next name, and the input pointer is reset to the start.
+;
+3$:	ADDL2	R0,R2			; absorb rest of...
+	DECL	R2			; ...current name
+	MOVL	(SP),R1			; get copy of input pointer
+	INCL	R3			; update qualifier index
+	BRB	1$			; keep trying
+;
+; Here, there is an apparent match. Check that there are no extraneous
+; characters at the end of the qualifier.
+;
+4$:	MOVB	(R1)+,R4		; get next character from input
+	CMPB	R4,#NL			; end of line?
+	BEQL	6$			; j if so - OK
+	CMPB	R4,#^A\:\		; terminator?
+	BEQL	5$			; j if so - OK
+	CMPB	R4,#^A\ \		; terminator?
+	BEQL	5$			; j if so - OK
+	CMPB	R4,#^A\/\		; end of complete qualifier?
+	BEQL	6$			; j if so - check further
+	CMPB	R4,#TAB			; terminator?
+	BEQL	5$			; j if so - OK
+	CMPB	R4,#^A\=\		; terminator?
+	BNEQ	3$			; j if not - keep looking
+;
+; At this point, a complete match has been made. The qualifier index is
+; returned in R3 after removing the saved input pointer from the stack.
+;
+5$:	POPL	R2			; lose unwanted value
+	RSB				; qualifier index already in R3
+;
+6$:	DECL	R1			; arrange to re-read terminator
+	BRB	5$			; use common code
+;
+; At this point, we have tried all the qualifiers and failed to get a match.
+; A qualifier index of -1 is returned to indicate this, and R2 is set to the
+; length of the failing name.
+;
+7$:	MNEGL	#1,R3
+	POPL	R1			; restore saved input pointer
+	MOVL	R1,R2			; copy for length determination
+8$:	MOVB	(R2)+,R0		; get next character
+	CMPB	R0,#^A\ \		; check for all...
+	BEQL	9$
+	CMPB	R0,#TAB
+	BEQL	9$
+	CMPB	R0,#^A\:\
+	BEQL	9$
+	CMPB	R0,#^A\=\
+	BEQL	9$
+	CMPB	R0,#^A\/\
+	BEQL	9$
+	CMPB	R0,#NL
+	BNEQ	8$			; ...possible terminators
+9$:	SUBL2	R1,R2			; derive length
+	RSB
+;
+	.PAGE
+;
+; Routine to get the next filename from the parameter string into FNAME.
+; This filename is stored in .ASCIC format.
+;
+;    On entry:  R1 = pointer to next byte to be scanned
+;               R4 = alternate filename separator/terminator
+;
+;     On exit:  R1 = pointer to next byte to be scanned
+;               R0 = terminator byte
+;
+; Never advances past the NL character at the end of the parameter string.
+;
+GETNAME:MOVAB	FNAME+1,R2		; set up destination pointer...
+					; ...leaving space for length
+	MOVL	#MAXFILE,R3		; max length of name, plus 1 for length
+1$:	MOVB	(R1)+,R0		; get a character
+	CMPB	R0,#^A\ \		; end of file list?
+	BEQL	2$			; j if so
+	CMPB	R0,#TAB			; end of file list?
+	BEQL	2$			; j if so
+	CMPB	R0,#NL			; end of parameters?
+	BEQL	2$			; fill in terminator and return
+	CMPB	R0,R4			; end of a filename?
+	BEQL	4$			; j if so
+	MOVB	R0,(R2)+		; store character in filename area
+	SOBGTR	R3,1$			; continue scan
+;
+	PUSHL	#ML1_FILNAMTOO		; "Filename too long"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+2$:	DECL	R1			; point back to terminator
+3$:	SUBL3	R3,#MAXFILE,R3		; derive length of name...
+	MOVB	R3,FNAME		; ...and store it away
+	RSB
+;
+4$:	CMPB	R4,#^A\,\		; comma terminated?
+	BEQL	3$			; j if so
+	BRB	2$
+;
+	.SUBTITLE	Finalisation code
+	.PAGE
+;
+; All open streams are flushed and then closed down.
+; Return is then made to VMS, setting a suitable status value.
+;
+	.ENTRY	MDQUIT,0
+;
+	BSBW	CLOSEIO			; flush and close all streams
+;
+	BITB	#Q$VER,QMAP		; in verbose mode?
+	BEQL	EXIT			; j if not
+;
+	TSTL	S5			; any processing errors?
+	BEQL	EXIT			; j if not
+	PUSHL	S5
+	PUSHL	#ML1_PROCERRS		; "processing errors: "
+	CALLS	#2,MDSYSM		; output message
+;
+EXIT:	$EXIT_S	S11			; return to VMS with user's exit status
+;
+; Routine to flush and close all open streams
+;
+CLOSEIO:MOVL	#1,R7			; close all streams
+1$:	PUSHL	R7			; stream to close
+	CALLS	#1,FCLOSE		; close it
+	BRW	3$			; j if error
+2$:	AOBLEQ	#S$DEB,R7,1$		; j if more to do
+	RSB
+;
+3$:	CMPL	R7,#MAXINPUT		; check failing stream
+	BLEQ	2$			; j if input - ignore
+	CMPL	R7,#S$PRI		; primary output?
+	BNEQ	4$			; j if not
+	PUSHL	#ML1_ERRCLOPRI		; "error while closing..."
+	BRB	7$			; use common code
+4$:	CMPL	R7,#S$SEC		; secondary output?
+	BNEQ	5$			; j if not
+	PUSHL	#ML1_ERRCLOSEC		; "error while closing..."
+	BRB	7$			; use common code
+5$:	CMPL	R7,#S$LIS		; listing output?
+	BNEQ	6$			; j if not
+	PUSHL	#ML1_ERRCLOLIS		; "error while closing..."
+	BRB	7$			; use common code
+6$:	CMPL	R7,#S$DEB		; debugging file?
+	BNEQ	2$			; j if not - ignore
+	PUSHL	#ML1_ERRCLODEB		; "error while closing..."
+;
+7$:	POPL	R0			; get stacked error code
+	PUSHL	R7			; save stream number
+	PUSHL	R0			; stack error code as parameter
+	CALLS	#1,MDSYSM		; output message
+	POPL	R7			; restore stream number
+	BRB	2$			; continue closing streams
+;
+; Code to output a message about the process being aborted, then pass
+; control to the MI-logic for a tidy shutdown.
+;
+MDABRT:	PUSHAB	MES5
+	CALLS	#1,MDMESS		; "$Process aborted due to above error$"
+	JMP	LOHALT			; let MI-logic do the rest
+;
+; Code to output the message specified by values on the stack. The
+; count of parameters (excluding the message code) is in R0.
+;
+MDSTOP:	INCL	R0			; adjust for message code
+	CALLS	R0,MDSYSM		; output message
+	BSBW	CLOSEIO			; close all streams
+	BRW	EXIT			; join common code
+;
+	.SUBTITLE	The MDSYSM routine
+	.PAGE
+;
+; This internal subroutine takes a variable number of parameters, the first
+; of which is a message ID.
+; The message is output to SYS$OUTPUT using the standard VMS
+; formatted output and message facilities. The remaining parameters (if any)
+; are additional message information.
+;
+	.ENTRY	MDSYSM,0
+;
+	MOVL	4(AP),R0		; message ID
+	$GETMSG_S MSGID=R0,MSGLEN=MSGL,BUFADR=MSGDESC,-
+		FLAGS=#0		; get corresponding message text
+	ADDL3	#8,AP,R1		; point to rest of parameters
+	MOVW	MSGL,MSGDESC		; fill in actual length
+	MOVW	#MAXSTR,OUTDESC		; maximum length
+	$FAOL_S	CTRSTR=MSGDESC,OUTLEN=OUTL,OUTBUF=OUTDESC,PRMLST=(R1)
+	MOVW	OUTL,OUTDESC		; set true length
+	PUSHAQ	OUTDESC
+	CALLS	#1,G^LIB$PUT_OUTPUT	; output the prepared message
+	RET
+;
+	.SUBTITLE	The MDMESS routine
+	.PAGE
+;
+; This subroutine takes a single parameter, which is the address of a string
+; in the .ASCIC format. The string is output to the debugging file, with
+; all dollar signs transformed to newline characters.
+;
+	.ENTRY	MDMESS,0
+;
+	MOVL	4(AP),R11		; pointer to the message
+	MOVZBL	(R11)+,R6		; get byte count
+1$:	MOVB	(R11)+,R2		; get next character in message
+	CMPB	R2,#^A\$\		; dollar really means...
+	BNEQ	2$
+	MOVB	#NL,R2			; ...newline
+2$:	PUSHR	^M<R6,R11>		; save vital registers
+	CALLS	#0,MDERCH		; use normal output routine
+	POPR	^M<R6,R11>		; restore registers
+	SOBGTR	R6,1$			; j if more to do
+	RET				; else return to calling code
+;
+	.SUBTITLE	The MDREAD subroutine
+	.PAGE
+;
+; This is the basic character input interface to the MI-logic. When called,
+; it returns the next input character in the LOWL C register (R2) and takes
+; the second exit. If no more characters are available, the first exit is
+; used.
+;
+	.ENTRY	MDREAD,0
+;
+1$:	MOVL	S10,R0			; get input switch
+	BEQL	5$			; j if user forced end of file
+	BLSS	6$			; j if negative value (error)
+	CMPL	R0,#MAXINPUT		; check range
+	BGTR	6$			; j if out of range (error)
+	PUSHL	R0
+	CALLS	#1,RDCH			; get next input character to R0
+	BRW	4$			; j if end of file
+	BRW	6$			; j if stream invalid
+	BRW	7$			; j if other input error
+	CMPL	R0,S16			; check for input translation
+					; (must do long comparison here so that
+					; -1 can be used to avoid a match)
+	BNEQ	3$			; j if no match
+	MOVZBL	S17,R0			; else use translated character
+3$:	CMPB	R0,#127			; legal character?
+	BLEQU	2$			; j if so
+	JSB	ERSIC			; else report via MI-logic...
+	MOVL	#^A\?\,R0		; ...and replace with error character
+;
+2$:	MOVL	R0,R2			; copy to LOWL C register
+	ADDL2	#3,16(FP)		; adjust link for second exit (success)
+	RET
+;
+; Action at end of file on a stream. If the current stream is the revert
+; stream, pass control back to the MI-logic; otherwise switch to the revert
+; stream and continue processing.
+;
+4$:	CMPL	S23,S10			; revert stream already in use?
+	BEQL	5$			; j if so - overall end of file
+	MOVL	S23,S10			; switch to revert stream
+	BRB	1$			; continue processing
+;
+; Action at overall end of file; return to MI-logic at first exit
+;
+5$:	RET
+;
+; Case of illegal value for S10; print suitable message and abandon the run
+;
+6$:	MOVL	S10,MEVAL		; save S10 value for message
+	MOVL	#MAXINT,S12		; adjust debugging file lines quota
+	JSB	PRERR			; print "Error(s)"
+	PUSHAB	MES1			; "$S10 has illegal value"
+	CALLS	#1,MDMESS
+	CALLS	#0,MDCONV		; convert MEVAL to characters
+	JSB	PRVIZ			; print ", viz <N>"
+	BRW	MDABRT
+;
+; Case of error detected on input; output suitable message and abandon
+; the run.
+;
+7$:	PUSHL	#ML1_ERRREAINP		; "error reading input"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+	.SUBTITLE	The MDOUCH subroutine
+	.PAGE
+;
+; This is the basic character output interface from the MI-logic. The character
+; to be output is in the LOWL C register (R2), and is output to all active
+; streams (primary, secondary and listing). The imaginary characters SLREP
+; and STOPCD are discarded.
+;
+	.ENTRY	MDOUCH,0
+;
+	CMPB	R2,#SLREP		; startline character?
+	BEQL	6$			; j if so - ignore
+	CMPB	R2,#STOPCD		; stop code?
+	BEQL	6$			; j if so - ignore
+	TSTB	MDNLSW			; start of a new line?
+	BEQL	2$			; j if not
+	INCL	S19			; update line number
+	CMPL	S20,#2			; listing with line numbers?
+	BNEQ	1$			; j if not
+	PUSHL	R2			; save character
+	BSBW	LSTNUM			; output line number
+	POPL	R2			; restore character
+1$:	CLRB	MDNLSW			; reset newline flag
+2$:	CMPB	R2,#NL			; end of line?
+	BNEQ	3$			; j if not
+	INCB	MDNLSW			; else set newline flag
+3$:	CMPL	S20,#1			; listing the output?
+	BLSS	4$			; j if not
+	PUSHL	R2			; character for output
+	PUSHL	#S$LIS			; listing stream number
+	CALLS	#2,WRCH			; output the character
+	BRW	LSTERR			; j if failure
+4$:	TSTL	S21			; check for primary output
+	BEQL	5$			; j if not required
+	PUSHL	R2			; character for output
+	PUSHL	#S$PRI			; primary output stream number
+	CALLS	#2,WRCH			; output the character
+	BRW	PRIERR			; j if failure
+5$:	TSTL	S22			; check for secondary output
+	BEQL	6$			; j if not required
+	PUSHL	R2			; character for output
+	PUSHL	#S$SEC			; secondary output stream number
+	CALLS	#2,WRCH			; output the character
+	BRW	SECERR			; j if failure
+6$:	RET				; return to MI-logic
+;
+; Failure on primary output stream
+;
+PRIERR:	PUSHAB	MES2			; "$Primary output failure$"
+PRIERR2:MOVL	#MAXINT,S12		; adjust debugging file lines quota
+	JSB	PRERR			; print "Error(s)"
+	CALLS	#1,MDMESS
+	BRW	MDABRT
+;
+; Failure on secondary output stream
+;
+SECERR:	PUSHAB	MES3			; "$Secondary output failure$"
+	BRB	PRIERR2			; join common code
+;
+; Failure on listing output stream
+;
+LSTERR:	PUSHAB	MES4			; "$Listing output failure$"
+	BRB	PRIERR2			; join common code
+;
+	.PAGE
+;
+; Routine to output current output line number (from S19) to the listing
+; stream, followed by a period and a tab. Note that it is quite
+; possible for this number to be negative!
+;
+LSTNUM:	MOVL	S19,R1			; get line number
+	BGEQ	1$			; j if not negative
+	MNEGL	R1,-(SP)		; save positive value
+	PUSHL	#^A\-\			; output sign
+	PUSHL	#S$LIS			; listing stream number
+	CALLS	#2,WRCH
+	BRW	LSTERR			; j if output error
+	POPL	R1			; get line number again
+;
+1$:	MOVB	#0,-(SP)		; stack terminator
+;
+2$:	ASHQ	#-32,R0,R0		; make double length value in R0.R1
+	EDIV	#10,R0,R1,R0		; quotient to R1, remainder to R0
+	ADDB3	#^A\0\,R0,-(SP)		; stack digit
+	TSTL	R1			; more to do?
+	BNEQ	2$			; j if so
+;
+3$:	MOVB	(SP)+,R0		; get next digit for output
+	BEQL	4$			; j if finished
+	CVTBL	R0,-(SP)		; stack for output
+	PUSHL	#S$LIS			; listing stream number
+	CALLS	#2,WRCH
+	BRW	LSTERR			; j if output error
+	BRB	3$			; see if more to do
+;
+4$:	PUSHL	#^A\.\			; now the period
+	PUSHL	#S$LIS			; listing stream number
+	CALLS	#2,WRCH
+	BRW	LSTERR			; j if output error
+;
+	PUSHL	#TAB			; now the tab
+	PUSHL	#S$LIS			; listing stream number
+	CALLS	#2,WRCH
+	BRW	LSTERR			; j if output error
+;
+	RSB
+;
+	.SUBTITLE	The MDERCH subroutine
+	.PAGE
+;
+; This routine is used for character output to the debugging file.
+; It works in a similar way to MDOUCH, but is called by the machine
+; dependent routine MDMESS as well as by the MI-logic.
+; Output lines that exceed DEBMAX characters are wrapped.
+; The check for exceeding the lines limit on the debugging file is also
+; carried out here.
+;
+	.ENTRY	MDERCH,0
+;
+	PUSHL	R2			; save character for output
+	CMPB	R2,#NL			; end of line?
+	BEQL	1$			; j if so
+;
+	CMPB	DCOUNT,#DEBMAX		; line full?
+	BLSS	2$			; j if not
+	PUSHL	#NL			; output a newline
+	PUSHL	#S$DEB			; stream number for debugging file
+	CALLS	#2,WRCH			; output character to debugging file
+	BRW	4$			; j if error in output
+1$:	CLRB	DCOUNT			; clear count of characters on line
+	DECL	S12			; decrement output lines quota
+	BGEQ	2$			; j if still OK
+	MOVL	#MAXINT,S12		; make sure next message appears
+	JSB	PRERR			; print "Error(s)"
+	PUSHAB	MES6			; "Debugging file lines quota..."
+	CALLS	#1,MDMESS		; output the message
+	BRW	MDABRT			; give up
+;
+2$:	PUSHL	#S$DEB			; stream number for debugging file
+	CALLS	#2,WRCH			; output character to debugging file
+	BRW	4$			; j if error in output
+	CMPB	R2,#NL			; was it a newline?
+	BEQL	3$			; j if so
+	INCB	DCOUNT			; else adjust character count
+3$:	RET
+;
+4$:	PUSHL	#ML1_DEBFILOUT		; "debugging file output failure"
+	CLRL	R0			; number of arguments
+	BRW	MDSTOP
+;
+	.END	MDBEGIN

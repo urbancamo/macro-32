@@ -1,0 +1,303 @@
+        .TITLE  QUEUE_AST
+        .IDENT  /V1.0/
+;++
+; FACILITY:     SCH$
+;
+; ABSTRACT:     This program allows a privileged user to force almost any
+;               process on the system to execute a kernel mode AST.  This
+;               AST can do just about anything it wants to.  Place the code
+;               you want executed between the labels TARGET_START and
+;               TARGET_END.  The code must be position independent because
+;               it will be copied to non-paged pool prior to being executed.
+;               The target process will queue the ACB back when it's finished
+;               and code should be placed to between FIN_START and FIN_END
+;               to save or process anything that the target put inside the ACB.
+;               The ACB will be deallocated back to non-paged pool shortly.
+;
+; ENVIRONMENT:  User/Kernel mode with privilege CMKRNL.
+;
+; SECURITY:     FOR INTERNAL USE ONLY
+;
+; AUTHOR:       Anthony C. McCracken
+; CREATED:      19-JUL-1993
+;
+; USAGE:        $ RUN QUEAST
+;
+; MODIFIED:     None
+;
+;--
+
+        .SBTTL  DECLARATIONS
+
+;+
+; Include the system stuff and libraries, we'll need them.
+;-
+        .LIBRARY        "SYS$LIBRARY:LIB.MLB"
+        .LINK           "SYS$SYSTEM:SYS.STB"/SELECTIVE_SEARCH
+
+;+
+; Include the definitions for system service stuff, add the definition macros
+; for any others that you may need after the $SSDEF line
+;-
+
+        $ACBDEF
+        $DYNDEF
+        $JPIDEF
+        $PCBDEF
+        $PRTDEF
+        $SSDEF
+
+; Other $xxxDEF macros needed by the application
+
+
+;+
+; A dumb macro that just exits if there's an error code in R0
+;-
+        .MACRO  CHKERR,?OK
+        BLBS    R0,OK
+        $EXIT_S R0
+OK:
+        .ENDM   CHKERR
+
+
+;+
+; Static data areas used by QUEAST.
+;-
+        .PSECT  DATA,RD,WRT,NOEXE,QUAD
+PIDLEN: .BLKW   1                       ; Length returned by lib$get_input
+PIDPRO: .ASCID  /Enter PID: /           ; Prompt string for lib$get_input
+PIDSTR: .ASCID  /        /              ; A descriptor to hold the PID
+PID:    .BLKL   1                       ; Longword PID from OTS$CVT_TZ_L
+
+;+
+; A longword vector the hold the nonpaged pool address returned from
+; the call to EXE$ALONONPAGED
+;-
+
+POOLB:  .BLKL   1                               ; Start address of pool
+POOLE:  .BLKL   1                               ; Ending address of pool
+
+; Other data areas needed by the application
+
+        .PSECT  CODE,RD,NOWRT,EXE,BYTE
+        .ENTRY  MAIN,^M<>
+
+;+
+; Prompt for and get the PID from sys$input, (HEX)
+;-
+        PUSHAW  PIDLEN
+        PUSHAQ  PIDPRO
+        PUSHAQ  PIDSTR
+        CALLS   #3,G^LIB$GET_INPUT              ; Get target pid
+        CHKERR
+
+;+
+; Convert the entered (HEX) PID into a longword.
+;-
+        MOVW    PIDLEN,PIDSTR
+        PUSHAL  PID
+        PUSHAQ  PIDSTR
+        CALLS   #2,G^OTS$CVT_TZ_L               ; Convert it to a longword
+        CHKERR
+
+        $CLREF_S        EFN=#5                  ; We'll use EFN 5 as a signal
+        $CMKRNL_S       ROUTIN=K1               ; Lets go have some fun
+        CHKERR
+20$:    $WAITFR_S       EFN=#5                  ; Wait for the target process
+        $CMKRNL_S       ROUTIN=K2               ; Deallocate non-paged pool
+        CHKERR
+        RET                                     ; All done.
+
+
+;+
+; K1 allocates a block of memory from non-paged pool and formats it like and
+; AST's ACB.  The code and data for target process's AST is also copied into
+; the block.  After everything is set up the ACB is placed on the target
+; process's ACB queue.  The AST will execute in Kernel mode.
+;-
+        .ENTRY  K1,^M<R2,R3,R4,R5,R6>
+
+        MOVAB   KHAND,(FP)                      ; Debugging is easier when the
+                                                ;   system stays up.
+
+        MOVL    PID,R0                          ; We got the EPID but
+        LOCK    LOCKNAME=SCHED                  ;   SCH$QUEAST wants an IPID
+        JSB     G^EXE$EPID_TO_IPID
+        TSTL    R0                              ; Is that process still here?
+        BNEQ    10$
+        UNLOCK  LOCKNAME=SCHED,NEWIPL=#0        ; Guess not,
+        MOVL    #SS$_NONEXPR,R0                 ; Process went away
+        RET
+
+10$:    MOVL    R0,PID                          ; Save the internal PID
+        UNLOCK  LOCKNAME=SCHED,NEWIPL=#0
+
+        MOVL    #ACBSIZ,R1                      ; Lets get some pool for the
+        JSB     G^EXE$ALONONPAGED               ;   ACB and the code
+        BLBS    R0,15$                          ; Enough pool for the request?
+        RET                                     ; Not enough pool right now,
+                                                ;  just quit.
+
+15$:    MOVL    R2,POOLB                        ; Save the pool address
+        ADDL3   R2,R1,POOLE                     ; Calculate the ending address
+        MOVW    R1,ACB_SIZE                     ; Set the size in the ACB
+
+        MOVL    R2,R6                           ; Save real ACB address
+        MOVB    #DYN$C_ACB,ACB_TYPE             ; Set type in ACB
+        MOVL    PID,ACB_PID                     ; Set target PID in ACB
+        MOVL    PCB$L_PID(R4),MYPID             ; Record our own PID
+        ADDL3   R6,#EOFFS,ACB_AST               ; Calculate AST address in ACB
+        MOVC3   #ACBSIZ,ACB,(R6)                ; Copy ACB to nonpaged pool
+
+        MOVL    R6,R5                           ; Address of real ACB
+        CLRL    R2                              ; Priority increment
+        JSB     G^SCH$QAST                      ; Queue the AST to the target
+        BLBS    R0,20$
+        PUSHL   R0                              ; If target is gone, return the
+        CALLS   #0,K2                           ;   ACB to nonpaged pool and
+        POPL    R0                              ;   exit with error status
+20$:    RET
+
+;+
+; K2 Just deallocates the non-paged pool. It gets called after everything
+; else works or as part of error processing.
+;-
+        .ENTRY  K2,^M<>
+        MOVAB   KHAND,(FP)
+        MOVL    POOLB,R0                        ; Address of nonpaged pool
+        JSB     G^EXE$DEANONPAGED               ; Return page(s) to pool
+        MOVL    #SS$_NORMAL,R0
+        RET                                     ; All done
+
+
+;+
+; DONE is an AST that gets called when the target process has finished.  This
+; AST is not queued in the traditional manner, instead when the the target
+; process has finished it will tweak the the header of the ACB in pool and
+; then re-attach that ACB to our ACB queue just as we did to it previously.
+;-
+        .ENTRY  DONE,^M<R2>                     ; Entered in KERNEL mode
+        MOVAB   KHAND,(FP)
+;+
+; If the target process has returned anything in the ACB you should place
+; code to move it out or process it between the labels FIN_START and FIN_END
+; because the the ACB is about to be deallocated from non-paged pool.  Be
+; careful, were in kernel mode now.
+;-
+        $SETEF_S        EFN=#5                  ; Set the event flag we're
+                                                ;   waiting for
+FIN_START:
+FIN_END:
+        RET                                     ; All done
+
+        .PSECT  RELDATA,RD,WRT,EXE,QUAD
+;+
+; This entire psect will be relocated into nonpaged pool.  The executable code
+; will be run by the target process.  Everything needs to be PIC for this to
+; work correctly.
+;-
+
+ACB:
+ACB_FLINK:      .LONG   0
+ACB_BLINK:      .LONG   0
+ACB_SIZE:       .BLKW   1
+ACB_TYPE:       .BYTE   0
+ACB_RMOD:       .BYTE   32                      ; KERNEL MODE, NODELETE_ACB
+ACB_PID:        .BLKL   1
+ACB_AST:        .BLKL   1
+ACB_ASTPRM:     .BLKL   1
+ACB_KAST:       .BLKL   1
+
+MYPID:          .BLKL   1                       ; Our own pid is passed here
+MYAST:          .LONG   DONE                    ; Not truly PIC but the linker
+                                                ; does it correctly
+
+ASTCODE:
+EOFFS = ASTCODE - ACB                           ; Offset to the entry mask used
+                                                ;   by K1 during the calculation
+                                                ;   of the ACB's AST address
+
+        .WORD   ^M<R2,R4,R5>                    ; LABEL AND ENTRY MASK
+;+
+; Commenting out the following line could cause a system crash to be blamed on
+; someone else.  (useful perhaps)  :)  :)  The real work is done inside another
+; call frame.  If something goes wrong a $UNWIND will return control to the
+; main AST routine and the ACB cleaned up and passed back to the original
+; process.
+;-
+        MOVAB   KHAND,(FP)
+        CALLS   #0,TARGET1                      ; Go do some work
+        MOVL    MYAST,ACB_AST                   ; Setup the ACB for return
+        MOVL    MYPID,ACB_PID                   ;   to sending process
+        SETIPL  IPL=#3,ENVIRON=UNIPROCESSOR     ; Disable scheduling
+        MOVAB   MYASTRET,16(FP)                 ; Do our ASTRET
+        RET                                     ;   instead of VMS's
+
+
+;+
+; TARGET1 is where the real work gets done for the target process.  If an
+; error occurs then a $UNWIND will pass control back to main AST and the
+; ACB will be passed back to the original queueing process.
+;-
+        .ENTRY  TARGET1,^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+        MOVAB   KHAND,(FP)
+;+
+; Put position independent code between TARGET_START and TARGET_END, this is
+; what the target process will execute in kernel mode.  Better not be any
+; mistakes if the previous line is commented out unless of course you're trying
+; to get someone else in trouble.  :)  :)  If you do something that queues an
+; AST and then hibernate or wait for that AST you'll hang and wait forever
+; unless you execute a CHMK #0 prior to waiting.  CHMK #0 is discussed briefly
+; in the IDSM, it's used to dismiss an AST and allow other AST at that mode to
+; execute.  I haven't tested the CHMK #0 here but I use it all the time in
+; other applications so I believe it will work correctly here too.
+;-
+TARGET_START:
+TARGET_END:
+        RET
+
+;+
+; MYASTRET simulates the functionality of VMS's normal AST return path except
+; that it's designed to run in Kernel mode at IPL=3.  It cleans up the stack
+; like EXE$ASTRET does and instead of executing a CHMK #0 (#ASTEXIT) it
+; manually clears the Kernel bit in PCB$B_ASTACT and calls SCH$NEWLVL.  It
+; skips the SETIPL=2 since we're already at IPL=3.  It also doesn't need to
+; do the REI since we didn't do a CHMK.  After the simulated CHMK #0 the
+; stack is cleaned up further in preparation for the REI but before that
+; happens the ACB is re-queued back to the original sending process.
+; IPL is at 3 so that no other process can get scheduled until the target
+; process is finished with the ACB.  This should still work on an SMP system
+; due to the number of instructions the other process executes prior to
+; returning the ACB back to non-paged pool.  This process only has an REI
+; left and it can't be rescheduled until after it executes that REI.
+;-
+MYASTRET:
+        ADDL2   #8,SP                   ; Remove param count and ASTPRM
+        BICB2   #1,PCB$B_ASTACT(R4)     ; Clear ASTACT bit for KERNEL mode
+        JSB     @#SCH$NEWLVL            ; Set AST level register and PHD field
+        MOVQ    (SP)+,R0                ; Restore R0,R1
+        PUSHL   R5
+        MOVAB   ACB,R5                  ; We're still at IPL 3 so this AST
+        JSB     @#SCH$QAST              ; shouldn't go off until.....
+        POPL    R5                      ; ........
+        REI                             ; NOW...
+
+
+;+
+; Bare bones condition handler, just unwinds the stack after saving the error
+; status.
+;-
+KHAND:  .WORD   ^M<R5,R6>
+        MOVL    4(AP),R5                ; Get the signal array
+        CMPL    4(R5),#SS$_UNWIND       ; Are we already unwinding ???
+        BNEQ    10$                     ; Just return if were already
+        RET                             ;   unwinding
+10$:    MOVL    8(AP),R6                ; Get the mechanism array
+        MOVL    4(R5),12(R6)            ; Stash the error code
+        $UNWIND_S                       ; and unwind back out
+        RET
+
+ACBEND:                                 ; Make symbols for ACB size.
+ACBSIZ = ACBEND - ACB
+
+        .END    MAIN

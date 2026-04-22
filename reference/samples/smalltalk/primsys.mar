@@ -1,0 +1,72 @@
+.title	primsys
+;	primsys.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the system primitives
+;
+;	Written: August 31, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 31, 1981 by S.B. - Written
+;	September 25, 1981 by S.S. - Add performance gathering for stack
+;	December 31, 1981 by S.B. - Support static space
+;	January 1, 1981 by S.B. - add primGCTheWorld
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+; r = a
+primeq::
+	cmpl	(r10),-(r10)	; are receiver and arg the same?
+	bneq	1$		; no
+	movl	#oop_true,(r10)	; yep - replace receiver with true
+	brw	mainloop
+
+1$:	movl	#oop_false,(r10) ; nope - replace receiver with false
+	brw	mainloop
+
+; r class
+primclass::
+	romlc	(r10)		; get the class of receiver
+	movl	r0,(r10)	; return it
+	qvstored r0
+	brw	mainloop
+
+; r coreLeft
+primcoreleft::
+	ashl	#1,coreleft,r0	; cvt coreleft to SI
+	bisl3	#1,r0,(r10)	; return it
+	brw	mainloop
+
+; r oopsLeft
+primoopsleft::
+	movl	#100000@1!1,(r10) ; just return a large number
+	brw	mainloop
+
+; r nullprim
+; this always returns self
+primnullprim::
+	ashl	#2,argcount,r0	; pop all the args
+	subl	r0,r10
+	brw	mainloop	
+
+; r quit
+primquit::
+	$exit_s			; go away
+
+; r exitToDebugger
+primexittodebugger::
+	halt			; easiest way I know of
+	brw	mainloop	; do nothing for now
+
+
+; r primGCTheWorld
+primgctheworld::
+	call	gctheworld	; do it
+	brw	mainloop
+
+	.end

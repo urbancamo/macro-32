@@ -1,0 +1,76 @@
+        .title  zlnp    create a network process with PROXY access (VMS V5)
+;
+; as of VMS 5.5-1, SYS$OUTPUT for a NETWORK process looks as follows:
+;------------------------------
+;       .word   proxy_flags
+;  .if (proxy_flags & 1)                        ;; new
+;       .ascic  proxy_username                  ;; with
+;  .endif                                       ;; VMS V5
+;       .ascic  username
+;       .ascic  password
+;       .ascic  account
+;------------------------------
+; Note: the trailing fields *must* be present; they may be 0, of course.
+;
+; If a proxy-login is attempted and the proxy_username is not in SYSUAF,
+; the following (standard) access info will be used; otherwise proxy-login
+; will succeed.
+; Proxy logins are allowed even for accounts with "AUTOLOGIN" flag.
+;
+; Symbolic codes for proxy_flags (LGI$V_NET_*) are defined
+; in LIB.REQ starting with VMS 5.5:
+;       LGI$V_NET_PROXY = 0
+;       LGI$V_NET_PREAUTH = 1
+; New with VMS 5.5: a non-proxy login with NET_PREAUTH set
+; will not check the password (similar to a proxy request).
+;
+; The above proxy handling apparently was introduced with VMS V5;
+; formerly LOGINOUT would require both username and password.
+;
+; SYS$ERROR as specified will be put into the network process's
+; SYS$NET logname. As of VMS 5.5, some additional magic(??) will be done
+; if the SYS$ERROR string contains a '/' (slash) character!
+;
+; The network process's SYS$OUTPUT and SYS$ERROR are always directed
+; to a .LOG file, with name derived from SYS$INPUT (but in the user's
+; default directory). Traditionally, the original SYS$INPUT can be
+; found in the "TT" process logname.
+;
+; Note: PRC$M_NOPASSWORD has effect for interactive logins only.
+;
+;*****
+;
+        $prcdef
+;
+image:  .ascid  "SYS$SYSTEM:DCL.EXE"    ; just for fun - same effect as
+                                        ; specifying SYS$SYSTEM:LOGINOUT.EXE
+input:  .ascid  "SYS$MANAGER:00.COM"    ; command procedure to be executed,
+                                        ; logfilespec will be SYS$LOGIN:00.LOG
+error:  .ascid  "cont_of_net"           ; this string goes into SYS$NET -
+                                        ; no '/' here, please!??
+out_b:  .word   1               ;ask for proxy
+        .ascic  "MOELLER"       ;proxy user
+        .ascic  "DECNET"        ;(default user, only used in case of error)
+        .ascic  ""              ;(default password)
+        .ascic  ""              ;(default "account" - ignored anyway)
+out_l=.-out_b
+output: .long   out_l
+        .address out_b
+priv:   .long   -1,-1           ; /priv=ALL doesn't hurt, but isn't required
+prcnam: .ascid  "00_NET"        ; process name
+;
+.entry  begin,^m<>
+        $creprc_s       -
+                image=image,-
+                input=input,-
+                output=output,-
+                error=error,-
+                prvadr=priv,-
+                prcnam=prcnam,-
+                baspri=#4,-
+                uic=#^x00010004,-
+                stsflg=#prc$m_netwrk
+        ret
+;
+        .end    begin
+

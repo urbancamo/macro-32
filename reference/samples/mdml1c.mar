@@ -1,0 +1,426 @@
+	.TITLE MDML1C
+;
+	.IDENT	/2.0/
+;
+; Machine dependent logic for ML/I macro processor on DEC VAX-11 under VMS
+;
+; Low level input/output
+;
+; Copyright (C) R.D. Eager   University of Kent   MCMLXXXVI
+;
+	.DISABLE GLOBAL
+	.ENABLE	SUPPRESSION
+;
+;
+; External symbols in the VMS run-time library
+; -------- ------- -- --- --- -------- -------
+;
+	.EXTERNAL RMS$_EOF,RMS$_NORMAL
+	.EXTERNAL SS$_NORMAL
+;
+;
+; Global message codes
+; ------ ------- -----
+;
+	.GLOBAL	ML1_INSVIRMEM
+;
+;
+; Constants
+; ---------
+;
+	DEBUG	=	1		; Define this symbol while debugging
+	NL	=	^X0A		; Newline character
+	PAGSIZ	=	512		; Size of a memory page
+	RECMAX	=	240		; Maximum record size
+;
+; Layout of a stream control block.
+;
+; In the names below, the prefix SB indicates a byte value,
+; and the prefix SL indicates a longword value.
+;
+;    SB.FLAGS  -  status byte, containing these flags:
+;                    SF.OPEN  - stream is currently open
+;                    SF.EOF   - end of file detected on stream
+;                    SF.READ  - stream is an input stream
+;                    SF.WRITE - stream is an output stream
+;    SB.COUNT  -  buffer pointer (next character to be read or written)
+;    SB.LEN    -  on input : the length of the current line
+;                 on output: the maximum permissible length
+;    SB.SPARE  -  not used
+;    SL.BUFSZ  -  buffer size (present to make up a descriptor with SL.BUF)
+;    SL.BUFA   -  address of buffer
+;    SL.FAB    -  address of relevant FAB
+;    SL.RAB    -  address of relevant RAB
+;    SL.BUF    -  record buffer
+;
+; The stream control block is followed by the associated buffer, which is
+; RECMAX bytes in length.
+;
+; The relation between 'count' and 'length' for input is the following:
+;
+;	count < length	: there are still data to be read from the current line
+;	count = length  : next read will return a newline character
+;	count > length  : next read must start a new input line
+;
+; Offsets of items in SCBs
+;
+	SB.FLAGS	= 0		; Status byte
+	SB.COUNT	= 1		; Buffer pointer
+	SB.LEN		= 2		; Length of line
+	SB.SPARE	= 3		; Spare
+	SL.BUFSZ	= 4		; Buffer size
+	SL.BUFA		= 8		; Buffer address
+	SL.FAB		= 12		; Address of FAB
+	SL.RAB		= 16		; Address of RAB
+	SL.BUF		= 20		; Record buffer
+;
+; Bit positions in status byte
+;
+	SF.OPEN		= ^X01		; Stream is open
+	SF.EOF		= ^X02		; End of file detected
+	SF.READ		= ^X04		; Input stream
+	SF.WRITE	= ^X08		; Output stream
+;
+; Bit numbers in status byte
+;
+	SP.OPEN		= 0		; Stream is open
+	SP.EOF		= 1		; End of file detected
+	SP.READ		= 2		; Input stream
+	SP.WRITE	= 3		; Output stream
+;
+	.SUBTITLE	Impure data areas
+	.PAGE
+;
+	.PSECT	IMPURE,LONG,NOEXE
+;
+; Miscellaneous data
+;
+MAXSTRM:.BLKL	1			; Maximum stream number
+SCBADRS:.BLKL	2			; Area to receive address of SCB area
+SCBTAB:	.BLKL	1			; Address of SCB table
+;
+	.SUBTITLE	Pure data areas
+	.PAGE
+;
+	.PSECT	PURE,LONG,SHR,NOWRT,NOEXE
+;
+; Prototype stream control block.
+;
+; All stream control blocks are initialised by copying this one;
+; this allows standard macros to be used to set up the FAB and RAB.
+;
+	.ALIGN	LONG
+XSCB:	.BYTE	0			; Status byte
+	.BLKB	1			; Buffer pointer
+	.BYTE	RECMAX			; Buffer length
+	.BLKB	1			; Spare
+	.LONG	RECMAX			; Size of buffer (part of descriptor)
+	.BLKL	1			; Buffer address (rest of descriptor)
+	.BLKL	1			; Address of FAB
+	.BLKL	1			; Address of RAB
+	.BLKB	RECMAX			; Record buffer
+	.ALIGN	LONG
+XFAB:	$FAB	FOP=SQO,MRS=RECMAX,RAT=CR
+XRAB:	$RAB
+	.ALIGN	LONG
+XSCBL	=	.-XSCB			; Length of SCB
+XFABO	=	XFAB-XSCB		; Offset of FAB in SCB
+XRABO	=	XRAB-XSCB		; Offset of RAB in SCB
+;
+	.SUBTITLE	Initialisation routine
+	.PAGE
+;
+	.PSECT		CODE,LONG,SHR,NOWRT
+;
+; This routine performs all initialisation for the low level
+; input/output routines.
+;
+; There is one parameter:
+;
+;    Parameter 1 - number of streams needed
+;
+; There are two exits:
+;
+;    Exit 1 - failure to initialise; error code in R0
+;    Exit 2 - success
+;
+	.ENTRY	INITIO,^M<R2,R3,R4,R5,R6,R7,R8,R9,R10>
+;
+	MOVL	4(AP),R6		; maximum number of streams
+	MOVL	R6,MAXSTRM		; save for later
+;
+	MULL3	#XSCBL,R6,R7		; space needed for SCBs
+	MULL2	#4,R6			; space needed for SCB table
+					; (each entry is a longword)
+	ADDL2	R7,R6			; get total number of bytes needed
+	ADDL2	#PAGSIZ-1,R6		; round up to nearest page
+	DIVL2	#PAGSIZ,R6		; convert to pages
+	$EXPREG_S PAGCNT=R6,RETADR=SCBADRS,REGION=#0
+					; expand P0 region to get SCB space
+	BLBS	R0,1$			; j if expanded OK
+	MOVL	#ML1_INSVIRMEM,R0	; "insufficient virtual memory"
+	RET				; return at first exit
+;
+1$:	MOVL	SCBADRS,R6		; base of new area
+	MOVL	R6,SCBTAB		; put SCB table at start
+	SUBL2	#4,SCBTAB		; index from zero
+	MOVL	R6,R8			; copy table address for setup
+	MULL3	#4,MAXSTRM,R7		; size of SCB table
+	ADDL2	R7,R6			; point beyond SCB table
+	MOVL	#1,R7			; stream counter
+;
+2$:	MOVL	R6,(R8)+		; put address of SCB into table
+	MOVC3	#XSCBL,XSCB,(R6)	; copy in prototype SCB
+	ADDL3	#SL.BUF,R6,R10		; get address of record buffer
+	MOVL	R10,SL.BUFA(R6)		; put it into the SCB
+	ADDL3	#XFABO,R6,SL.FAB(R6)	; fill in address of FAB
+	ADDL3	#XRABO,R6,R9		; get address of RAB
+	MOVL	R9,SL.RAB(R6)		; put into SCB
+	$RAB_STORE RAB=R9,RBF=(R10),UBF=(R10),USZ=#RECMAX
+					; fill in buffer fields
+	ADDL2	#XSCBL,R6		; point beyond this SCB
+	AOBLEQ	MAXSTRM,R7,2$		; j if more to do
+;
+	ADDL2	#3,16(FP)		; adjust link for second exit
+	RET
+;
+	.SUBTITLE	File opening routine
+	.PAGE
+;
+; This routine opens a specified file for input or for output, and
+; associates it with an internal stream number.
+;
+; There are three parameters:
+;
+;    Parameter 1 - stream number
+;    Parameter 2 - filename (in .ASCIC format)
+;    Parameter 3 - mode (0 for read, 1 for write)
+;
+; There are two exits:
+;
+;    Exit 1 - error in opening file
+;    Exit 2 - success
+;
+	.ENTRY	FOPEN,^M<R7,R8,R9,R10,R11>
+;
+	MOVL	4(AP),R1		; get stream number
+;
+.IF	DF	DEBUG
+	BSBW	CHKSTRM			; check stream is valid
+	BLBS	R0,1$			; j if stream valid
+	BRW	4$			; else error
+.ENDC
+;
+1$:	MOVL	@SCBTAB[R1],R11		; point to SCB for stream
+;
+.IF	DF	DEBUG
+	BBS	#SP.OPEN,SB.FLAGS(R11),4$	; j if already open - error
+.ENDC
+;
+	MOVL	8(AP),R8		; address of filename
+	MOVZBL	(R8)+,R7		; length of filename, update R8
+					; to point to first character
+	MOVL	SL.FAB(R11),R10		; point to FAB
+	$FAB_STORE FAB=R10,FNS=R7,FNA=(R8)	; fill in filename details
+	TSTL	12(AP)			; open for writing?
+	BNEQ	2$			; j if so
+;
+	$FAB_STORE FAB=R10,FAC=GET,SHR=GET ; fill in access details for read
+	MOVB	#RECMAX+1,SB.COUNT(R11)	; ensure first call gets new record
+	$OPEN	FAB=R10			; try to open file
+	MOVB	#SF.OPEN!SF.READ,R8	; set up for later
+	BRB	3$			; use common code
+;
+2$:	$FAB_STORE FAB=R10,FAC=PUT,SHR=NIL ; fill in access details for write
+	CLRB	SB.COUNT(R11)		; set empty output record
+	$CREATE	FAB=R10			; try to create file
+	MOVB	#SF.OPEN!SF.WRITE,R8	; set up for later
+;
+3$:	CMPL	R0,#RMS$_NORMAL		; file opened OK?
+	BNEQ	4$			; j if error
+	MOVL	SL.RAB(R11),R9		; point to RAB
+	$RAB_STORE RAB=R9,FAB=(R10)	; set up RAB
+	$CONNECT RAB=R9			; try to open RMS stream
+	CMPL	R0,#RMS$_NORMAL		; OK?
+	BNEQ	4$			; j if error
+	BISB2	R8,SB.FLAGS(R11)	; mark file as open and include mode
+;
+	ADDL2	#3,16(FP)		; adjust link for second exit
+4$:	RET				; enters here for first exit
+;
+	.SUBTITLE	File closing routine
+	.PAGE
+;
+; This routine closes a specified stream.
+;
+; There is one parameter:
+;
+;    Parameter 1 - stream number
+;
+; There are two exits:
+;
+;    Exit 1 - error encountered while trying to flush record buffer
+;             (output streams only) or performing close
+;    Exit 2 - success
+;
+; Attempts to close non-open streams are simply ignored.
+;
+	.ENTRY	FCLOSE,^M<R2,R10,R11>
+;
+	MOVL	4(AP),R1		; get stream number
+;
+.IF	DF	DEBUG
+	BSBW	CHKSTRM			; check stream is valid
+	BLBC	R0,2$			; j if invalid stream - ignore
+.ENDC
+;
+	MOVL	@SCBTAB[R1],R11		; point to SCB for stream
+	BBCC	#SP.OPEN,SB.FLAGS(R11),2$	; j if closed, else close it
+	BITB	#SF.WRITE,SB.FLAGS(R11)	; open for writing?
+	BEQL	1$			; j if not - no flush required
+	MOVZBL	SB.COUNT(R11),R2	; get length of current line
+	BEQL	1$			; j if nothing to flush
+	PUSHL	#NL			; flush with newline
+	PUSHL	R1			; stream number
+	CALLS	#2,WRCH			; flush buffer
+	BRW	3$			; j if error
+;
+1$:	MOVL	SL.FAB(R11),R10		; point to FAB
+	$CLOSE	FAB=R10			; close file
+	BLBC	R0,3$			; j if error
+;
+2$:	ADDL2	#3,16(FP)		; adjust link for second exit
+3$:	RET				; entry for first exit
+;
+	.SUBTITLE	Character input routine
+	.PAGE
+;
+; This routine reads one character from a specified stream, into R0.
+;
+; There is one parameter:
+;
+;    Parameter 1 - stream number for input
+;
+; There are four exits:
+;
+;    Exit 1 - end of file detected
+;    Exit 2 - invalid or non-open stream
+;    Exit 3 - input error
+;    Exit 4 - success; character in R0
+;
+	.ENTRY	RDCH,^M<R2,R9,R11>
+;
+	MOVL	4(AP),R1		; get stream number
+;
+.IF	DF	DEBUG
+	BSBW	CHKSTRM			; check stream is valid
+	BLBC	R0,1$			; j if invalid stream - error
+.ENDC
+;
+	MOVL	@SCBTAB[R1],R11		; point to SCB for stream
+	BBS	#SP.OPEN,SB.FLAGS(R11),3$	; j if stream open
+1$:	ADDL2	#3,16(FP)		; adjust link for second exit
+2$:	RET				; entry for first exit
+;
+3$:	BBS	#SP.EOF,SB.FLAGS(R11),2$	; j if at end of file
+	CMPB	SB.COUNT(R11),SB.LEN(R11)	; end of input record?
+	BLSSU	6$			; count < length => still data
+	BNEQ	4$			; count = length => end of line
+	MOVL	#NL,R0			; generate newline character
+	INCB	SB.COUNT(R11)		; adjust count so next read gets record
+	BRB	7$			; branch to exit
+;
+4$:	MOVL	SL.RAB(R11),R9		; point to RAB
+	$GET	RAB=R9			; read a record
+	CMPL	R0,#RMS$_EOF		; end of file?
+	BNEQ	5$			; j if not
+	BISB2	#SF.EOF,SB.FLAGS(R11)	; remember for later
+	BRB	2$			; use first exit
+5$:	CMPL	R0,#RMS$_NORMAL		; record read OK?
+	BNEQ	8$			; j if not - use third exit
+	MOVZWL	RAB$W_RSZ(R9),SB.LEN(R11)	; get record length
+	CLRB	SB.COUNT(R11)		; set pointer to start of record
+	BRB	3$			; repeat tests
+;
+6$:	MOVZBL	SB.COUNT(R11),R2	; get count for read
+	INCB	SB.COUNT(R11)		; adjust it for next time
+	MOVZBL	@SL.BUFA(R11)[R2],R0	; get character
+;
+7$:	ADDL2	#3,16(FP)
+8$:	ADDL2	#6,16(FP)		; adjust link
+	RET
+;
+	.SUBTITLE	Character output routine
+	.PAGE
+;
+; This routine outputs the character in R0 to a specified stream.
+;
+; There are two parameters:
+;
+;    Parameter 1 - stream number for output
+;    Parameter 2 - character to be output
+;
+; There are two exits:
+;
+;    Exit 1 - output error
+;    Exit 2 - success
+;
+; Output to invalid or non-open streams is ignored
+;
+	.ENTRY	WRCH,^M<R9,R11>
+;
+	MOVL	4(AP),R1		; get stream number
+	BSBW	CHKSTRM			; check stream is valid
+	BLBC	R0,2$			; j if not - ignore
+;
+	MOVL	@SCBTAB[R1],R11		; point to SCB for stream
+	BBS	#SP.OPEN,SB.FLAGS(R11),99$	; j if stream open
+	BRW	2$			; else treat as success but ignore
+;
+99$:	MOVL	8(AP),R0		; character for output
+	CMPL	R0,#NL			; newline?
+	BEQL	4$			; j if so and write line
+	MOVZBL	SB.COUNT(R11),R1	; next character position
+	CMPB	R1,SB.LEN(R11)		; line full?
+	BGEQU	4$			; j if so and write line
+1$:	INCB	SB.COUNT(R11)		; adjust count
+	ADDL2	SL.BUFA(R11),R1		; address of character position
+	MOVB	R0,(R1)			; store character
+2$:	ADDL2	#3,16(FP)		; adjust link for second exit
+3$:	RET				; enter here for first exit
+;
+4$:	PUSHL	R0			; save character
+	MOVZBL	SB.COUNT(R11),SL.BUFSZ(R11); set actual count
+	MOVL	SL.RAB(R11),R9		; point to RAB
+	$RAB_STORE RAB=R9,RSZ=SL.BUFSZ(R11)	; store actual count
+	$PUT	RAB=R9			; and call RMS
+	MOVL	R0,R1			; save result
+	POPL	R0			; restore character
+	BLBC	R1,3$			; j if error
+	CLRB	SB.COUNT(R11)		; start new line
+	CLRL	R1			; set index to zero
+	CMPL	R0,#NL			; was it newline?
+	BEQL	2$			; j if so - use second exit
+	BRB	1$			; output saved character
+;
+	.SUBTITLE	Miscellaneous routines
+	.PAGE
+;
+; Routine to check the validity of a stream number.
+;
+; On entry:
+;    R1 = stream number
+;
+; On exit:
+;    R0 = 1 if stream valid
+;    R0 = 0 if stream invalid
+;
+CHKSTRM:MOVL	#1,R0			; initialise
+	CMPL	R1,#1			; check lower bound
+	BLSS	1$			; j if error
+	CMPL	R1,MAXSTRM		; check upper bound
+	BLEQ	2$			; j if OK
+1$:	DECL	R0			; return 0 for error
+2$:	RSB
+;
+	.END

@@ -1,0 +1,694 @@
+.title	graphics
+;	graphics.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains code for graphics
+;
+;	Written: September 14, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 14, 1981 by S.B. - Written
+;	September 17, 1981 by S.B. - Add bitblt code
+;	September 21, 1981 by S.B. - Allow scancharacters to call bitblt
+;	September 24, 1981 by S.S. - Collect statistics for stack usage
+;	September 28, 1981 by S.S. - Print pages on a Printronix LP
+;	October   22, 1981 by S.B. - Add VT125 shadowing
+;	November  12, 1981 by S.B. - Attempt to speed up text
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	misc
+
+; copybits
+; CALLed from primitive level
+; sets V bit on return for failure
+
+
+	entry	copybits,<r2,r3,r4,r5,r6,r7,r8,r9>
+
+;	printf	<<10><10>/copyBits:/<13>>
+	ccc			; wipe condition codes in frame
+	movl	(r10),r2	; get the bitblt instance into r2
+	bsbw	getbitblt	; unpack the bitblt fields
+	movl	desty,starty	; save start y
+	movl	destx,startx	; and x
+	clrl	nullblt		; assume bitblt does something worthwile
+	call	dobitblt	; do the bitblt
+	cmpl	destform,displayoop ; was dest the display?
+	bneq	100$		; no
+	tstl	nullblt		; did we do something useful?
+	bneq	100$		; no
+	call	shadowbb	; yep - shadow onto vt125
+100$:	ret			; leave
+
+; the actual bitblt code. Callable from copyBits or scanCharacters
+; I just saved all regs. Maybe fewer need to be saved.
+
+.enable	lsb
+
+	entry	dobitblt,<r2,r3,r4,r5,r6,r7,r8,r9>
+
+	bsbw	clipdest	; clip the destination
+	tstl	w		; any width?
+	bleq	3$		; nope
+	tstl	h		; any height?
+	bgtr	60$		; yep
+3$:	brw	100$		; no - leave
+60$:	cmpl	srcbitsptr,destbitsptr ; copying onto itself?
+	bneq	1$		; no
+	cmpl	sx,dx		; same x start?
+	bneq	1$		; no
+	cmpl	sy,dy		; same y start?
+	bneq	1$		; no
+	movl	rule,r0		; see if rule is a nop
+	tstb	nullruletab[r0]	; a non-zero means nop
+	beql	1$		; something useful
+	incl	nullblt		; indicate that the bitblt was a nop
+	brw	100$		; leave
+
+; calculate the masks
+1$:	subl3	dx,sx,skew	; calculate the skew
+	bicl	#^C^XF,skew
+	bicl3	#^C^XF,dx,r1	; calculate left mask
+	subl3	r1,#16,r1
+	movw	rightmasks[r1],mask1
+	addl3	dx,w,r0		; calculate right mask
+	decl	r0
+	bicl	#^C^XF,r0
+	subl3	r0,#15,r0
+	movw	rightmasks[r0],r0
+	mcomw	r0,mask2
+	clrl	skewmask	; assume 0
+	tstl	skew		; it is if skew = 0
+	beql	4$		; yep
+	subl3	skew,#16,r0	; else rightmasks at: 16 - skew
+	movw	rightmasks[r0],skewmask
+4$:	cmpl	w,r1		; determine number of words stored per line
+	blss	2$
+	subl3	r1,w,r0
+	decl	r0
+	ashl	#-4,r0,r0
+	addl3	#2,r0,nwords
+	brb	10$
+
+2$:	mcomw	mask2,r0	; merge masks
+	bicw	r0,mask1
+	clrl	mask2
+	movl	#1,nwords
+
+; now, check for overlap of source and dest
+10$:	movl	#1,hdir		; assume no problem
+	movl	#1,vdir
+	cmpl	srcbitsptr,destbitsptr ; same area?
+	beql	12$		; yep
+	brw	20$		; nope - no problem
+
+12$:	cmpl	dy,sy		; is dest y < source y?
+	bgeq	13$		; nope
+	brw	20$		; yep - no problem
+
+13$:	beql	11$		; they are the same - check x direction
+	movl	#-1,vdir	; nope - just reverse vertical scan
+	addl	h,sy
+	decl	sy
+	addl	h,dy
+	decl	dy
+	brw	20$
+
+11$:	cmpl	dx,sx		; is dx > sx?
+	bleq	20$		; nope - no problem
+	movl	#-1,hdir	; yep - reverse x direction
+	addl	w,sx
+	decl	sx
+	addl	w,dx
+	decl	dx
+	mcoml	skewmask,skewmask ; bitInvert skewMask
+	movw	mask1,r0	; and switch the masks
+	movw	mask2,mask1
+	movw	r0,mask2
+
+; calculate the starting offsets
+20$:	clrl	preload		; assume no preload
+	tstl	srcbitsptr	; any source?
+	beql	21$		; no - no preload
+	tstl	skew		; any skew?
+	beql	21$		; no - no preload
+	bicl3	#^C^XF,sx,r0	; is skew <= (sx bitAnd: 15)?
+	cmpl	skew,r0
+	bgtr	21$		; no - no preload
+	decl	preload		; yep - preload
+21$:	tstl	hdir		; normal direction?
+	bgtr	22$		; yep
+	mcoml	preload,preload	; toggle preload if horiz dir is r to l
+22$:	mull3	sy,srcras,r0	; sourceIndex <- sy * sourceRaster + (sx//16)
+	ashl	#-4,sx,r1
+	addl3	r1,r0,srcindex
+	mull3	dy,destras,r0	; destIndex <- dy * destRaster + (dx // 16)
+	ashl	#-4,dx,r1
+	addl3	r1,r0,destindex
+
+; calculate increments from end of 1 line to start of next
+; sourceDelta <- (sourceRaster*vDir)
+;		 - (nWords + (preload ifTrue: [1] ifFalse: [0]) * hdir)
+	mull3	srcras,vdir,r0
+	movl	nwords,r1
+	tstl	preload
+	beql	23$
+	incl	r1
+23$:	mull	hdir,r1
+	subl3	r1,r0,srcdel
+; destDelta <- (destRaster*vDir)-(nWords*hDir)
+	mull3	destras,vdir,r0
+	mull3	nwords,hdir,r1
+	subl3	r1,r0,destdel
+
+; now, copy the bits
+; setup the vertical loop
+; r6 = source & halftone, combined with dest
+; r5 = mask
+; r4 = dispatch for combine
+; r3 = prevword
+	movl	h,r9		; r9 is outer loop counter
+	subl3	skew,#16,skew	; reverse skew
+33$:	movw	#^XFFFF,r7	; r7 is halftone word
+	tstl	halftonebitsptr	; any halftone?
+	beql	30$		; nope
+	bicl3	#^C^XF,dy,r0	; calculate dy mod 16
+	movw	@halftonebitsptr[r0],r7 ; get the halftone word
+	addl	vdir,dy		; bump dy to next line
+30$:	clrl	r3		; assume no preload
+	tstl	preload		; any preload needed?
+	beql	34$		; no
+	movl	srcindex,r0	; yep - preload a word
+	movw	@srcbitsptr[r0],r3 ; get the previous word
+	addl	hdir,srcindex	; bump source index
+34$:	movl	mask1,r5	; init the merge mask
+	movl	rule,r0		; get the dispatch address for combination
+	movl	combinetab[r0],r4 ; r4 has dispatch address
+
+; here is the top of the horizontal loop
+	movl	nwords,r8	; init inner loop counter
+32$:	movw	r7,r6		; init source bits to halftoneword
+	tstl	srcbitsptr	; any source?
+	beql	31$		; no
+	mcomw	skewmask,r0	; wipe bits in previous word
+	bicw	r0,r3
+	movl	srcindex,r0	; get the current source word
+	movw	@srcbitsptr[r0],r0
+	bicw3	skewmask,r0,r1	; get the bits used this time
+	bisw	r3,r1		; combine with previous word
+	movw	r0,r3		; save current word as previous word
+	ashl	#16,r1,r6	; duplicate current word in top of reg for rot
+	movw	r1,r6
+	rotl	skew,r6,r6	; rotate the source word
+	mcoml	r7,r0		; "and" with halftoneword
+	bicl	r0,r6
+31$:	movl	destindex,r0	; get the dest word
+	movw	@destbitsptr[r0],r0
+	movw	r0,r1		; save original dest word
+	jmp	(r4)		; dispatch on rule
+
+; here are the 16 combination functions
+1000$:	clrw	r6		; 0
+	brw	40$
+
+1001$:	mcomw	r0,r0		; S & D
+	bicw	r0,r6
+	brw	40$
+
+1002$:	bicw	r0,r6		; S & ~D
+	brw	40$
+
+1003$:	brw	40$		; S
+
+1004$:	bicw3	r6,r0,r6	; ~S & D
+	brw	40$
+
+1005$:	movw	r0,r6		; D
+	brw	40$
+
+1006$:	xorw	r0,r6		; S xor D
+	brw	40$
+
+1007$:	bisw	r0,r6		; S + D
+	brw	40$
+
+1008$:	mcomw	r6,r6		; ~S & ~D
+	bicw	r0,r6
+	brw	40$
+
+1009$:	xorw	r0,r6		; ~(S xor D)
+	mcomw	r6,r6
+	brw	40$
+
+1010$:	mcomw	r0,r6		; ~D
+	brw	40$
+
+1011$:	mcomw	r0,r0		; S + ~D
+	bisw	r0,r6
+	brw	40$
+
+1012$:	mcomw	r6,r6		; ~S
+	brw	40$
+
+1013$:	mcomw	r6,r6		; ~S + D
+	bisw	r0,r6
+	brw	40$
+
+1014$:	mcomw	r6,r6		; ~S + ~D
+	mcomw	r0,r0
+	bisw	r0,r6
+	brw	40$
+
+1015$:	movw	#^XFFFF,r6	; 1
+
+; merge with dest
+40$:	mcomw	r5,r0
+	bicw	r0,r6		; isolate used bits
+	bicw	r5,r1		; isolate unused bits
+	bisw	r6,r1		; merge them
+	movl	destindex,r0	; get the dest index
+	movw	r1,@destbitsptr[r0] ; put it back in dest
+	addl	hdir,srcindex	; bump source index
+	addl	hdir,destindex	; and dest index
+	movw	#^XFFFF,r5	; assume next loop is not last
+	cmpl	r8,#2		; is next loop the last?
+	bgtr	41$		; no
+	movw	mask2,r5	; yep - setup end mask
+41$:	decl	r8		; dec loop count
+	bleq	50$		; done
+	brw	32$		; not done
+
+50$:	addl	srcdel,srcindex	; bump source index to next line
+	addl	destdel,destindex ; and dest
+	decl	r9		; del outer loop count
+	bleq	100$		; done
+	brw	33$		; not done
+100$:	ret
+
+; tables for bitblt
+.save_psect
+.psect	pure
+combinetab:
+	.address 1000$
+	.address 1001$
+	.address 1002$
+	.address 1003$
+	.address 1004$
+	.address 1005$
+	.address 1006$
+	.address 1007$
+	.address 1008$
+	.address 1009$
+	.address 1010$
+	.address 1011$
+	.address 1012$
+	.address 1013$
+	.address 1014$
+	.address 1015$
+
+.disable lsb
+
+; the table of rightmasks
+rightmasks:
+	.word	0
+	.word	^X8000
+	.word	^XC000
+	.word	^XE000
+	.word	^XF000
+	.word	^XF800
+	.word	^XFC00
+	.word	^XFE00
+	.word	^XFF00
+	.word	^XFF80
+	.word	^XFFC0
+	.word	^XFFE0
+	.word	^XFFF0
+	.word	^XFFF8
+	.word	^XFFFC
+	.word	^XFFFE
+	.word	^XFFFF
+
+; table for determining whether rule is a nop
+nullruletab:
+	.byte	0,1,0,1,0,1,0,1,1,0,0,0,0,0,0,0
+.align	long
+.restore_psect
+
+; unpacks the bitblt fields
+; on return, r2 points at 1st field of bitblt
+
+getbitblt:
+	getobj	r2,r2		; open the BitBlt instance
+	addl	#hdr_len*4,r2	; offset past header
+				; unpack the integer fields
+	ashl	#-1,bitblt_destx*4(r2),destx
+	ashl	#-1,bitblt_desty*4(r2),desty
+	ashl	#-1,bitblt_width*4(r2),width
+	ashl	#-1,bitblt_height*4(r2),height
+	ashl	#-1,bitblt_sourcex*4(r2),srcx
+	ashl	#-1,bitblt_sourcey*4(r2),srcy
+	ashl	#-1,bitblt_clipx*4(r2),clipx
+	ashl	#-1,bitblt_clipy*4(r2),clipy
+	ashl	#-1,bitblt_clipwidth*4(r2),clipw
+	ashl	#-1,bitblt_clipheight*4(r2),cliph
+	ashl	#-1,bitblt_rule*4(r2),rule
+	clrl	halftonebitsptr	; assume no halftone
+	movl	bitblt_halftoneform*4(r2),r0 ; get the halftoneform
+	cmpl	r0,#oop_nil	; is it there?
+	beql	1$		; no
+	romlp	#form_bits,r0	; get the halftone bits
+	getobj	r0		; get a ptr to them
+	addl3	#hdr_len*4,r0,halftonebitsptr ; offset past header
+1$:	clrl	srcbitsptr	; assume no source
+	movl	bitblt_sourceform*4(r2),r0 ; get the source form
+	cmpl	r0,#oop_nil	; is it there?
+	beql	2$		; no
+	getobj	r0		; open the source form
+	ashl	#-1,<hdr_len+form_width>*4(r0),srcw ; get the width
+	ashl	#-1,<hdr_len+form_height>*4(r0),srch ; get the height
+	getobj	<<hdr_len+form_bits>*4(r0)> ; open the bits object
+	addl3	#hdr_len*4,r0,srcbitsptr ; setup a pointer to them
+	addl3	#15,srcw,r0	; calculate the source raster
+	ashl	#-4,r0,srcras
+2$:	movl	bitblt_destform*4(r2),r0 ; get the dest form
+	movl	r0,destform	; save it
+	getobj	r0		; open the dest form
+	ashl	#-1,<hdr_len+form_width>*4(r0),destw ; get the width
+	ashl	#-1,<hdr_len+form_height>*4(r0),desth ; get the height
+	getobj	<<hdr_len+form_bits>*4(r0)> ; open the bits object
+	addl3	#hdr_len*4,r0,destbitsptr ; setup a pointer to them
+	addl3	#15,destw,r0	; calculate the dest raster
+	ashl	#-4,r0,destras
+;	printf	<<10>/srcba = %d/<13>>,srcbitsptr
+;	printf	<<10>/srcbw = %d/<13>>,srcw
+;	printf	<<10>/srcbh = %d/<13>>,srch
+;	printf	<<10>/srcx = %d/<13>>,srcx
+;	printf	<<10>/srcy = %d/<13>>,srcy
+;	printf	<<10>/dstba = %d/<13>>,destbitsptr
+;	printf	<<10>/dstbw = %d/<13>>,destw
+;	printf	<<10>/dstbh = %d/<13>>,desth
+;	printf	<<10>/dstx = %d/<13>>,destx
+;	printf	<<10>/dsty = %d/<13>>,desty
+;	printf	<<10>/clpx = %d/<13>>,clipx
+;	printf	<<10>/clpy = %d/<13>>,clipy
+;	printf	<<10>/clpw = %d/<13>>,clipw
+;	printf	<<10>/clph = %d/<13>>,cliph
+;	printf	<<10>/extw = %d/<13>>,width
+;	printf	<<10>/exth = %d/<13>>,height
+;	printf	<<10>/mapf = %d/<13>>,rule
+;	cvtwl	@halftonebitsptr,r0
+;	printf	<<10>/halftone = %d/<13>>,r0
+	rsb
+
+; clips the destination. sets up sx, sy, dx, dy, w, & h
+; called with bsb
+
+clipdest:
+	movl	destx,dx	; assume no clipping
+	movl	desty,dy
+	movl	srcx,sx
+	movl	srcy,sy
+	movl	width,w
+	movl	height,h
+	tstl	srcbitsptr	; is there a source?
+	bneq	5$		; yes
+	movl	dx,sx		; no, make sx & dx the same
+	movl	dy,sy		; and dy & sy
+; clip the clipping rect to destform
+5$:	addl3	clipx,clipw,r0	; calculate right border of clip
+	cmpl	r0,destw	; past the right?
+	bleq	11$		; no
+	subl3	clipx,destw,clipw ; yep - adjust clip width
+11$:	addl3	clipy,cliph,r0	; past the bottom?
+	cmpl	r0,desth
+	bleq	12$		; no
+	subl3	clipy,desth,cliph ; yep - adjust clip height
+12$:	tstl	clipx		; check left edge
+	bgeq	10$		; ok
+	addl	clipx,clipw	; reduce width
+	clrl	clipx		; clip to 0
+10$:	tstl	clipy		; test top edge
+	bgeq	13$		; ok
+	addl	clipy,cliph	; reduce height
+	clrl	clipy		; clip to 0
+13$:	cmpl	destx,clipx	; clip on left?
+	bgeq	1$		; no
+	subl3	destx,clipx,r0	; calculate amount to clip
+	addl	r0,sx		; adjust source left border
+	subl	r0,w		; adjust width to compensate
+	movl	clipx,dx	; setup dest left border to clip border
+	incl	gentext		; note the clipping
+1$:	addl3	dx,w,r0		; calculate right border address
+	addl3	clipx,clipw,r1	; calculate right border of clip
+	movl	r1,rightclip	; save right clip border
+	cmpl	r0,r1		; clip it?
+	bleq	2$		; no
+	subl	r1,r0		; calculate amount to shrink
+	subl	r0,w		; shrink the width
+	incl	gentext		; note the clipping
+2$:	cmpl	desty,clipy	; clip on top?
+	bgeq	3$		; no
+	subl3	desty,clipy,r0	; yep - calculate amount to clip
+	addl	r0,sy		; adjust top border
+	subl	r0,h		; adjust height to compensate
+	movl	clipy,dy	; setup dest top border to clip border
+	incl	gentext		; note the clipping
+3$:	addl3	dy,h,r0		; calculate address of bottom
+	addl3	clipy,cliph,r1	; and for clip rectangle
+	cmpl	r0,r1		; clip on bottom?
+	bleq	4$		; nope
+	subl	r1,r0		; calculate amount to clip
+	subl	r0,h		; shrink the height
+	incl	gentext		; note the clipping
+4$:	movl	sx,vtsx		; save stuff for vt125
+	movl	sy,vtsy
+	movl	dx,vtdx
+	movl	dy,vtdy
+	movl	w,vtw
+	movl	h,vth
+	rsb
+
+.save_psect
+.psect	static
+; statics for bitblt
+gentext:.long	0
+nullblt:.long	0
+rightclip:	.long	0
+srcx::	.long	0
+srcy::	.long	0
+destx::	.long	0
+desty::	.long	0
+width::	.long	0
+height::	.long	0
+clipx::	.long	0
+clipy::	.long	0
+clipw::	.long	0
+cliph::	.long	0
+srcmap::	.long	0
+destform::
+	.long	0
+destmap::.long	0
+srcw::	.long	0
+srch::	.long	0
+srcras::	.long	0
+destw::	.long	0
+desth::	.long	0
+destras::.long	0
+rule::	.long	0
+sx::	.long	0
+sy::	.long	0
+dx::	.long	0
+dy::	.long	0
+w::	.long	0
+h::	.long	0
+vdir::	.long	0
+hdir::	.long	0
+mask1::	.long	0
+mask2::	.long	0
+skew::	.long	0
+skewmask::
+	.long	0
+srcindex::
+	.long	0
+srcdel::.long	0
+destindex::
+	.long	0
+destdel::
+	.long	0
+preload::
+	.long	0
+nwords::.long	0
+srcbitsptr::
+	.long	0
+destbitsptr::
+	.long	0
+halftonebitsptr::
+	.long	0
+startx::
+	.long	0
+starty::
+	.long	0
+
+.restore_psect
+
+
+; scanCharactersFrom: startIndex to: stopIndex in: sourceString
+;  rightX: rightX stopConditions: stopConditions displaying: displaying
+; CALLed from primitive level
+; sets V bit on on return for failure
+
+; define the arg offsets from r10
+displaying = -0*4
+stopconditions = -1*4
+rightx = -2*4
+sourcestring = -3*4
+stopindex = -4*4
+startindex = -5*4
+rcvr = -6*4
+
+	entry	scancharacters,<r2,r3,r4,r5,r6,r7,r8,r9>
+
+;	printf	<<10><10>/scanCharacters:/<13>>
+	ccc			; clear cond bits
+	movl	rcvr(r10),r2	; get the textscanner instance
+	bsbw	getbitblt	; unpack the bitblt contents
+	movl	r2,r9		; put base ptr in r9
+	cmpl	displaying(r10),#oop_true ; printing?
+	bneq	80$		; no
+	tstl	halftonebitsptr	; any halftone?
+	beql	2$		; no
+	cmpb	@halftonebitsptr,#255 ; is it solid black?
+	beql	2$		; yep
+	incl	gentext		; yep - force general text
+2$:	cmpl	rule,#3		; replace mode?
+	beql	3$		; yep - no problem
+	incl	gentext		; nope - force general text
+3$:	movl	#1,width	; init width to get rational result from clip
+	bsbw	clipdest	; clip the dest rectangle
+80$:	ashl	#-1,bitblt_width*4(r9),width ; init width for return
+	movl	dx,startx	; setup the upper-left-corner for printout
+	movl	dy,starty
+	movl	rightx(r10),r0	; get the right x value
+	blbc	r0,1$		; complain if not SI
+	ashl	#-1,r0,stopx	; cvt to integer
+	movl	startindex(r10),r0 ; get the start index
+	blbc	r0,1$		; complain if not SI
+	ashl	#-1,r0,r7	; cvt to integer
+	decl	r7		; cvt to 0 origin
+	movl	stopindex(r10),r0 ; get the stop index
+	blbc	r0,1$		; complain if not SI
+	ashl	#-1,r0,stopidx	; cvt to SI
+	decl	stopidx		; cvt to 0 origin
+	movl	sourcestring(r10),r5 ; get the source string
+	blbs	r5,1$		; complain if SI
+	getobj	r5,r5		; open the string
+	addl	#hdr_len*4,r5	; offset to chars
+	movl	stopconditions(r10),r4 ; get the stop conditions array
+	blbc	r4,30$		; fail if SI
+1$:	set	v		; set the V bit for error
+	brw	101$
+
+30$:	getobj	r4,r4		; open it
+	addl	#hdr_len*4,r4	; offset past header
+	getobj	txtscan_xtable*4(r9),r3 ; open the xtable
+	addl	#hdr_len*4,r3	; offset past header
+	ashl	#4,destras,destdel ; calculate bit offset between dest rows
+	ashl	#4,srcras,srcdel ; and again for source
+				; calculate bit index to start of 1st dest row
+	mull3	destdel,desty,destlineindex
+10$:	cmpl	r7,stopidx	; is index <= stop?
+	bleq	20$		; yep - keep going
+	movl	stopidx,r7	; cause chari to = stopi on return
+	movl	256*4(r4),r0	; return stopconditions at: 257
+	brw	100$
+
+20$:	movzbl	(r5)[r7],r1	; get the character from string
+	movl	(r4)[r1],r0	; get the stop condition value
+	cmpl	r0,#oop_nil	; is it nil?
+	beql	60$		; yep
+	brw	100$		; nope - return the stop value
+
+60$:	ashl	#-1,(r3)[r1],srcx ; get the left x value
+	ashl	#-1,4(r3)[r1],r2 ; get the right x value + 1
+	subl3	srcx,r2,width	; save difference in width
+	addl3	width,destx,r0	; compute new destx
+	cmpl	r0,stopx	; exceeds x limit?
+	bleq	12$		; no
+	movl	257*4(r4),r0	; yep - get stopconditions at: 258
+	brw	100$		; return it
+
+12$:	movl	r0,nextdestx	; store new destx
+	cmpl	rightclip,r0	; clipped on right?
+	bgtr	13$		; no
+	incl	gentext		; yep - note the clipping
+13$:	cmpl	displaying(r10),#oop_true ; printing?
+	bneq	40$		; nope
+
+; here we copy the text bits to the dest
+	tstl	h		; is this char clipped vertically?
+	bleq	40$		; yep - skip it
+	cmpl	destx,rightclip	; is it clipped completely horizontally?
+	bgeq	40$		; yep
+	cmpl	width,#32	; too wide for insv?
+	bgtr	70$		; yep
+	tstl	gentext		; is it general?
+	beql	51$		; nope - use Q&D method
+70$:	call	dobitblt	; do the general bitblt
+	brw	40$
+
+51$:	movl	height,r8	; setup line loop counter
+	movl	srcx,r1	; setup source bit index to top row
+	addl3	destx,destlineindex,r6 ; and calculate bit index for dest
+50$:	extzv	r1,width,@srcbitsptr,r0 ; get a row from character
+	insv	r0,r6,width,@destbitsptr ; put it in dest
+	addl	srcdel,r1	; bump source index
+	addl	destdel,r6	; and dest
+	sobgtr	r8,50$		; loop thru character
+40$:	incl	r7		; bump char index
+	movl	nextdestx,destx	; get new destx
+	brw	10$		; and loop
+
+100$:	ashl	#1,destx,r1	; put destx back as SI
+	movl	startx,vtdx	; setup vt for origin of printing
+	movl	starty,vtdy
+	movl	destx,r2
+	cmpl	r2,rightclip	; did we run off the right edge?
+	blss	200$		; no
+	movl	rightclip,r2
+200$:	subl3	vtdx,r2,vtw	; let vt know how wide we printed in
+	bisl3	#1,r1,bitblt_destx*4(r9)
+	ashl	#1,width,r1	; put width back
+	bisl3	#1,r1,bitblt_width*4(r9)
+	ashl	#1,r7,r7	; put char index back as SI (1 origin)
+	addl3	#3,r7,txtscan_chari*4(r9)
+	movl	r0,rcvr(r10)	; return the stop condition
+102$:	cmpl	displaying(r10),#oop_true ; printing?
+	bneq	103$		; no
+	cmpl	destform,displayoop ; was dest the display?
+	bneq	103$		; no
+	call	shadowbb	; yep - show it on vt
+103$:	moval	rcvr(r10),r10	; pop args off stack
+101$:	ret
+
+; static for text scan
+.save_psect
+.psect	static
+stopx:	.long	0
+stopidx:.long	0
+nextdestx:
+	.long	0
+destlineindex:
+	.long	0
+vtsx::	.long	0
+vtsy::	.long	0
+vtdx::	.long	0
+vtdy::	.long	0
+vtw::	.long	0
+vth::	.long	0
+.restore_psect
+
+	.end

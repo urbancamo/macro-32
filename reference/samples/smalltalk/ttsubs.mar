@@ -1,0 +1,299 @@
+.title	ttsubs
+;	ttsubs.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the terminal input routines
+;
+;	Written: October 23, 1981 by Stephen Shirron
+;
+;	Edit History:
+;	October 23, 1981 by S.S. - Written
+;	October 27, 1981 by S.S. - Add ^T support; Enable mailboxes
+;	October 30, 1981 by S.B. - Add Cntl key
+;	November 4, 1981 by S.S. - Remove timing window
+;	November 10, 1981 by S.B. - add Enter as left shift lock
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+	$iodef
+	$msgdef
+
+.psect	drivers
+
+; initialize the terminal input routines
+
+	entry	inittt,<>
+
+	$crembx_s	chan=mbchan,-	; create a mailbox
+			lognam=mbname
+	movl	#63,len		; buffer is this long
+	$trnlog_s	lognam=ttname,- ; get device name of the terminal
+			rsllen=len,-
+			rslbuf=desc
+	cmpb	name,#27	; does name begin with an escape?
+	bneq	2$		; nope
+	subl	#4,len		; fix up length of resultant name
+	addl	#4,addr
+2$:	$assign_s	devnam=desc,- ; assign a channel
+			chan=ttchan,-
+			mbxnam=mbname
+	blbc	r0,1$		; branch on error
+	clrl	flag		; clear the flag word
+	pushal	initvt100	; initialize the vt100
+	calls	#1,printf
+	clrb	buffer		; print a null
+	$qiow_s		chan=mbchan,-	; trap unsolicited input
+			func=#io$_setmode!io$m_wrtattn,-
+			iosb=mbiosb,-
+			p1=ast_routine
+	$qiow_s		chan=ttchan,-	; enable mailbox notification
+			func=#io$_writevblk!io$m_enablmbx,-
+			iosb=ttiosb,-
+			p1=buffer,-
+			p2=#1,-
+			p4=#0
+1$:	ret
+
+io$m_modifiers = io$m_noecho!io$m_nofiltr!io$m_timed
+
+	entry	ast_routine,<r2,r3,r4>
+
+	$qiow_s		chan=mbchan,- ; reset the trap for unsolicited input
+			func=#io$_setmode!io$m_wrtattn,-
+			iosb=mbiosb,-
+			p1=ast_routine
+	$qiow_s		chan=mbchan,- ; get the mailbox message
+			func=#io$_readvblk!io$m_now,-
+			iosb=mbiosb,-
+			p1=buffer,-
+			p2=#80
+3$:	$qiow_s		chan=ttchan,- ; do the read
+			func=#io$_readvblk!io$m_modifiers,-
+			iosb=ttiosb,-
+			p1=buffer,-
+			p2=#80,-
+			p3=#0
+	blbc	r0,1$		; check for failure
+
+	movzwl	ttiosb+2,r0	; get number of characters typed
+	movzwl	ttiosb+6,r2	; and number of teminators
+	addl	r0,r2		; get total number of characters typed
+	beql	1$		; none there
+	moval	buffer,r3	; get buffer address
+2$:	movzbl	(r3)+,r4	; copy the next byte
+	bsbw	process_character ; work on it
+	sobgtr	r2,2$
+	brw	3$
+
+1$:	ret
+
+process_character::
+	cmpl	r4,#8		; is it a backspace?
+	bneq	40$		; nope
+	movl	#27,r4		; yep - cvt to escape char
+	brw	5$
+40$:	bitl	#cr_seen,flag	; was the last character a return?
+	beql	45$		; nope
+	bicl	#cr_seen,flag	; yep -- wipe flag
+	cmpl	r4,#10		; is it a line feed?
+	bneq	45$		; nope
+	brw	7$		; yep - ignore it
+45$:	cmpl	r4,#13		; is it a return?
+	bneq	29$		; nope
+	bisl	#cr_seen,flag	; yep -- note it
+	brw	5$
+29$:	cmpl	r4,#16		; is it ^P?
+	bneq	2$		; nope
+	$dassgn_s	chan=ttchan ; yes, so just get out
+	$dassgn_s	chan=mbchan
+	clrl	r2
+	ret
+2$:	cmpl	r4,#20		; is it ^T?
+	bneq	30$		; nope
+	call	cpustats	; print the current statistics
+	call	initstats	; reset them to zero
+	clrl	bccount
+31$:	brw	7$
+30$:	cmpl	r4,#23		; is it ^W?
+	bneq	43$		; nope
+	moval	clearscreen,r0	; clear the screen
+	bsbw	tt_output
+	brw	7$
+43$:	bitl	#esc_seen,flag	; are we in the middle of an escape sequence?
+	bneq	4$		; yep
+	cmpl	r4,#27		; are we starting one?
+	bneq	41$		; nope
+	bisl	#esc_seen,flag	; set the flag bit
+	brw	1$
+4$:	bitl	#O_seen,flag	; well?
+	beql	80$		; nope
+	brw	6$		; yes, the sequence is done
+80$:	cmpl	r4,#79		; is it an O?
+	beql	81$		; yep
+	brw	44$		; no, ignore this character
+81$:	bisl	#O_seen,flag	; set the flag bit
+	brw	1$
+
+41$:	cmpl	r4,#31		; is it a "^?"?
+	bneq	70$		; nope
+	movl	#127,r4		; yep - cvt to delete
+	brw	5$
+70$:	cmpl	r4,#127		; is it a delete?
+	bneq	5$		; nope
+	movl	#8,r4		; yep - cvt to backspace
+5$:	bitl	#cntl_seen,flag ; is this char cntl'd
+	beql	60$		; nope
+	call	pushb,#^O212,#1	; push the cntl key
+60$:	bitl	#lshift_seen,flag ; is this char shifted?
+	beql	61$		; nope
+	call	pushb,#^O210,#1	; yep - push the lshift key
+61$:	call	pushb,r4,#1	; say we got this character
+	call	pushb,r4,#0
+	bitl	#lshift_seen,flag ; was this char shifted?
+	beql	62$		; nope
+	call	pushb,#^O210,#0	; yep - release lshift key
+	bicl	#lshift_seen,flag ; reset flag
+62$:	bitl	#cntl_seen,flag ; was this char cntl'd?
+	beql	44$		; nope
+	call	pushb,#^O212,#0	; yep - release cntl key
+	bicl	#cntl_seen,flag ; reset flag
+44$:	brw	7$
+6$:	movl	num,thisinc	; has a number been typed?
+	bneq	22$		; yep
+	movl	mouseinc,thisinc ; default to regular incrementing
+22$:	casel	r4,#65,#3	; check for arrow keys
+9$:	.word	10$-9$		; up arrow
+	.word	11$-9$		; down arrow
+	.word	12$-9$		; right arrow
+	.word	13$-9$		; left arrow
+	casel	r4,#77,#6	; check for PF keys and ENTER
+14$:	.word	90$-14$		; ENTER
+	.word	7$-14$		; unused
+	.word	7$-14$		; unused
+	.word	15$-14$		; PF1
+	.word	16$-14$		; PF2
+	.word	17$-14$		; PF3
+	.word	18$-14$		; PF4
+	casel	r4,#108,#2	; check for ",.-" alt kpd keys
+50$:	.word	51$-50$		; ","
+	.word	52$-50$		; "-"
+	.word	53$-50$		; "."
+	subl	#112,r4		; check for digit keys
+	blss	7$		; no luck
+	cmpl	r4,#9		; well, is it a digit?
+	bgtr	7$		; nope
+	mull	#10,num		; form the number typed in
+	addl	r4,num
+	brb	8$
+
+7$:	clrl	num		; clear out the number typed in
+8$:	bicl	#esc_seen!O_seen,flag ; reset the esc and O flags
+1$:	rsb
+
+10$:	subl	thisinc,mousey	; move the mouse up
+	brb	19$
+11$:	addl	thisinc,mousey	; move the mouse down
+	brb	19$
+12$:	addl	thisinc,mousex	; move the mouse forward
+	brb	19$
+13$:	subl	thisinc,mousex	; move the mouse backwards
+19$:	call	putmouse,mousex,mousey ; show we have moved the mouse
+	call	updatecursor	; update the cursor
+	brw	7$
+
+15$:	xorl	#1,redbutton	; change the state of the red button
+	call	pushb,#128,redbutton ; register the change
+	brb	21$
+16$:	xorl	#1,yellowbutton	; change the state of the yellow button
+	call	pushb,#129,yellowbutton ; register the change
+	brb	21$
+17$:	xorl	#1,bluebutton	; change the state of the blue button
+	call	pushb,#130,bluebutton ; register the change
+	brb	21$
+90$:	xorl	#1,leftshiftlock ; toggle the left shift lock
+	call	pushb,#^O210,leftshiftlock ; register the change
+21$:	moval	leds+3,r4	; get address of led output message
+	tstl	redbutton	; is the red button on?
+	beql	24$		; nope
+	movw	#^A/;1/,(r4)+	; light it
+24$:	tstl	yellowbutton	; is the yellow button on?
+	beql	25$		; nope
+	movw	#^A/;2/,(r4)+	; light it
+25$:	tstl	bluebutton	; is the blue button on?
+	beql	26$		; nope
+	movw	#^A/;3/,(r4)+	; light it
+26$:	tstl	leftshiftlock	; is lshift lock on?
+	beql	27$		; nope
+	movw	#^A/;4/,(r4)+	; light that led
+27$:	movb	#^A/q/,(r4)+	; terminate the string
+	clrb	(r4)
+	moval	leds,r0		; light those leds!
+	bsbw	tt_output
+	brw	7$
+
+; here we handle the mouse inc key
+18$:	addl	#11,mouseinc	; change from 1 to 12
+	cmpl	mouseinc,#12	; was it already 12?
+	bleq	92$		; nope
+	movl	#1,mouseinc	; reset it to 1
+92$:	brw	7$
+
+; here we handle ",.-" alt kpd keys
+51$:	bicl	#lshift_seen,flag ; wipe lshift flag
+	tstl	leftshiftlock	; is lshift locked?
+	bneq	53$		; yep - ignore this key
+	bisl	#lshift_seen,flag ; "," is leftshift
+	brw	7$
+52$:	bisl	#cntl_seen,flag ; "-" is cntl
+	brw	7$
+53$:	brw	7$		; ignore "." for now
+
+
+tt_output::
+	pushl	r0		; use regular printf
+	calls	#1,printf
+	rsb
+
+esc_seen	= 1
+O_seen		= 2
+cr_seen		= 4
+cntl_seen	= 8
+lshift_seen	= ^X10
+
+.save_psect
+.psect	static
+redbutton:	.long	0
+yellowbutton:	.long	0
+bluebutton:	.long	0
+mouseinc:	.long	12
+leftshiftlock:	.long	0
+thisinc:	.long	0
+flag:		.long	0
+num:		.long	0
+pointer:	.long	0
+buffer:		.blkb	80
+
+ttname:	.ascid	/SYS$INPUT/	; terminal name
+mbname:	.ascid	/MAILBOX_0/	; mailbox name
+.align	long
+ttchan:	.long	0		; channel numbers
+mbchan:	.long	0
+ttiosb:	.quad	0		; i/o status blocks
+mbiosb:	.quad	0
+
+desc:
+len:	.long	0		; length of buffer
+addr:	.long	name		; address of result
+name:	.blkb	64		; actual buffer
+
+leds:		.asciz	<27>/[0;1;2;3;4q/
+.align	long
+.psect	text
+clearscreen:	.asciz	<27>/[H/<27>/[J/
+initvt100:	.asciz	<27>/</<27>/[H/<27>/[J/<27>/[0q/<27>/=/<27>/[?1h/
+.restore_psect
+
+	.end

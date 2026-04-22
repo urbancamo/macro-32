@@ -1,0 +1,142 @@
+	.TITLE MDML1B
+;
+	.IDENT	/2.0/
+;
+; Machine dependent logic for ML/I macro processor on DEC VAX-11 under VMS
+;
+; Miscellaneous routines and tables
+;
+; Copyright (C) R.D. Eager   University of Kent   MCMLXXXVI
+;
+	.DISABLE GLOBAL
+	.ENABLE	SUPPRESSION
+	.SHOW	EXPANSIONS
+;
+; External symbols in the MI-logic
+; -------- ------- -- --- --------
+;
+	.EXTERNAL HASHPT,HTABPT,IDLEN,IDPT,MEVAL,OP1,OPSW,SPT
+;
+; Global symbols defined in this module
+; ------ ------- ------- -- ---- ------
+;
+	.GLOBAL	MDPCTAB,MDDIGTAB
+;
+; Constants
+; ---------
+;
+	CONVSZ	=	12		; Size of MDCONV conversion area
+	LHV	=	64*4		; Size of hash table (bytes)
+;
+	.SUBTITLE	Impure data areas
+	.PAGE
+;
+	.PSECT	IMPURE,LONG,NOEXE
+;
+; Miscellaneous data
+;
+CONVAREA:.BLKB	CONVSZ			; Conversion area for MDCONV
+;
+	.SUBTITLE	Pure data areas
+	.PAGE
+;
+	.PSECT	PURE,LONG,SHR,NOWRT,NOEXE
+;
+; Tables for use by the MI-logic
+;
+MDDIGTAB:.BYTE	^XFF[48],0,1,2,3,4,5,6,7,8,9,^XFF[198]
+;
+MDPCTAB:.BYTE	^XFF[48],^X00[10],^XFF[7],^X00[26]
+	.BYTE	^XFF[6],^X00[26],^XFF[133]
+;
+	.SUBTITLE	The MDCONV subroutine
+	.PAGE
+;
+; This subroutine converts the contents of MEVAL to a character string.
+; The string is stored in workspace private to the MD-logic (CONVAREA),
+; and a pointer to it is returned in IDPT. The length is also passed back in
+; IDLEN.
+;
+	.ENTRY	MDCONV,0
+;
+	CLRL	R0			; clear sign marker
+	MOVL	MEVAL,R1		; get value for conversion
+	BGEQ	1$			; j if not negative...
+	MNEGL	R1,R1			; ...else make positive...
+	DECL	R0			; ...and set sign marker
+1$:	MOVAB	CONVAREA+CONVSZ,R3	; point beyond last digit position
+2$:	CLRL	R2			; convert to double length...
+					; ...in R1.R2 for division
+	EDIV	#10,R1,R1,R4		; quotient to R1, remainder to R4
+	ADDB3	#^A\0\,R4,-(R3)		; convert to digit and store it away
+	TSTL	R1			; finished?
+	BNEQ	2$			; j if not
+	TSTL	R0			; check sign
+	BGEQ	3$			; j if positive
+	MOVB	#^A\-\,-(R3)		; else set sign
+3$:	MOVL	R3,IDPT			; pointer to first character of string
+	SUBL3	R3,#CONVAREA+CONVSZ,IDLEN	; set length
+	RET
+;
+	.SUBTITLE	The MDFIND subroutine
+	.PAGE
+;
+; This subroutine is the main hashing function for ML/I. The atom to be
+; hashed is pointed to by IDPT, with the last character pointed to by SPT;
+; its length is also available in IDLEN. The hash code must be modulo LHV,
+; and is converted to a longword offset. This is used to index the hash table
+; (pointed at by HASHPT), and the resulting pointer is returned in HTABPT.
+;
+	.ENTRY	MDFIND,0
+;
+	MOVZBL	@IDPT,R0		; get first character of identifier
+	MOVZBL	@SPT,R1			; get last character too
+	ADDL2	R1,R0			; add together...
+	MULL2	IDLEN,R0		; ...and multiply by length
+	DECL	R0
+	BICL2	#^C<<LHV/4>-1>,R0	; make word offset into hash table
+	ASHL	#2,R0,R0		; convert to byte offset
+	ADDL3	R0,HASHPT,HTABPT	; set value for use by MI-logic
+	RET
+;
+	.SUBTITLE	The MDOP subroutine
+	.PAGE
+;
+; This subroutine performs multiplication and division for ML/I. On entry,
+; OPSW indicates the action to be carried out:
+;
+;	OPSW # 1   ->   divide OP1 by MEVAL
+;	OPSW = 1   ->   multiply OP1 by MEVAL
+;
+; In both cases, the result is left in MEVAL. A fair amount of fiddling
+; around is required in the case of division, to satisfy the rather strange
+; rounding rules used by ML/I.
+;
+; There are two exits; the first exit indicates arithmetic overflow (such as
+; an attempt to divide by zero) and the second exit indicates success.
+;
+	.ENTRY	MDOP,0
+;
+	CMPL	OPSW,#1			; see which operation is required
+	BNEQ	1$			; j if division required
+	MULL2	OP1,MEVAL		; else do the multiplication...
+	BRB	4$			; ...and use the second exit
+1$:	CLRL	R0			; initialise sign flag
+	TSTL	MEVAL			; check for division by zero
+	BEQL	5$			; j if error, using first exit
+	BGTR	2$			; j if divisor positive
+	INCL	R0			; set sign flag
+2$:	MOVL	OP1,R2			; test sign of dividend
+	BGEQ	3$			; j if not negative
+	XORL2	#1,R0			; else update sign flag
+3$:	ASHQ	#-32,R1,R1		; generate 64 bit dividend in R1.R2
+	EDIV	MEVAL,R1,MEVAL,R3	; remainder to R3
+	TSTL	R3			; any remainder?
+	BEQL	4$			; j if not - exact division
+	TSTL	R0			; would result be negative?
+	BEQL	4$			; j if not
+	DECL	MEVAL			; otherwise round down
+4$:	ADDL2	#3,16(FP)		; adjust link for second exit
+5$:	RET				; entry for first exit
+;
+	.END

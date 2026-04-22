@@ -1,0 +1,123 @@
+	.TITLE	DISM_CMD_PRS	DISM32 Command Line Parser
+	.IDENT	/V4.4/
+
+;
+;  This module supplies the command line parsing for DISM32. It breaks
+;  qualifiers away from the input file specification, and separates the
+;  file name field from the other fields of the filespec. Qualifiers found
+;  cause LOGICAL*1 flags in FORTRAN COMMON to be set.
+;
+;  Command line format is of the form:
+;
+;	DISM32[/qual[/qual...]] filespec[/qual [/qual...]]
+;
+;  where all qualifiers are global and only one filespec is allowed.
+;
+;  This procedure is called in the form:
+;
+;	status = PARSE_CMD_LIN(cmdlin)
+;
+;  where cmdlin is a text string passed by descriptor.
+;
+	$FSCNDEF
+	$SSDEF
+	$TPADEF
+
+	.PSECT	CMDLINPRS,RD,WRT,NOEXE,GBL,SHR,OVR,PIC,LONG
+CMD_LIN:
+	.BLKB	256		; input line buffer
+IMG_FIL_NAM:
+	.BLKB	64		; file name field of input file specification
+IMGFILNAMLEN:
+	.BLKW	1		; used length of IMG_FIL_NAM
+FLAG_ASCII:
+	.BLKB	1		; flag indicating "force ASCII analysis"
+FLAG_OPTION:
+	.BLKB	1		; flag indicating "option file being generated"
+FLAG_DRIVER:
+	.BLKB	1		; flag indicating "force test for device driver"
+FLAG_TRACE:
+	.BYTE	-1		; flag indicating "generate trace, info msgs"
+
+	.SBTTL	Command Line Parse State Table
+
+	$INIT_STATE	CMDLIN_STATE,CMDLIN_KEY
+
+	$STATE
+	$TRAN	!QUAL,CMDLIN_STATE
+	$TRAN	TPA$_FILESPEC,,SAVE_FILESPEC
+
+	$STATE	CMDLIN_STATE2
+	$TRAN	!QUAL,CMDLIN_STATE2
+	$TRAN	'!',TPA$_EXIT
+	$TRAN	TPA$_EOS,TPA$_EXIT
+
+	$STATE	QUAL
+	$TRAN	'/'
+
+	$STATE
+	$TRAN	'ASCII',TPA$_EXIT,SET_FLAG,,,0
+	$TRAN	'DRIVER',TPA$_EXIT,SET_FLAG,,,2
+	$TRAN	'NOASCII',TPA$_EXIT,RESET_FLAG,,,0
+	$TRAN	'NODRIVER',TPA$_EXIT,RESET_FLAG,,,2
+	$TRAN	'NOTRACE',TPA$_EXIT,RESET_FLAG,,,3
+	$TRAN	'TRACE',TPA$_EXIT,SET_FLAG,,,3
+
+	$END_STATE
+
+	.SBTTL	Parser Code
+
+	.PSECT	$LOCAL,NOEXE,RD,WRT,NOSHR,LCL,PIC,LONG
+FILPTR:	.BLKQ	1		; buffer for input filespec pointer
+ITMLST:	.BLKW	1		; length field
+	.WORD	FSCN$_NAME	; function field
+	.BLKL	1		; address field
+	.LONG	0		; end of item list
+
+	.PSECT	$CODE,EXE,RD,NOWRT,LCL,SHR,PIC,LONG
+
+	.ENTRY	PARSE_CMD_LIN,^M<R2,R3,R4,R5>
+	CLRQ	FILPTR			; clear filespec descriptor,
+	SUBL2	#TPA$K_LENGTH0,SP	; build TPARSE argblk on stack,
+	MOVC5	#0,(SP),#0,#TPA$K_LENGTH0,(SP) ; clear argblk,
+	MOVL	#TPA$K_COUNT0,TPA$L_COUNT(SP) ; initialize argblk,
+	MOVAQ	@4(AP),R0		; get pointer to string,
+	MOVZWL	(R0),TPA$L_STRINGCNT(SP) ; put string in argblk,
+	MOVL	4(R0),TPA$L_STRINGPTR(SP)
+	MOVL	#TPA$M_ABBREV,TPA$L_OPTIONS(SP) ; mark permissable options,
+	PUSHAB	CMDLIN_KEY		; call the parser,
+	PUSHAB	CMDLIN_STATE
+	PUSHAL	8(SP)
+	CALLS	#3,G^LIB$TPARSE
+	BLBC	R0,99$			; skip out if error,
+	MOVC5	FILPTR,@FILPTR+4,-	; copy filespec to output buffer,
+		#^A/ /,#256,CMD_LIN
+	MOVAB	CMD_LIN,FILPTR+4	; fix descriptor of filespec,
+	$FILESCAN_S	-		; extract the name part of the filespec,
+		SRCSTR=FILPTR,	-
+		VALUELST=ITMLST
+	BLBC	R0,99$			; skip out if error,
+	MOVC5	ITMLST,@ITMLST+4,-	; else copy file name to alt buffer,
+		#^A/ /,#64,IMG_FIL_NAM
+	MOVW	ITMLST,IMGFILNAMLEN
+	MOVZWL	#SS$_NORMAL,R0		; load success status,
+99$:	RET				; return to caller with parse status.
+
+SAVE_FILESPEC:
+	.WORD	^M<>
+	MOVQ	TPA$L_TOKENCNT(AP),FILPTR ; save descriptor of filespec string,
+	RET				; return successfully (status from caller).
+
+SET_FLAG:
+	.WORD	^M<>
+	MOVL	TPA$L_PARAM(AP),R1	; get flag index,
+	MNEGB	#1,FLAG_ASCII[R1]	; set the appropriate flag,
+	RET				; return successfully (status from caller).
+
+RESET_FLAG:
+	.WORD	^M<>
+	MOVL	TPA$L_PARAM(AP),R1	; get flag index,
+	CLRB	FLAG_ASCII[R1]		; reset the appropriate flag,
+	RET				; return successfully (status from caller).
+
+	.END

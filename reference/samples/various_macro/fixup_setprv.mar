@@ -1,0 +1,305 @@
+	.TITLE	FIXUP_EXE$SETPRV	Make $SETPRV fail for a particular user
+	.IDENT	/V1.1.0-15Jun92/
+;++
+;
+; FIXUP_EXE$SETPRV.MAR		05-May-1992			Ehud Gavron
+;
+; For those times you want the EXE$SETPRV routine to ignore a particular
+; username, this image patches the executive to do just that.
+;
+; Although no merchantability is expressed or implied, this
+; code was developed for and will work under V5.4-2.
+;
+;       Ehud Gavron             gavron@Spades.ACES.COM
+;
+;--
+; V1.0.0        Created because I'm not getting enough interesting
+;               kernel-coding to do in my regular job.
+;
+; V1.1.0	Prompt for and accept username to mess with instead of
+;		requiring that it be hardcoded.  Ignore calls that seek
+;		to disable privilege.  Only intercept those which attempt
+;		to amplify privilege.  Remove conditional logic on checking
+;		for first few seconds of process life and make it permanent.
+;
+; Definitions
+;
+        .library        "sys$Library:lib.mlb"                   ; find $xxxdefs
+        .link           "sys$system:sys.stb"/selective_search   ; find xxx$x_xs
+
+	$opdef		; Opcode definitions (for op$_jmp...)
+	$pcbdef		; Process Control Block offsets (to get PCB$L_JIB)
+	$phddef		; Process Header offsets (to get PHD$L_CPUTIM)
+	$jibdef		; Job Information Block offsets (to get JIB$T_USERNAME)
+	$prtdef		; Page Protection definitions (for PRT$C_URKW)
+	$ptedef		; Page Table Entry definitions (to get PTE$x_PROT)
+        $ssdef          ; System Service status values (for normal status)
+
+;
+; Offsets I stole from the VAX Architecture manual:
+;
+SCB_L_CMKRNL	=	^X40
+SCB_L_CMEXEC	=	^X44
+
+;
+; Location of vector symbol and addresses:
+;
+fv_symbol:	.blkl	1	; The global symbol to find the code for
+fv_vector:	.blkl	1	; The address of the code
+;
+; Argument list to pass it to FIND_VECTOR:
+;
+fv_arglst:	.long	2
+		.address fv_symbol
+		.address fv_vector
+;
+; Macros:
+;
+	.macro	cmd_store	cmd,cmdargs	; Store a command as a string
+'cmd'_inst: 'cmd' 'cmdargs'			; Descriptor.  Eventually this
+'cmd'_len = . - 'cmd'_inst			; will lead to a generic patch-
+'cmd'_desc:	.long	'cmd'_len		; in-memory routine.
+		.address 'cmd'_inst
+	.endm
+
+	.macro	FIND_AND_DESTROY symb		; A temporary macro to avoid
+	movl	#symb,fv_symbol			; Having repetitious-looking
+	$cmkrnl_s	routin=find_vector,-	; source-code.  This one will
+			arglst=fv_arglst	; find a symbol, and call the
+	$cmkrnl_s	routin=fixup_k,-	; fixup routine.
+			arglst=fv_arglst
+	.endm
+;
+; Data area:
+;
+in_username:	.ascid "                                "
+prompt:		.ascid "Username: "
+
+;
+; Start of user-mode code:
+;
+	.Entry	Fixup,^m<>			; First we get the username
+	pushal	in_username			; Return-length
+	pushal	prompt				; Prompt
+	pushal	in_username			; Return-string
+	calls	#3,g^lib$get_input		; Get it
+	blbc	r0,out				; Exit if we failed
+	find_and_destroy	exe$setprv	; Go patch it!
+out:
+	Ret					; End!
+
+;
+; Start of kernel-mode code:
+;
+	.entry	FIND_VECTOR,^m<r2,r3,r4,r5,r6,r7,r8,r9,r10,r11>
+;
+; Find out which system service or jump vector it is today...
+;
+	movl	@4(ap),r7		; Address of vector requested
+	cmpw	(r7),#op$_jmp!<^x9f00>	; Check for JMP @#
+	beql	10$			; It is, go use it
+	addl	#2,r7			; Move past the entry mask
+	cmpw	(r7),#op$_jmp!<^x9f00>	; Is it a JMP @#
+	beql	10$			; Yup, go deal with it
+	movl	#SCB_l_cmkrnl,r10	; Prepare for it being a CHMK
+	cmpb	(r7),#op$_chmk		; Is it a CHMK #n
+	beql	20$			; Yup, go deal with it
+	movl	#SCB_l_cmexec,r10	; Prepare for it being a CHME
+	cmpb	(r7),#op$_chme		; Is it a CHME #n
+	beql	20$			; Yup, go deal with it
+	movl	#ss$_unsupported,-	; Eeek, don't know what it is...
+		r0			; So tell user it's unsupported
+	ret				; and go back to user mode!
+
+;
+; So now we extract the address from the JMP instruction:
+;
+10$:
+	addl2	#2,r7			; Get nn from JMP @#nn
+	movl	(r7),@8(ap)
+	movl	r7,@4(ap)
+	movl	#ss$_normal,r0
+	ret
+;
+; So now we get the number of the exception...
+;
+20$:
+	addl2	#2,r7			; Get address of #nn from CHMx #nn
+	movzbl	(r7),r8			; Get nn into R8
+;
+; So now we find the dispatcher address
+;
+	movl	@#exe$gl_scb,r1		; Get address of System Control Block
+	addl2	r10,r1			; Get address of correct dispatcher
+	movl	(r1),r1			; Get address of exe$cmodxxxx where
+					; xxxx is either krnl or exec
+;
+; We look in its code for the dispatch vector table
+;
+	movab	movaq_inst,r2		; Address of our MOVAQ instruction	
+	movzwl	(r2),r5
+	addl3	#^xff,r1,r3		; Address past MOVAQ fer shure
+30$:
+	movzwl	(r1),r6
+	cmpw	r6,r5			; Have we found a MOVAQ?
+	beql	40$			; Yup!
+	aobleq	r3,r1,30$
+	movl	#ss$_nodata,r0		; Whoops, couldn't find it...
+	ret				; So go back to user mode... sigh
+
+;
+; Ok, here R1 points to the start of a MOVAQ instruction that looks like:
+; 	MOVAQ CMOD$AR_mode_DISPATCH_VECTOR[R1],R1
+; which translates to bytes:	51hhllCF417E with hhll being the offset
+; from the last byte (51).  We first save this current R1
+;
+40$:
+	movl	r1,r9			; Address of MOVAQ
+	movl	r1,r7			; Saved
+;
+; Then we find the offset
+;
+	addl2	#3,r9			; Address of hhll (word)
+	movzwl	(r9),r3			; R3 = offset
+;
+; Then we add get the address of the end of the instruction
+;
+	addl2	#5,r7			; Address of last byte of instruction
+;
+; Then we add the offset
+;
+	addl2	r3,r7			; R7 = CMOD$AR_mode_DISPATCH_VECTOR
+;
+; Then we take our CHMn code and multiply by 8 (quadword vectors) and add
+;
+	ashl	#3,r8,r6		; Vector offset
+	addl2	r6,r7			; Our vector
+	addl2	#4,r7			; The address [2nd longword of vector]
+	movl	(r7),@8(ap)		; Return this address
+	movl	r7,@4(ap)		; Return address of address
+	movl	#ss$_normal,r0
+	ret
+
+
+	.entry FIXUP_K,^m<r2,r3,r4,r5,r6,r7,r8,r9,r10,r11>
+;++
+; Make EXE$SETPRV ignore a particular username
+;--
+;
+; Allocate a buffer in system space (nonpaged pool) to hold
+; all the code to do this stuff...
+;
+	movl	#code_len,r1
+	jsb	g^exe$alononpaged
+	blbs	r0,10$
+	ret
+;
+; Copy the code into the pool.
+;
+10$:	movl	r2,r6			; Save pointer to new npagedyn
+	movc3	#code_len,-		; Copy code into npagedyn
+		w^code,(r6)
+;
+; First we prepare the JMP instruction to stick in the front of the old
+; EXE$SETPRV.  We do this because EXE$SETPRV can be JSB'd to from Kernel
+; mode.  If that occurs then just revectoring the CHMK vector doesn't
+; help...
+;
+; Take the second jump at the end of the code and make it point to here...
+;
+	addl3	#<jump2-code+2>,r6,r2
+	movl	r6,(r2)
+;
+; Take the username section at the end and put the real username in it...
+;
+	pushr	#^m<r0,r1,r2,r3,r4,r5,r6>
+	movzwl	in_username,r2
+	moval	in_username,r3
+	movl	r2,<stringlen-code>(r6)
+	movc3	r2,@4(r3),<string-code>(r6)
+	popr	#^m<r0,r1,r2,r3,r4,r5,r6>
+;
+; Now we change the jump instruction at the end to point to the real
+; exe$setprv plus a couple of instructions.  Then we'll overwrite the
+; first few instructions with the jump2 we prepared.  Finally at the
+; end of our code segment are the instructions (from the listing) that
+; we overwrote...
+;
+	movl	@4(ap),r2		; Address of entry point to exe$setprv
+	addl3	#<jump-code+2>,r6,r7	; Address of jump data
+	addl3	(r2),#^x0b,r3		; R3 --> exe$setprv+d (-2)
+	movl	r3,(r7)			; Make jump go to exe$setprv + 0d
+	movl	r2,r7			; Save pointer
+	movl	(r2),r8			; R8 --> exe$setprv
+	movl	#prt$c_urkw,r9			; Set for ERKW
+	lock	lockname=MMG,-		; Raise IPL, acquire spinlock
+		lockipl=#IPL$_MMG,-
+		preserve=NO
+	jsb	g^mmg$svaptechk		; Get SVAPTE in R3
+	extzv	#pte$v_prot,#pte$s_prot,(r3),r10
+	insv 	r9,#pte$v_prot,#pte$s_prot,(r3)
+	invalidate_tb
+	movl	r8,r2
+	jsb	g^mmg$svaptechk
+	extzv	#pte$v_prot,#pte$s_prot,(r3),r10
+	insv 	r9,#pte$v_prot,#pte$s_prot,(r3)
+	invalidate_tb 			; Translation Buffer Invalidate All
+	movl	r6,(r7)			; Update vector
+	movc3	#jump_len,-
+		<jump2-code>(r6),(r8)	; Put the second jump in...
+
+	unlock	lockname=MMG,-		; Release lock
+		newipl=#0
+	
+	movl	#ss$_normal,r0
+	ret
+
+enbflg	=	4
+prmflg 	= 	12
+
+;
+; The following code will be run each time EXE$SETPRV is invoked.  It
+; will compare the username with its stored target and return a failure
+; if it is the target username and phd$l_cputim >= 200.
+;
+code:
+	blbc	enbflg(ap),disable		; Are we enabling privileges?
+	pushr	#^m<r0,r1,r2,r3,r4,r5>		; Yes, save registers
+	movl	g^ctl$gl_pcb,r4			; Get PCB address in R4
+	movl	pcb$l_jib(r4),r5		; Get JIB address in R5
+	movab	stringlen,r2			; Get length of username
+	cmpc3	(r2),jib$t_username(r5),string	; Is this the target user?
+	bneq	dojump				; Nope, go restore registers
+	movl	g^ctl$gl_phd,r4			; Yes, get PHD address
+	cmpl	phd$l_cputim(r4),#200		; Are we in first few seconds?
+	blssu	dojump				; Yes, let it succeed...
+	popr	#^m<r0,r1,r2,r3,r4,r5>		; Nope, restore registers
+	movl	#ss$_nopriv,r0			; Set no privilege status
+	ret					; And return
+
+
+dojump:						; Don't monkey with this one...
+	popr	#^m<r0,r1,r2,r3,r4,r5>		; Restore registers
+disable:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; The code in these next two lines is taken from [v54.sys.lis]syssetprv.lis.
+;
+
+	MOVL	G^CTL$GL_PHD,R5		;GET PROCESS HEADER ADDRESS
+	MOVL	PRMFLG(AP),R6		;GET PERMANENT/TEMPORARY FLAG
+;
+; End of Digital code
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+jump:						; This code will jump back in
+	jmp	@#00000000
+jump_len = . - jump
+jump2:						; This jump will point to the
+	jmp	@#00000000			; start of our code...
+string:	.ascii	"                                "	; npg copy of username
+stringlen:	.blkl	1				; npg username len
+code_len = . - code
+        cmd_store       movaq   <w^10[r1],r1>
+	.end 	fixup
+

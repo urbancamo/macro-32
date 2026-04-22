@@ -1,0 +1,196 @@
+        .title  getsrvnam  Get Lat Service Name
+        .ident  /1.0/
+;
+; This is a small routine which gets the lat service name the specified
+; terminal was connected to.  This is useful for doing different things
+; based on which service one connected to, even if all services are
+; offered by the same host.
+;
+; V1.0  16-May-1990 Ehud Gavron.  Created.  See ZDEC.MAR for reference.
+;                                           Also VARY.MAR for reference.
+;
+; NOTE: The ucb$t_lt_srvnam definition below was received over info-vax
+;       from someone with source fiche.  I do not make a claim that this
+;       will ever work, change, or neither... It does however work under
+;       V5.3-1.
+;
+        .sbttl  include section
+
+        .library        "sys$library:lib.mlb"
+        .link           "sys$system:sys.stb"    /selective_search
+
+        $tpadef         ; lib$tparse definitions
+        $ssdef          ; system service statu return definitions
+        $ucbdef         ; unit control block definitions
+        $stsdef         ; status codes
+        $dvidef         ; device item codes
+        $dcdef          ; device types
+
+        .psect  getsrvnam_data,rd,wrt,noexe,long,shr,pic
+
+service_name:           .blkb   32      ; LAT service name buffer
+service_len = . - service_name          ; Its length
+service_desc:                           ; Its descriptor
+        .long           service_len
+        .address        service_name
+cmd_buf:                .blkb   80      ; Command line buffer
+cmd_buf_siz = . - cmd_buf               ; Its length
+cmd_buf_desc:                           ; Its descriptor
+        .long           cmd_buf_siz
+        .address        cmd_buf
+dev_buf:                .blkb   40      ; Device name buffer
+dev_buf_siz = . - dev_buf               ; Its length
+dev_buf_desc:                           ; Its descriptor
+        .long           dev_buf_siz
+        .address        dev_buf
+k_arg:                                  ; Kernel mode argument list
+        .long           1               ; # of arguments
+        .address        dev_buf_desc    ; Device name descriptor
+tt_srvnam:      .ascid  /TT_SRVNAM/     ; Logical name to define
+lnm_logtab:     .ascid  /LNM$PROCESS/   ; Logical name table to define in
+prompt:         .ascid  /LAT Term: /    ; Prompt for lib$get_foreign
+
+ucb$t_lt_srvnam = ^x1aa                 ; Offset to service name (V5.3 fiche)
+
+dev_class:      .long   1               ; Device class gotten
+log_dev_desc:   .blkq   1               ; Descriptor for device requested
+
+parse_blk:                              ; Parse block for lib$tparse
+        .long   tpa$k_count0
+        .long   tpa$m_abbrev
+        .blkb   tpa$k_length0-8
+
+dev_item_list:                          ; Itemlist for $getdvi
+        .word           dev_buf_siz
+        .word           dvi$_devnam     ; Get physical device name
+        .address        dev_buf
+        .address        dev_buf_desc
+        .word           4               ; Check device class for terminal
+        .word           dvi$_devclass
+        .address        dev_class
+        .long           0
+        .long           0               ; End of itemlist.
+
+tt_item_list:                           ; Itemlist for terminal physical name
+        .word           dev_buf_siz
+        .word           dvi$_tt_phydevnam
+        .address        dev_buf
+        .address        dev_buf_desc
+        .long           0
+
+        .sbttl  State Table
+        .psect  getsrvnam_states,rd,nowrt,exe,long,shr,pic
+
+        $init_state     state_table,key_table
+
+        $state  start
+        $tran   tpa$_symbol,dev,,,log_dev_desc
+        $tran   tpa$_eos,tpa$_exit
+
+        $state  dev
+        $tran   tpa$_eos,tpa$_exit
+        $tran   ':',colon
+
+        $state  colon
+        $tran   tpa$_eos,tpa$_exit
+
+        $state
+        $tran   tpa$_symbol,dev,,,log_dev_desc
+        $tran   tpa$_eos,tpa$_exit
+
+        $end_state
+
+        .page
+        .sbttl  Main Program
+        .psect  getsrvnam_code,rd,nowrt,exe,long,shr,pic
+        .entry  getsrvnam,^m<r2,r3,r4,r5>
+;
+; Get the command line:
+;
+        pushal  cmd_buf_desc            ; Return length
+        pushal  prompt                  ; Prompt if not entered before
+        pushal  cmd_buf_desc            ; Place to put line
+        calls   #3,g^lib$get_foreign    ; Get command line
+        blbs    r0,10$                  ; Continue if ok
+        brw     exit                    ; Exit with errors
+
+10$:
+;
+; Parse it to extract the device name:
+;
+        movl    cmd_buf_desc,parse_blk+tpa$l_stringcnt ; Set length
+        movl    cmd_buf_desc+4,parse_blk+tpa$l_stringptr ; set address
+        pushal  key_table
+        pushal  state_table
+        pushal  parse_blk
+        calls   #3,g^lib$tparse
+        blbs    r0,20$
+        brw     exit
+20$:
+;
+; Make sure there is such a device:
+;
+        $getdvi_s       devnam=log_dev_desc,itmlst=dev_item_list
+        blbs    r0,30$
+        brw     exit
+
+30$:
+;
+; Get the physical device name:
+;
+        $getdvi_s       devnam=log_dev_desc,itmlst=tt_item_list
+        blbc    r0,exit
+;
+; Make sure it's a terminal:
+;
+        cmpl    #dc$_term,dev_class
+        beql    40$
+        movl    #ss$_ivdevnam,r0
+        brw     exit
+
+40$:
+;
+; Call Kernel-mode routine to move string to unprivileged readable area...
+;
+
+        $cmkrnl_s routin=getucbstr,arglst=k_arg
+;
+; Find zero-terminated string's length and store in descriptor:
+;
+        clrl    r1
+50$:    cmpb    #0,service_name(r1)             ; is it a nul?
+        beql    60$                             ; Yup, found end of string
+        aobleq  #service_len,r1,50$             ; Nope, add one, try again
+60$:    movl    r1,service_desc                 ; Update descriptor length
+
+;
+; Define process logical name TT_SRVNAM to be the service name
+;
+        pushl   #0                              ; attributes
+        pushl   #0                              ; itemlist
+        pushal  lnm_logtab                      ; table
+        pushal  service_desc                    ; value
+        pushal  tt_srvnam                       ; name
+        calls   #5,g^lib$set_logical
+exit:
+        ret                             ; and exit
+
+        .page
+        .sbttl  getucbstr       ; Get string from the ucb
+;
+; GETUCBSTR -- Gets the UCB address, finds the lat service name given
+;              the ucb$t_lt_srvnam offset, and copies that string to
+;              an area of memory that an outer access mode may read.
+
+        .entry  getucbstr,^m<r2,r3,r4,r5> ; MOVC3 destroys these
+
+        lock    lockname=sched  ; Lock scheduling datbase at ipl$_sched
+        movl    4(ap),r1        ; Address of device name descriptor into r1
+        jsb     g^ioc$searchdev ; returns ucb address into r1.
+        blbc    r0,k_exit       ; bug out on error...
+        movc3   #16,ucb$t_lt_srvnam(r1),service_name ; copy it to local space
+        movl    #ss$_normal,r0  ; fake a fantastically ok return status
+k_exit:
+        unlock  lockname=sched  ; resume scheduling, lower ipl
+        ret                     ; and exit
+        .end    getsrvnam

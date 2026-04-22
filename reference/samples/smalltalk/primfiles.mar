@@ -1,0 +1,396 @@
+.title	primfiles
+;	primfiles.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the file primitives
+;
+;	Written: November 4, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	November 4, 1981 by S.B. - Written
+;	November 5, 1981 by S.B. - Add real file output and input
+;	November 6, 1981 by S.B. - convert to stream
+;	December 13, 1982 by S.S. - Redo file primitives
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+file_directory		= 0
+file_name		= 1
+file_equivalencename	= 2
+file_readwrite		= 3
+file_lastpagenumber	= 4
+file_descriptor		= 5
+
+directory_name		= 0
+directory_index		= 1
+
+page_file		= 0
+page_pagebuffer		= 1
+page_binary		= 2
+page_pagenumber		= 3
+page_pagesize		= 4
+
+fab			= ^x0
+rab			= ^x50
+
+.save_psect
+.psect	static
+fabrabsize::	.long	fab$k_bln+rab$k_bln
+fabrabbase::	.long	0
+.restore_psect
+
+; VMSFile primOpen
+primfileopen::
+	clrl	fabrabbase	; clear base address of allocated memory
+	movl	(r10),r2	; get the file
+	blbs	r2,2$		; fail if small integer
+	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+	cmpl	file_descriptor*4(r6),#oop_nil ; is the file already open?
+	bneq	2$		; apparently
+	call	g^lib$get_vm,!fabrabsize,!fabrabbase ; get some memory
+	blbs	r0,3$		; it's okay
+2$:	brw	1$		; branch on error
+3$:	movl	fabrabbase,r12	; get base address to a register
+	movc3	#fab$k_bln,f_fab,fab(r12) ; copy a fab
+	movc3	#rab$k_bln,f_rab,rab(r12) ; and its associated rab
+	moval	fab(r12),rab$l_fab+rab(r12) ; redirect fab pointer
+	movl	file_equivalencename*4(r6),r0 ; get the equivalence name
+	getobj	r0		; open it
+	cmpl	hdr_class*4(r0),#oop_string ; is it a string?
+	bneq	1$		; no, fail
+	bicl3	#obj_size,hdr_size*4(r0),r1 ; get length of file name string
+	subl	#hdr_len*4,r1	; fix it up
+	cvtlb	r1,r1		; is it okay?
+	bvs	1$		; nope
+	movb	r1,fab$b_fns+fab(r12) ; save it
+	addl3	#hdr_len*4,r0,r1 ; point to real string
+	movl	r1,fab$l_fna+fab(r12) ; save it
+	$create	  fab=fab(r12)	; open the file
+	blbc	r0,1$		; quit on an error
+	$connect  rab=rab(r12)	; connect a stream to it
+	blbc	r0,1$		;
+	bisl3	#1,r12,file_descriptor*4(r6) ; save descriptor address
+	brw	mainloop	; done
+
+;
+; release memory!
+;
+1$:	jmp	@failpoint	; fail
+
+; VMSFile primClose
+primfileclose::
+	movl	(r10),r2	; get the file
+	blbs	r2,1$		; fail if small integer
+	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+	bicl3	#1,file_descriptor*4(r6),r12 ; get the descriptor
+	cmpl	r12,#oop_nil	; is it okay?
+	beql	1$		; nope, fail
+	$close	  fab=fab(r12)	; close the file
+	blbc	r0,1$		; quit on an error
+	movl	#oop_nil,file_descriptor*4(r6) ; wipe descriptor address
+;
+; release memory
+;
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFile primRead: aFilePage
+primfileread::
+	movl	(r10),r2	; get the file page
+	blbs	r2,1$		; fail if small integer
+	getobj	r2,r6		; open it
+	addl	#hdr_len*4,r6	; point past the header
+	movl	page_file*4(r6),r0 ; get the file object
+	getobj	r0		; open it
+	bicl3	#1,<file_descriptor+hdr_len>*4(r0),r12 ; get the descriptor
+	cmpl	r12,#oop_nil	; is it okay?
+	beql	1$		; nope
+	movl	page_pagebuffer*4(r6),r0 ; get the page to read into
+	blbs	r0,1$		; fail if small integer
+	getobj	r0		; open the object
+	addl3	#hdr_len*4,r0,rab$l_ubf+rab(r12) ; store its address
+	movw	#512,rab$w_usz+rab(r12) ; and size
+	movl	page_pagenumber*4(r6),r0 ; get page number
+	blbc	r0,1$		; fail if not small integer
+	ashl	#-1,r0,rab$l_bkt+rab(r12) ; save it
+	$read	  rab=rab(r12)	; read a page
+	blbc	r0,1$		; quit on an error
+	cvtwl	rab$w_rsz+rab(r12),r0 ; get size of page read
+	ashl	#1,r0,r0	; return it as small integer
+	bisl3	#1,r0,page_pagesize*4(r6) ;
+	movl	(r10),-(r10)	; return the file page as result
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFile primWrite: aFilePage
+primfilewrite::
+	movl	(r10),r2	; get the file page
+	blbs	r2,1$		; fail if small integer
+	getobj	r2,r6		; open it
+	addl	#hdr_len*4,r6	; point past the header
+	movl	page_file*4(r6),r0 ; get the file object
+	getobj	r0		; open it
+	bicl3	#1,<file_descriptor+hdr_len>*4(r0),r12 ; get the descriptor
+	cmpl	r12,#oop_nil	; is it okay?
+	beql	1$		; nope
+	movl	page_pagebuffer*4(r6),r0 ; get the page to write from
+	blbs	r0,1$		; fail if small integer
+	getobj	r0		; open the object
+	addl3	#hdr_len*4,r0,rab$l_rbf+rab(r12) ; store its address
+	movl	page_pagesize*4(r6),r0 ; get page size
+	blbc	r0,1$		; fail if not small integer
+	ashl	#-1,r0,r0	; make it something useful
+	cvtlw	r0,r0		; must fit in a word
+	bvs	1$		; it didn't!
+	movw	r0,rab$w_rsz+rab(r12) ; set size of page to write
+	movl	page_pagenumber*4(r6),r0 ; get page number
+	blbc	r0,1$		; fail if not small integer
+	ashl	#-1,r0,rab$l_bkt+rab(r12) ; save it
+	$write	  rab=rab(r12)	; write a page
+	blbc	r0,1$		; quit on an error
+	movl	(r10),-(r10)	; return the file page as result
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+;VMSFile primSize
+primfilesize::
+	movl	(r10),r2	; get the file
+	blbs	r2,1$		; fail if small integer
+	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+	bicl3	#1,file_descriptor*4(r6),r12 ; get the descriptor
+	cmpl	r12,#oop_nil	; is it okay?
+	beql	1$		; nope
+	$display  fab=fab(r12)	; get size information for the file
+	blbc	r0,1$		; quit on an error
+	ashl	#1,xab$l_ebk+f_xab,r0 ; get end-of-file block
+	tstw	xab$w_ffb+f_xab	; is this entire block empty?
+	bneq	2$		; nope
+	subl	#2,r0		; yep, correct our story
+2$:	bisl3	#1,r0,(r10)	; return a small integer
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFileDirectory primAddEntry: aFile
+primfileaddentry::
+	movl	(r10),r2	; get the file
+	blbs	r2,4$		; fail if small integer
+	movl	-4(r10),r3	; get the file directory
+	blbs	r3,4$		; fail if small integer
+	getobj	r3,r6		; open the file directory object
+	addl	#hdr_len*4,r6	; point past the header
+	bsbw	dopen		; open the directory
+	brb	5$		; continue
+4$:	brw	1$		; quit
+5$:	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+2$:	bsbw	dget		; read a record
+	tstb	buffer		; is it empty?
+	bneq	2$		; nope, try again
+	movl	file_name*4(r6),r0 ; get the name
+	getobj	r0		; open it
+	bicl3	#obj_size,hdr_size*4(r0),r4 ; get length
+	subl	#hdr_len*4,r4	; fix it up
+	cmpl	r4,#64-16	; is the file name too long?
+	bleq	3$		; nope
+	movl	#64-16,r4	; yep, truncate it
+3$:	addl3	#hdr_len*4,r0,r5 ; get source address
+	call	g^ots$cvt_l_ti,!index,!desc,#5 ; convert to form name
+	movl	#^A/FILE/,buffer+0 ; put in the equivalence name
+	movl	#^A/.TXT/,buffer+9 ;
+	movw	#^A/;1/,buffer+13 ;
+	cvtlb	r4,buffer+15	; set file name length
+	movc3	r4,(r5),buffer+16 ; copy all bytes into this record
+	bsbw	dput		; write it out
+	bsbw	dclose		; close the directory
+	romicb	#oop_string,#15	; make a new string
+	movl	r0,file_equivalencename*4(r6) ; return it as well
+	getobj	r0		; open the string
+	movc3	#15,buffer+0,hdr_len*4(r0) ; copy the bytes
+	movl	(r10),-(r10)	; return the file object
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFileDirectory primRemoveEntry: aFile
+primfileremoveentry::
+	movl	(r10),r2	; get the file
+	blbs	r2,4$		; fail if small integer
+	movl	-4(r10),r3	; get the file directory
+	blbs	r3,4$		; fail if small integer
+	getobj	r3,r6		; open the file directory object
+	addl	#hdr_len*4,r6	; point past the header
+	bsbw	dopen		; open the directory
+	brb	5$		; continue
+4$:	brw	1$		; quit
+5$:	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+	movl	file_name*4(r6),r0 ; get the name
+	getobj	r0		; open it
+	bicl3	#obj_size,hdr_size*4(r0),r4 ; get length
+	subl	#hdr_len*4,r4	; fix it up
+	cmpl	r4,#64-16	; is the file name too long?
+	bleq	3$		; nope
+	movl	#64-16,r4	; yep, truncate it
+3$:	addl3	#hdr_len*4,r0,r5 ; get source address
+2$:	bsbw	dget		; read a record
+	cmpl	r0,#rms$_eof	; end-of-file found?
+	beql	1$		; yep, error
+	tstb	buffer		; is it empty?
+	beql	2$		; yep, try again
+	cmpc3	r4,(r5),buffer+16 ; compare the two strings
+	tstl	r0		; did we match?
+	bneq	2$		; nope, try again
+	clrb	buffer		; delete this entry
+	bsbw	dput		; write it out
+	bsbw	dclose		; close the directory
+	movl	#oop_nil,file_equivalencename*4(r6) ; nil the equivalence name
+	movl	(r10),-(r10)	; return the file object
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFileDirectory primNextEntry: aFile
+primfilenextentry::
+	movl	(r10),r2	; get the file
+	blbs	r2,4$		; fail if small integer
+	movl	-4(r10),r3	; get the file directory
+	blbs	r3,4$		; fail if small integer
+	getobj	r3,r6		; open the file directory object
+	addl	#hdr_len*4,r6	; point past the header
+	bsbw	dopen		; open the directory
+	movl	directory_index*4(r6),r0 ; get the current index
+	blbc	r0,4$		; oops!
+	ashl	#-1,r0,index	; save it
+	brb	2$		; continue
+4$:	brw	1$		; quit
+2$:	bsbw	dget		; read a record
+	cmpl	r0,#rms$_eof	; end-of-file found?
+	bneq	5$		; nope, good!
+	brw	3$		; yep, return nil
+5$:	tstb	buffer		; is it empty?
+	beql	2$		; yep, try again
+	bsbw	dclose		; close the directory
+	ashl	#1,index,r0	; store the index for later
+	bisl3	#1,r0,directory_index*4(r6) ;
+	cvtbl	buffer+15,r4	; get length to create
+	getobj	r2,r6		; open the file object
+	addl	#hdr_len*4,r6	; point past the header
+	romicb	#oop_string,r4	; make a new string
+	movl	r0,file_name*4(r6) ; return it as our result
+	getobj	r0		; open the string
+	movc3	r4,buffer+16,hdr_len*4(r0) ; copy the bytes
+	romicb	#oop_string,#15	; make a new string
+	movl	r0,file_equivalencename*4(r6) ; return it as well
+	getobj	r0		; open the string
+	movc3	#15,buffer+0,hdr_len*4(r0) ; copy the bytes
+	movl	(r10),-(r10)	; return the file object
+	brb	6$		;
+3$:	movl	#oop_nil,-(r10)	; return nil
+	bsbw	dclose		; close the directory
+6$:	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+; VMSFileDirectory primReset
+primfilereset::
+	movl	(r10),r3	; get the file directory
+	blbs	r3,1$		; fail if small integer
+	getobj	r3,r6		; open the file directory object
+	movl	#si_0,<directory_index+hdr_len>*4(r6) ; reset the index
+	brw	mainloop	; done
+
+1$:	jmp	@failpoint	; fail
+
+dopen::
+	movl	directory_name*4(r6),r0 ; get directory name object
+	getobj	r0		; open it
+	bicl3	#obj_size,hdr_size*4(r0),r1 ; get length
+	subl	#hdr_len*4,r1	; fix it up
+	cvtlb	r1,r1		; is it okay?
+	bvs	1$		; nope
+	movb	r1,d_fab+fab$b_fns ; save it
+	addl3	#hdr_len*4,r0,r1 ; point to real string
+	movl	r1,d_fab+fab$l_fna ; save it
+	$create	  fab=d_fab	; open the directory file
+	blbc	r0,1$		; quit on an error
+	$connect  rab=d_rab	; connect a stream to it
+	blbc	r0,1$		;
+	clrl	index		; clear directory index
+	rsb			; return
+
+1$:	jmp	@failpoint	; fail
+
+dclose::
+	$close	  fab=d_fab	; close the directory
+	rsb			; return
+
+dget::
+	incl	index		; bump the index
+	$get	  rab=d_rab	; read a record
+	blbc	r0,3$		; ouch!
+	brb	2$		;
+3$:	cmpl	r0,#rms$_eof	; is failure end-of-file?
+	bneq	1$		; nope
+	clrb	buffer		; just return an empty record
+2$:	rsb			; return
+
+1$:	jmp	@failpoint	; fail
+
+dput::
+	movw	#64,d_rab+rab$w_rsz ; prepare for writing...
+	moval	buffer,d_rab+rab$l_rbf ;
+	$put	  rab=d_rab	; write a record
+	blbc	r0,1$		; oops!
+	rsb			; return
+
+1$:	jmp	@failpoint	; fail
+
+.save_psect
+.psect	static
+index:	.blkb	4
+desc:	.long	5
+	.long	buffer+4
+buffer:	.blkb	64
+.align	long
+f_fab::	$fab	alq=<0>,-
+		fac=<bio,get,put>,-
+		fop=<cif,tef>,-
+		mrs=<512>,-
+		org=<seq>,-
+		rfm=<stmcr>,-
+		xab=<f_xab>
+
+f_rab::	$rab	rop=<uif>
+
+f_xab::	$xabfhc
+
+d_fab::	$fab	alq=<0>,-
+		deq=<1>,-
+		fac=<get,put>,-
+		fop=<cif>,-
+		mrs=<64>,-
+		org=<seq>,-
+		rfm=<fix>
+
+d_rab::	$rab	fab=<d_fab>,-
+		kbf=<index>,-
+		ksz=<4>,-
+		rac=<key>,-
+		rop=<uif>,-
+		ubf=<buffer>,-
+		usz=<64>
+.restore_psect
+
+	.end

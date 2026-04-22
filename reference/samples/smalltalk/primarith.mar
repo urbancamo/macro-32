@@ -1,0 +1,535 @@
+.title	primarith
+;	primarith.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the arithmetic primitives
+;
+;	Written: August 24, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 24, 1981 by S.B. - Written
+;	August 25, 1981 by S.B. - Add float primitives
+;	September 25, 1981 by S.S. - Collect stack statistics
+;	October 7, 1981 by S.S. - Fix divide routines for proper rounding
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+;; SmallInteger primitives
+
+; r + a
+primplus::
+	movl	(r10),r3	; get the arg as integer*2+1
+	blbc	r3,1$		; branch if arg is not SmallInteger
+	bicl3	#1,-4(r10),r2	; get the receiver as integer*2
+	addl	r2,r3		; add them
+	bvs	1$		; fail on overflow
+	movl	r3,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r - a
+primminus::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	movl	-4(r10),r2	; get the receiver as integer*2+1
+	bicl3	#1,(r10),r3	; get the arg as integer*2
+	subl	r3,r2		; subtract them
+	bvs	1$		; fail on overflow
+	movl	r2,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r < a
+primlss::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	blss	2$		; r < a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r > a	
+primgtr::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	bgtr	2$		; r > a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r <= a
+primleq::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	bleq	2$		; r <= a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r >= a
+primgeq::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	bgeq	2$		; r >= a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r = a
+primequal::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	beql	2$		; r = a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r ~= a
+primnequal::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	cmpl	-4(r10),(r10)	; compare the receiver and arg
+	bneq	2$		; r ~= a
+	movl	#oop_false,-(r10) ; return a false
+	brb	3$
+
+2$:	movl	#oop_true,-(r10) ; return a true
+3$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r * a
+primtimes::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	bicl3	#1,-4(r10),r2	; get the receiver as integer*2
+	ashl	#-1,(r10),r3	; get the arg as integer
+	mull	r2,r3		; multiply them
+	bvs	1$		; fail on overflow
+	bisl3	#1,r3,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r / a
+; divide exactly
+primdivide::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	clrl	r3		; clear high part of dividend
+	ashl	#-1,-4(r10),r2	; get the receiver as integer
+	bgeq	2$		; it's non-negative
+	decl	r3		; sign extend properly
+2$:	ashl	#-1,(r10),r4	; get the arg as integer
+	ediv	r4,r2,r1,r0	; r / a
+	bvs	1$		; failure
+	tstl	r0		; is remainder 0?
+	bneq	1$		; no - fail
+	ashl	#1,r1,r1	; cvt quotient to SmallInteger
+	bisl3	#1,r1,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r \\ a
+; mod - remainder after division with quotient rounded towards -infinity
+;
+; example:	+5 \\ +3 returns +2 (quotient 1, remainder 2)
+;		+5 \\ -3 returns -1 (quotient -2, remainder -1)
+;		-5 \\ +3 returns +1 (quotient -2, remainder 1)
+;		-5 \\ -3 returns -2 (quotient 1, remainder -2)
+;
+; note that the remainder has the same sign as the divisor
+;
+primmod::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	clrl	r3		; clear high part of dividend
+	ashl	#-1,-4(r10),r2	; get the receiver as integer
+	bgeq	2$		; it's non-negative
+	decl	r3		; sign extend properly
+2$:	ashl	#-1,(r10),r4	; get the arg as integer
+	ediv	r4,r2,r1,r0	; r / a
+	bvs	1$		; failure
+				; (remainder now has sign of dividend)
+	xorl	r4,r2		; compare signs of divisor and dividend
+	bgeq	3$		; branch if they are the same
+	addl	r4,r0		; correct remainder
+3$:	ashl	#1,r0,r0	; cvt remainder to SmallInteger
+	bisl3	#1,r0,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r // a
+; division with quotient rounded towards -infinity
+;
+; example:	+5 // +3 returns +1 (quotient 1, remainder 2)
+;		+5 // -3 returns -2 (quotient -2, remainder -1)
+;		-5 // +3 returns -2 (quotient -2, remainder 1)
+;		-5 // -3 returns +1 (quotient 1, remainder -2)
+;
+; note that the quotient has the product of the signs of the dividend and
+; the divisor
+;
+primdiv::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	clrl	r3		; clear hi part of dividend
+	ashl	#-1,-4(r10),r2	; get the receiver as integer
+	bgeq	3$
+	decl	r3		; sign extend
+3$:	ashl	#-1,(r10),r4	; get the arg as integer
+	ediv	r4,r2,r0,r1	; r / a
+	bvs	1$		; failure
+	xorl	r4,r2		; compare signs of divisor and dividend
+	bgeq	2$		; branch if they are the same
+	tstl	r1		; any remainder?
+	beql	2$		; no
+	decl	r0		; correct quotient
+2$:	ashl	#1,r0,r0	; cvt quotient to SmallInteger
+	bisl3	#1,r0,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r quo: a
+; division with quotient rounded towards 0
+primquo::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	ashl	#-1,-4(r10),r2	; get the receiver as integer
+	ashl	#-1,(r10),r4	; get the arg as integer
+	divl3	r4,r2,r0	; r / a
+	bvs	1$		; failure
+	ashl	#1,r0,r0	; cvt quotient to SmallInteger
+	bisl3	#1,r0,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r bitAnd: a
+primbitand::
+	mcoml	(r10),r2	; get the arg as complemented integer*2+1
+	blbs	r2,1$		; branch if arg is not SmallInteger
+	bicl	r2,-(r10)	; and them on the stack & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r bitOr: a
+primbitor::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	bisl	(r10),-(r10)	; or them on the stack & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r bitXor: a
+primbitxor::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	bicl3	#1,(r10),r2	; get the arg as integer*2
+	xorl	r2,-(r10)	; xor them on the stack and pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r bitShift: a
+primbitshift::
+	blbc	(r10),1$	; branch if arg is not SmallInteger
+	bicl3	#1,-4(r10),r2	; get the receiver as integer*2
+	ashl	#-1,(r10),r3	; get the arg as integer
+	ashl	r3,r2,r2	; shift the receiver
+	bvs	1$		; fail on overflow
+	bisl3	#1,r2,-(r10)	; replace receiver with SI result & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r @ a
+; make a point
+primpoint::
+	blbs	(r10),2$
+	brw	1$		; branch if arg is not SmallInteger
+2$:	romicp	#oop_point,#2	; make a new point
+	movl	r0,r2		; save oop
+	getobj	r0		; open the point
+	movl	-4(r10),<hdr_len+point_x>*4(r0) ; put x value in
+	movl	(r10),<hdr_len+point_y>*4(r0) ; put y value in
+	movl	r2,-(r10)	; replace receiver with point & pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+;; LargePositiveInteger primitives
+
+; unimplemented
+
+;; Float primitives
+
+; r asFloat
+primasfloat::
+	ashl	#-1,(r10),r2	; get the receiver as integer
+	cvtlf	r2,r2		; cvt to floating
+	romicw	#oop_float,#2	; make a new float
+	movl	r0,(r10)	; replace top with float
+	romsl	#0,r0,r2	; cram float in
+	brw	mainloop
+
+; r + a
+primfloatadd::
+	blbc	(r10),2$	; fail if arg is SmallInteger
+	brw	1$
+2$:	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	beql	3$		; yep
+	brw	1$		; no, fail
+3$:	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	addf	r0,r2		; add the floats
+	bvs	1$		; fail on overflow
+	romicw	#oop_float,#2	; make a float for result
+	movl	r0,-(r10)	; pop arg and replace receiver with float
+	romsl	#0,r0,r2	; cram float into Float
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r - a
+primfloatminus::
+	blbc	(r10),2$	; fail if arg is SmallInteger
+	brw	1$
+2$:	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	beql	3$		; yep
+	brw	1$		; no, fail
+3$:	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	subf3	r2,r0,r2	; subtract the floats
+	bvs	1$		; fail on overflow
+	romicw	#oop_float,#2	; make a float for result
+	movl	r0,-(r10)	; pop arg and replace receiver with float
+	romsl	#0,r0,r2	; cram float into Float
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r < a
+primfloatlss::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	blss	2$		; r < a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r > a
+primfloatgtr::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	bgtr	2$		; r > a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r <= a
+primfloatleq::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	bleq	2$		; r <= a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r >= a
+primfloatgeq::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	bgeq	2$		; r >= a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r = a
+primfloatequal::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	beql	2$		; r = a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r ~= a
+primfloatnequal::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	bneq	1$		; no, fail
+	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	cmpf	r0,r2		; compare the floats
+	bneq	2$		; r ~= a
+	movl	#oop_false,-(r10) ; pop stack and replace receiver with false
+	brw	mainloop
+
+2$:	movl	#oop_true,-(r10) ; pop stack and replace receiver with true
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r * a
+primfloatmul::
+	blbc	(r10),2$	; fail if arg is SmallInteger
+	brw	1$
+2$:	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	beql	3$		; yep
+	brw	1$		; no, fail
+3$:	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	mulf	r0,r2		; multiply the floats
+	bvs	1$		; fail on overflow
+	romicw	#oop_float,#2	; make a float for result
+	movl	r0,-(r10)	; pop arg and replace receiver with float
+	romsl	#0,r0,r2	; cram float into Float
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r / a
+primfloatdiv::
+	blbc	(r10),2$	; fail if arg is SmallInteger
+	brw	1$
+2$:	getobj	(r10)		; open the arg
+	cmpl	hdr_class*4(r0),#oop_float ; is arg a Float?
+	beql	3$		; yep
+	brw	1$		; no, fail
+3$:	movl	hdr_len*4(r0),r2 ; get the float from arg
+	romll	#0,-4(r10)	; get the float from receiver
+	divf3	r2,r0,r2	; divide the floats
+	bvs	1$		; fail on overflow
+	romicw	#oop_float,#2	; make a float for result
+	movl	r0,-(r10)	; pop arg and replace receiver with float
+	romsl	#0,r0,r2	; cram float into Float
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r truncated
+primfloattrunc::
+	romll	#0,(r10)	; get the float from receiver
+	cvtfl	r0,r0		; cvt to integer
+	bvs	1$		; can't be done
+	ashl	#1,r0,r0	; cvt to Smallinteger
+	bvs	1$		; can't be done
+	bisl3	#1,r0,(r10)	; set SI bit and replace stack top with it
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r fractionPart
+primfloatfracpart::
+	romll	#0,(r10)	; get the float from receiver
+	emodf	#1.0,#0,r0,r0,r2 ; extract the fractional part
+	bvs	1$		; failure
+	romicw	#oop_float,#2	; make a float for result
+	movl	r0,(r10)	; replace receiver with result
+	romsl	#0,r0,r2	; cram float into Float
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r exponent
+primfloatexponent::
+	romll	#0,(r10)	; get the float from receiver
+	extzv	#7,#8,r0,r0	; extract the exponent
+	subl	#128,r0		; correct for excess 128
+	ashl	#1,r0,r0	; cvt to SmallInteger
+	bisl3	#1,r0,(r10)	; set SI bit and replace receiver with it
+	brw	mainloop
+
+; r timesTwoPower: a
+primfloatpower::
+	blbs	(r10),2$	; fail if arg is not SmallInteger
+	brw	1$
+2$:	ashl	#-1,(r10),r2	; cvt arg to integer
+	romll	#0,-4(r10)	; get the float from receiver
+	movl	r0,r3		; save it
+	extzv	#7,#8,r3,r0	; extract the exponent
+	addl	r0,r2		; add the power of 2
+	bitl	#^XFFFFFF00,r2	; did we overflow?
+	bneq	1$		; yep
+	insv	r2,#7,#8,r3	; put the exponent back
+	romicw	#oop_float,#2	; make a float for the result
+	movl	r0,(r10)	; replace receiver with result
+	romsl	#0,r0,r3	; store the float into the Float
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+	.end

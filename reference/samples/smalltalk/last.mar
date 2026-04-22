@@ -1,0 +1,22 @@
+.title	last
+;	last.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the termination for gcstatic
+;
+;	Written: September 3, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 3, 1981 by S.B. - Written
+;	September 14, 1981 by S.B. - Change gcptrs to gcstatic
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+.psect	gcstatic
+
+lastgcstatic == .
+
+	.end
+

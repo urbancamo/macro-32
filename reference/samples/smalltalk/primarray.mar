@@ -1,0 +1,415 @@
+.title	primarray
+;	primarray.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the primitives for subscripting and stream.
+;
+;	Written: August 25, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 25, 1981 by S.B. - Written
+;	August 31, 1981 by S.B. - Bug fixing and deletion of word arrays
+;	September 2, 1981 by S.B. - Add 16 bit word fields
+;	September 4, 1981 by S.B. - Fix a few bugz
+;	September 10, 1981 by S.B. - Fix bug in size (always fails)
+;	September 25, 1981 by S.S. - Collect stack statistics
+;	October 22, 1981 by S.S - Implement the stream primitives
+;	December 31, 1981 by S.B. - Handle static space
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+; r at: idx
+primat::
+	movl	(r10),r3	; get the index arg
+	blbs	r3,4$		; fail if index is not SmallInteger
+	brw	1$
+4$:	ashl	#-1,r3,r3	; cvt index to integer
+	bgtr	5$		; fail if <= 0
+6$:	brw	1$
+5$:	getote	-4(r10),r1	; get the ote of the array to index
+	bicl3	#ote_addr,(r1),r2 ; get pointer to object
+	bitl	#ote_ptrs,(r1)	; are there pointers?
+	beql	2$		; no - indexable raw array
+	romlp	#class_ispec,hdr_class*4(r2) ; get the instance spec
+	movl	r0,r5		; save it
+	bitl	#ispec_var,r5	; is this object indexable?
+	beql	6$		; no - fail
+	extzv	#ispec_ffbase,#ispec_fflen,r5,r4 ; extract the ff count
+	addl	r4,r3		; add it to index
+	addl	#hdr_len-1,r3	; add header also and cvt to 0 org
+	bicl3	#obj_size,(r2),r0 ; get size in bytes
+	ashl	#-2,r0,r0	; get length as lword count
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	6$		; no - fail
+	movl	(r2)[r3],-(r10)	; replace rcvr with field
+	qvstored (r10)		; move object if in fromspace
+	brw	mainloop
+
+2$:	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r3 ; add header len as words to index
+	bicl3	#obj_size,(r2),r0 ; get size
+	ashl	#-1,r0,r0	; get length as word count
+	cmpl	r3,r0		; index in bounds?
+	bgeq	1$		; no, fail
+	movzwl	(r2)[r3],r0	; get word from array
+	ashl	#1,r0,r0	; cvt to SI
+	bisl3	#1,r0,-(r10)	; replace receiver with it
+	brw	mainloop
+
+3$:	addl	#<hdr_len*4>-1,r3 ; add header len as bytes to index
+	bicl3	#obj_size,(r2),r0 ; get size in bytes
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	movzbl	(r2)[r3],r2	; get the byte from field
+	ashl	#1,r2,r2	; cvt to SmallInteger
+	bisl3	#1,r2,-(r10)	; set SI bit and replace rcvr
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r at: idx put: val
+primatput::
+	movl	-4(r10),r3	; get the index arg
+	blbs	r3,5$		; fail if index is not SmallInteger
+	brw	1$
+5$:	ashl	#-1,r3,r3	; cvt index to integer
+	bgtr	6$		; fail if <= 0
+8$:	brw	1$
+6$:	getote	-8(r10),r1	; get a pointer to the ote of the array
+	bicl3	#ote_addr,(r1),r2 ; get a pointer to the object
+	bitl	#ote_ptrs,(r1)	; pointers?
+	bneq	10$
+	brw	2$		; no, raw array
+10$:	movl	r1,r5		; save r1 (ote ptr)
+	romlp	#class_ispec,hdr_class*4(r2) ; get the instance spec
+	movl	r5,r1		; restore ote ptr
+	movl	r0,r5		; save instance spec
+	bitl	#ispec_var,r5	; is this object indexable?
+	bneq	7$		; yep
+	brw	1$		; no - fail
+7$:	extzv	#ispec_ffbase,#ispec_fflen,r5,r4 ; extract the fixed fld count
+	addl	r4,r3		; add it to index
+	addl	#hdr_len-1,r3	; add header len to index & cvt to 0 org
+	bicl3	#obj_size,(r2),r0 ; get size
+	ashl	#-2,r0,r0	; get length as lword count
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	8$		; no - fail
+	movl	(r10),(r2)[r3]	; replace field with arg
+	qstored (r10),r1	; move object if in fromspace
+	brw	4$
+
+2$:	blbc	(r10),1$	; fail if val is not SmallInteger
+	ashl	#-1,(r10),r4	; get the val as integer
+	blss	1$		; fail if it is negative
+	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r3 ; add header len as words to index
+	bicl3	#obj_size,(r2),r0 ; get size
+	ashl	#-1,r0,r0	; get length as word count
+	cmpl	r3,r0		; index in bounds?
+	bgeq	1$		; no, fail
+	movw	r4,(r2)[r3]	; put word into array
+	brw	4$
+
+3$:	addl	#<hdr_len*4>-1,r3 ; add header len as bytes to index
+	bicl3	#obj_size,(r2),r0 ; get size in bytes
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	movb	r4,(r2)[r3]	; put it into the array
+4$:	movl	(r10),-8(r10)	; return the value given
+	subl	#8,r10		; pop the idx and val
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r size
+primsize::
+	movl	(r10),r2	; get the array
+	blbc	r2,5$		; fail if it is a SmallInteger
+	brw	1$
+5$:	getote	r2,r1		; open the ote for array
+	bicl3	#ote_addr,(r1),r3 ; open the object
+	bitl	#ote_ptrs,(r1)	; pointers?
+	beql	2$		; no, raw array
+	bicl3	#obj_size,(r3),r1 ; get size
+	ashl	#-2,r1,r1	; get the len in lwords
+	subl	#hdr_len,r1	; without header
+	romlp	#class_ispec,hdr_class*4(r3) ; get the class instance spec
+	extzv	#ispec_ffbase,#ispec_fflen,r0,r0 ; extract the fixed fld count
+	subl	r0,r1		; we want len of indexed part
+	brb	3$
+
+2$:	bitl	#ote_words,(r1)	; word fields?
+	beql	4$		; no, bytes
+	bicl3	#obj_size,(r3),r1 ; get size
+	ashl	#-1,r1,r1	; get len in words
+	subl	#hdr_len*2,r1	; without header
+	brb	3$
+
+4$:	bicl3	#obj_size,(r3),r1 ; get size in bytes
+	subl	#hdr_len*4,r1	; get len in bytes without header
+3$:	ashl	#1,r1,r1	; cvt to SmallInteger
+	bisl3	#1,r1,(r10)	; replace receiver with SI size
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r stringAt: idx
+primstringat::
+	movl	(r10),r3	; get the index arg
+	blbc	r3,1$		; fail if index is not SmallInteger
+	ashl	#-1,r3,r3	; cvt index to integer
+	bleq	1$		; fail if <= 0
+	getobj	-4(r10),r2	; get pointer to the array to index
+	addl	#<hdr_len*4>-1,r3 ; add header len as bytes to index
+	bicl3	#obj_size,(r2),r0 ; get size in bytes
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	movzbl	(r2)[r3],r2	; get the byte from field
+	getobj	#oop_charactertable ; open the character table
+	movl	hdr_len*4(r0)[r2],-(r10) ; replace receiver with char object
+	qvstored (r10)		; move object if in fromspace
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r stringAt: idx put: val
+primstringatput::
+	movl	-4(r10),r3	; get the index arg
+	blbc	r3,2$		; fail if index is not SmallInteger
+	ashl	#-1,r3,r3	; cvt index to integer
+	bgtr	3$		; ok
+2$:	brw	1$		; fail if <= 0
+3$:	getobj	-8(r10),r2	; get pointer to the array to index
+	addl	#<hdr_len*4>-1,r3 ; add header len as bytes to index
+	bicl3	#obj_size,(r2),r0 ; get size in bytes
+	cmpl	r3,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	blbs	(r10),1$	; fail if val is a SmallInteger
+	getobj	(r10)		; open the val
+	cmpl	hdr_class*4(r0),#oop_character ; is it a character?
+	bneq	1$		; no, fail
+	movl	<hdr_len+character_value>*4(r0),r0 ; get the char value SI
+	blbc	r0,1$		; fail if it is not a SI
+	ashl	#-1,r0,r0	; cvt to integer
+	movb	r0,(r2)[r3]	; store in array
+	movl	(r10),-8(r10)	; return the character
+	qvstored (r10)		; move object if in fromspace
+	subl	#8,r10		; pop the idx and args
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+;; the Stream Primitives
+
+; r next
+primnext::
+	getobj	(r10),r2	; open up the stream
+	addl	#hdr_len*4,r2	; point to the indexable fields
+	movl	stream_index*4(r2),r4 ; get the index as SmallInteger
+	blbc	r4,7$		; fail if it isn't one
+	ashl	#-1,r4,r4	; convert to integer
+	movl	stream_readlimit*4(r2),r5 ; get the limit as SmallInteger
+	blbc	r5,7$		; fail if not one
+	ashl	#-1,r5,r5	; convert to integer
+	cmpl	r4,r5		; is index < limit?
+	bgeq	7$		; nope, so fail
+	incl	r4		; point to the next element
+
+	movl	stream_array*4(r2),r3 ; get the object being streamed
+	getote	r3,r1		; get the ote of the streamed object
+	bicl3	#ote_addr,(r1),r6 ; get memory address of object
+	movl	hdr_class*4(r6),r0 ; get its class
+	cmpl	r0,#oop_array	; is it an array?
+	beql	2$		; yes
+	cmpl	r0,#oop_string	; must be a string
+	beql	2$		; it is
+7$:	brw	1$		; fail
+2$:	bitl	#ote_ptrs,(r1)	; are there pointers?
+	beql	4$		; no - indexable raw array
+
+	romlp	#class_ispec,r0	; get the instance spec
+	movl	r0,r5		; save it
+	bitl	#ispec_var,r5	; is this object indexable?
+	beql	7$		; no - fail
+	extzv	#ispec_ffbase,#ispec_fflen,r5,r0 ; extract the ff count
+	addl	r0,r4		; add it to index
+	addl	#hdr_len-1,r4	; add header also and cvt to 0 org
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+	ashl	#-2,r0,r0	; get length as lword count
+	cmpl	r4,r0		; is index in bounds?
+	bgeq	7$		; no - fail
+	movl	(r6)[r4],r5	; get the result
+	brb	5$
+
+4$:	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r4 ; add header len as words to index
+	bicl3	#obj_size,(r6),r0 ; get size
+	ashl	#-1,r0,r0	; get length as word count
+	cmpl	r4,r0		; index in bounds?
+	bgeq	1$		; no, fail
+	movzwl	(r6)[r4],r5	; get word from array
+	ashl	#1,r5,r5	; convert to SI
+	incl	r5
+	brb	5$
+
+3$:	addl	#<hdr_len*4>-1,r4 ; add header len as bytes to index
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+	cmpl	r4,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	movzbl	(r6)[r4],r5	; get the byte from field
+	ashl	#1,r5,r5	; convert to SmallInteger
+	incl	r5
+
+5$:	cmpl	hdr_class*4(r6),#oop_array ; are we working with an array?
+	beql	6$		; yep
+	ashl	#-1,r5,r5	; convert back to integer
+	getobj	#oop_charactertable ; open the character table
+	movl	hdr_len*4(r0)[r5],r5 ; get the resulting object
+
+6$:	addl	#2,stream_index*4(r2) ; update the pointer
+	movl	r5,(r10)	; return the result and pop receiver
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r nextPut: val
+primnextput::
+	getobj	-4(r10),r2	; open up the stream
+	addl	#hdr_len*4,r2	; point to the indexable fields
+	movl	stream_index*4(r2),r4 ; get the index as SmallInteger
+	blbc	r4,7$		; fail if it isn't one
+	ashl	#-1,r4,r4	; convert to integer
+	movl	stream_writelimit*4(r2),r5 ; get the limit as SmallInteger
+	blbc	r5,7$		; fail if not one
+	ashl	#-1,r5,r5	; convert to integer
+	cmpl	r4,r5		; is index < limit?
+	bgeq	7$		; nope, so fail
+	incl	r4		; point to the next element
+
+	movl	stream_array*4(r2),r3 ; get the object being streamed
+	getote	r3,r1		; get the ote of the streamed object
+	bicl3	#ote_addr,(r1),r6 ; get memory address of object
+	movl	r1,tempote	; save ote ptr
+	movl	hdr_class*4(r6),r0 ; get its class
+	cmpl	r0,#oop_array	; is it an array?
+	bneq	6$		; nope
+	movl	(r10),r3	; yep, get the value from the stack
+	brb	2$
+6$:	cmpl	r0,#oop_string	; must be a string
+	bneq	7$		; it's not
+	getobj	(r10),r5	; open the character
+	movl	<hdr_len+character_value>*4(r5),r3 ; get value as SI
+	brb	2$
+7$:	brw	1$		; fail
+2$:	bitl	#ote_ptrs,(r1)	; are there pointers?
+	bneq	10$
+	brw	4$		; no - indexable raw array
+
+10$:	romlp	#class_ispec,r0	; get the instance spec
+	movl	r0,r5		; save it
+	bitl	#ispec_var,r5	; is this object indexable?
+	beql	7$		; no - fail
+	extzv	#ispec_ffbase,#ispec_fflen,r5,r0 ; extract the ff count
+	addl	r0,r4		; add it to index
+	addl	#hdr_len-1,r4	; add header also and cvt to 0 org
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+	ashl	#-2,r0,r0	; get length as lword count
+	cmpl	r4,r0		; is index in bounds?
+	bgeq	7$		; no - fail
+	movl	r3,(r6)[r4]	; store the result
+	stored	r3,tempote
+	brb	5$
+
+4$:	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r4 ; add header len as words to index
+	bicl3	#obj_size,(r6),r0 ; get size
+	ashl	#-1,r0,r0	; get length as word count
+	cmpl	r4,r0		; index in bounds?
+	bgeq	1$		; no, fail
+	ashl	#-1,r3,r3	; convert to integer
+	movw	r3,(r6)[r4]	; store word in array
+	brb	5$
+
+3$:	addl	#<hdr_len*4>-1,r4 ; add header len as bytes to index
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+	cmpl	r4,r0		; is index in bounds?
+	bgeq	1$		; no - fail
+	ashl	#-1,r3,r3	; convert to integer
+	movb	r3,(r6)[r4]	; store byte in array
+
+5$:	addl	#2,stream_index*4(r2) ; update the pointer
+	movl	(r10),-(r10)	; return the result and pop receiver
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+.save_psect
+.psect	static
+tempote: .long	0
+.restore_psect
+
+; r atEnd
+primatend::
+	getobj	(r10),r2	; open up the stream
+	addl	#hdr_len*4,r2	; point to the indexable fields
+	movl	stream_index*4(r2),r4 ; get the index as SmallInteger
+	blbc	r4,7$		; fail if it isn't one
+	ashl	#-1,r4,r4	; convert to integer
+	movl	stream_readlimit*4(r2),r5 ; get the limit as SmallInteger
+	blbc	r5,7$		; fail if not one
+	ashl	#-1,r5,r5	; convert to integer
+
+	movl	stream_array*4(r2),r3 ; get the object being streamed
+	getote	r3,r1		; get the ote of the streamed object
+	bicl3	#ote_addr,(r1),r6 ; get memory address of object
+	movl	hdr_class*4(r6),r0 ; get its class
+	cmpl	r0,#oop_array	; is it an array?
+	beql	2$		; yes
+	cmpl	r0,#oop_string	; must be a string
+	beql	2$		; it is
+7$:	brw	1$		; fail
+2$:	cmpl	r4,r5		; is index >= limit?
+	bgeq	10$		; yep, return true
+	bitl	#ote_ptrs,(r1)	; are there pointers?
+	beql	4$		; no - indexable raw array
+
+	romlp	#class_ispec,r0	; get the instance spec
+	movl	r0,r5		; save it
+	bitl	#ispec_var,r5	; is this object indexable?
+	beql	7$		; no - fail
+	extzv	#ispec_ffbase,#ispec_fflen,r5,r0 ; extract the ff count
+	addl	r0,r4		; add it to index
+	addl	#hdr_len-1,r4	; add header also and cvt to 0 org
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+	ashl	#-2,r0,r0	; get length as lword count
+	brb	5$
+
+4$:	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r4 ; add header len as words to index
+	bicl3	#obj_size,(r6),r0 ; get size
+	ashl	#-1,r0,r0	; get length as word count
+	brb	5$
+
+3$:	addl	#<hdr_len*4>-1,r4 ; add header len as bytes to index
+	bicl3	#obj_size,(r6),r0 ; get size in bytes
+
+5$:	cmpl	r4,r0		; is index >= length?
+	bgeq	10$		; yep, return true
+	movl	#oop_false,(r10) ; return false
+	brb	6$
+10$:	movl	#oop_true,(r10)	; return true
+6$:	brw	mainloop
+
+1$:	jmp	@failpoint
+
+	.end

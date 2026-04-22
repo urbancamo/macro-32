@@ -1,0 +1,142 @@
+.title	vmsfiles
+;	vmsfiles.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the file stuff for VMS
+;
+;	Written: September 8, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 8, 1981 by S.B. - Written
+;	October 5, 1981 by S.S. - Add output files for snapshot
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+.noshow
+psect_defs
+small_defs
+$rmsdef
+.show
+.psect	misc
+
+; come here on file error
+
+fileerror::
+	pushl	r0
+	calls	#2,G^lib$stop	; stop the program
+
+; opens the input file
+
+	entry	openinfile,<>
+
+	$open	fab=infile_fab	; open the image file
+	blbc	r0,inerror	; on error
+	$connect rab=infile_rab	; connect fab to rab
+	blbc	r0,inerror	; on error
+	ret
+inerror:
+	pushl	infile_fab+fab$l_stv	; push the signal codes
+	brw	fileerror
+
+; closes the input file
+
+	entry	closeinfile,<>
+
+	$disconnect rab=infile_rab ; disconnect rab from fab
+	blbc	r0,inerror	; on error
+	$close	fab=infile_fab	; close file
+	blbc	r0,inerror	; on error
+	ret
+
+; reads the next block of the input file
+
+	entry	getpage,<>,addr
+
+	movl	addr(ap),rab$l_ubf+infile_rab ; setup base address of page
+	$get	rab=infile_rab	; get the page
+	blbc	r0,inerror	; on error
+	ret
+
+; opens the output file
+
+	entry	openoutfile,<>
+
+	$create	fab=outfile_fab	; open the image file
+	blbc	r0,outerror	; on error
+	$connect rab=outfile_rab ; connect fab to rab
+	blbc	r0,outerror	; on error
+	ret
+outerror:
+	pushl	outfile_fab+fab$l_stv	; push the signal codes
+	brw	fileerror
+
+; closes the output file
+
+	entry	closeoutfile,<>
+
+	$disconnect rab=outfile_rab ; disconnect rab from fab
+	blbc	r0,outerror	; on error
+	$close	fab=outfile_fab	; close file
+	blbc	r0,outerror	; on error
+	ret
+
+; writes the next block of the output file
+
+	entry	putpage,<>,addr
+
+	movl	addr(ap),rab$l_rbf+outfile_rab ; setup base address of page
+	$put	rab=outfile_rab	; get the page
+	blbc	r0,outerror	; on error
+	ret
+
+;; static storage for file hacking
+
+.psect	static
+
+.align	long
+
+infile_fab::
+	$FAB	fac=<get>,mrs=512,nam=infile_nam,org=seq,-
+		rfm=fix,shr=nil,fna=infilename,fns=infilenamelen
+
+infile_rab::
+	$RAB	fab=infile_fab,rac=seq,usz=512
+
+infile_nam::
+	$NAM	rsa=infileresname,rss=infileressize
+
+; space for result name
+infileresname:
+	.blkb	255
+infileressize = .-infileresname		; length of result name buffer
+
+infilename:
+	.asciz	/SMALLTALK.VMI/
+infilenamelen = .-infilename
+
+.align	long
+
+outfile_fab::
+	$FAB	fac=<put>,mrs=512,nam=outfile_nam,org=seq,-
+		rfm=fix,shr=nil,fna=outfilename,fns=outfilenamelen
+
+outfile_rab::
+	$RAB	fab=outfile_fab,rac=seq,rsz=512
+
+outfile_nam::
+	$NAM	rsa=outfileresname,rss=outfileressize
+
+; space for result name
+outfileresname:
+	.blkb	255
+outfileressize = .-outfileresname	; length of result name buffer
+
+outfilename:
+	.asciz	/SNAPSHOT.VMI/
+outfilenamelen = .-outfilename
+
+.align	long
+
+	.end
+

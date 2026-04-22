@@ -1,0 +1,121 @@
+.title	omdata
+;	Omdata.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains Object Memory Data Structures
+;
+;	Written: August 12, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 12, 1981 by S.B. - Written
+;	August 13, 1981 by S.B. - More writing
+;	August 17, 1981 by S.B. - removed chunk lists
+;	August 24, 1981 by S.B. - add freebase
+;	October 8, 1981 by S.S. - Add to and from spaces
+;	December 31, 1981 by S.B. - Add static region
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+
+.psect	static
+
+;; Sundry values
+
+; max oop in ot
+maxoop:: .long	0
+
+; base address of object table
+otbase:: .long	0
+
+; base address of object memory
+ombase:: .long	0
+
+; base address of to space
+tospacebase::
+	.long	0
+
+; pointer to top of to space
+tospacetop::
+	.long	0
+
+; base address of from space
+fromspacebase::
+	.long	0
+
+; pointer to top of from space
+fromspacetop::
+	.long	0
+
+; base address of static region
+staticbase::
+	.long	0
+
+; len of static region
+staticlen::
+	.long	0
+
+; actual len of static region
+realstaticlen::
+	.long	0
+
+; number of oops in static region
+staticoopcount::
+	.long	0
+
+; base for new static region
+newstaticbase::
+	.long	0
+
+; len of new static region
+newstaticlen::
+	.long	0
+
+; base address of entry table
+entrybase::
+	.long	0
+
+; length of entry table
+entrylen::
+	.long	0
+
+;; The object free lists
+
+; number of free object memory bytes
+coreleft:: .long 0
+
+; head of list of free otes
+freeote:: .long	0
+
+; base of free lump of memory
+freebase:: .long 0
+
+; top of free lump of memory
+freetop:: .long 0
+
+; base of garbage collected space
+gcbase:: .long	0
+
+; pointer to next free entry
+nextentry::
+	.long	0
+
+; flag for gc
+gcflag:: .long	0
+
+;; become stuff
+
+; the become list
+becomelist::
+	.blkl	1024
+endbeclist::
+	.long	0	; give this space to make symbol printout consistent
+
+; pointer to becomelist
+nextbecome::
+	.long	0
+
+	.end
+

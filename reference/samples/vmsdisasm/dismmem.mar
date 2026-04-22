@@ -1,0 +1,205 @@
+	.TITLE	DISMMEM DISM32 Buffer Access Procedures
+	.IDENT	/01/
+;
+;   These procedures are FORTRAN-callable routines to extract values of
+;   various sizes from the buffer REC_BUF, no matter what their alignment,
+;   using byte-size indexing, rather than indexing in the size of the
+;   value wanted. The variable types supported are:
+;	BYTE (read into INTEGER*4, zero-extended)
+;	WORD (read into INTEGER*4, zero-extended)
+;	LONGWORD (read into INTEGER*4)
+;	QUADWORD (read into 2-element INTEGER*4 array)
+;	STRING (converted from zero-padded counted string to descriptor'd
+;			blank-padded string)
+;	WORD3 (3 consecutive bytes, read into INTEGER*4, zero-extended)
+;
+;   All assume their arguments are passed by reference except for strings,
+;   which are passed by descriptor, (this is FORTRAN default).
+;
+;   The exception DISM__INVBOFSET will be signaled (error level) and the amount
+;   of data available will be returned if the offset into the record buffer is
+;   greater than 511 (offsets start at 0).
+;
+	.PAGE
+	.SBTTL	External and FORTRAN Common Definitions
+;
+	.DISABLE GLOBAL
+;
+	.EXTRN	DISM__INVBOFSET,STR$_TRU
+	.EXTRN	LIB$SIGNAL
+;
+; symbols for DISM32$MAIN
+	.LIBRARY	/SYS$LIBRARY:LIB/
+	$DYNDEF	GLOBAL
+;
+;  define the FORTRAN common
+;
+	.PSECT	DSK_BUF,NOEXE,RD,WRT,PIC,OVR,GBL,SHR,NOVEC,LONG
+CUR_VBN:
+	.BLKL	1		; current VBN value
+REC_BUF:
+	.BLKB	512		; record buffer
+CUR_VA:	.BLKL	1		; current VA
+;
+;  define the $CODE section
+;
+	.PSECT	$CODE,EXE,RD,NOWRT,PIC,LCL,SHR,CON,REL,LONG
+;
+	.PAGE
+	.SBTTL	COPY_BYTE Byte Read Procedure
+;
+	.ENTRY	COPY_BYTE,^M<>
+;
+;  This procedure copies the Nth byte, zero-extended, into a longword pointed
+;  to by parameter #2. Parameter #1 is the address of the value N. The
+;  exception DISM__INVBOFSET is raised if the virtual page number of the address
+;  does not correspond to the virtual page number of the currently buffered
+;  page.
+;
+10$:	MOVL	@4(AP),R0	; get value N,
+	BICL3	#^C^X1FF,R0,R1	; extract offset field,
+	BICL2	#^X1FF,R0	; extract virtual page number field,
+	CMPL	R0,CUR_VA	; check against current page number,
+	BNEQ	20$		; out of range, signal.
+	MOVB	REC_BUF[R1],@8(AP) ; get byte,
+	RET			; exit.
+;
+20$:	PUSHL	@4(AP)		; push address,
+	PUSHL	#1
+	PUSHL	#DISM__INVBOFSET
+				; push error code,
+	CALLS	#3,G^LIB$SIGNAL	; signal error,
+	BRB	10$		; try again if returned,
+;
+	.PAGE
+	.SBTTL	COPY_WORD Word Read Procedure
+;
+	.ENTRY	COPY_WORD,^M<>
+;
+;  This procedure calls COPY_BYTE twice to get a word.
+;
+	PUSHL	@4(AP)		; push address to get,
+	PUSHAW	@8(AP)		; push address of word buffer,
+	PUSHAL	4(SP)		; push address of address,
+	CALLS	#2,COPY_BYTE	; get the first byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	1(R0)		; push address of its second byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the second byte,
+	RET			; return to caller.
+;
+	.PAGE
+	.SBTTL	COPY_WORD3 3-Byte Copy
+;
+	.ENTRY	COPY_WORD3,^M<>
+;
+;  This procedure is like COPY_WORD, except it calls COPY_BYTE three times,
+;    and fills the high byte of the longword destination with zero.
+;
+	CLRL	@8(AP)		; pre-clear longword,
+	PUSHL	@4(AP)		; push address to get,
+	PUSHAL	@8(AP)		; push address of word buffer,
+	PUSHAL	4(SP)		; push address of address,
+	CALLS	#2,COPY_BYTE	; get the first byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	1(R0)		; push address of its second byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the second byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	2(R0)		; push address of its third byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the third byte,
+	RET			; return to caller.
+;
+	.PAGE
+	.SBTTL	COPY_LONG Longword Read Procedure
+;
+	.ENTRY	COPY_LONG,^M<>
+;
+;  This procedure is the same as COPY_WORD except the target is a longword.
+;
+	PUSHL	@4(AP)		; push address to get,
+	PUSHAW	@8(AP)		; push address of word buffer,
+	PUSHAL	4(SP)		; push address of address,
+	CALLS	#2,COPY_BYTE	; get the first byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	1(R0)		; push address of its second byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the second byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	2(R0)		; push address of its third byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the third byte,
+	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	3(R0)		; push address of its fourth byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the fourth byte,
+	RET			; return to caller.
+;
+	.PAGE
+	.SBTTL	COPY_QUAD Quadword Read Procedure
+;
+	.ENTRY	COPY_QUAD,^M<R2>
+;
+;  This procedure is the same as COPY_WORD except for the size of the target.
+;
+	PUSHL	@4(AP)		; push address to get,
+	PUSHAW	@8(AP)		; push address of word buffer,
+	PUSHAL	4(SP)		; push address of address,
+	CALLS	#2,COPY_BYTE	; get the first byte,
+	MOVL	#1,R2		; clear loop index,
+10$:	INCL	(SP)		; move to the next address,
+	MOVAW	@8(AP),R0	; get address of word buffer,
+	PUSHAB	(R0)[R2]	; push address of next byte,
+	PUSHAL	4(SP)		; push altered address of address,
+	CALLS	#2,COPY_BYTE	; get the next byte,
+	AOBLEQ	#7,R2,10$	; go around again,
+	RET			; return to caller.
+;
+	.PAGE
+	.SBTTL	COPY_STR Counted String Read Procedure
+;
+	.ENTRY	COPY_STR,^M<R2,R3,R4,R5>
+;
+;  This procedure copies a counted string from the buffer into a fixed
+;  descriptor-specified string, padding with blanks or truncating as
+;  necessary. Truncation is signaled by the warning signal STR$_TRU.
+;
+	CLRQ	-(SP)		; clear two storage locations on stack,
+	MOVL	@4(AP),-4(FP)	; store address parameter in second one,
+	PUSHAL	(SP)		; pass it,
+	PUSHAL	-4(FP)		; pass address parameter,
+	CALLS	#2,COPY_BYTE	; get counted string length,
+	MOVL	(SP)+,R2	; put it in R2,
+	CMPB	(AP),#2		; test if 3rd argument supplied,
+	BLEQU	5$		; no, don't get fancy.
+	MOVW	R2,@12(AP)	; yes, pass length back to caller.
+5$:	MOVAL	@8(AP),R3	; get address of string descriptor,
+	MOVAL	@4(R3),R5	; get address of string buffer,
+	CMPW	R2,(R3)		; test if passed string is long enough.
+	BLEQ	30$		; yes, go ahead and do it,
+	MOVZWL	(R3),R2		; no, so truncate string,
+	PUSHL	#STR$_TRU	; after warning user,
+	CALLS	#1,G^LIB$SIGNAL
+30$:	CLRL	R4		; set up R4 as a DO loop index,
+31$:	CLRL	-(SP)		; clear a stack longword,
+	PUSHAB	(R5)[R4]	; get the next byte into the string,
+	INCL	-4(FP)		; using updated address parameter (MUST BE R/W),
+	PUSHAL	-4(FP)
+	CALLS	#2,COPY_BYTE
+	AOBLSS	R2,R4,31$	; loop until entire string is transferred,
+	CMPW	R2,(R3)		; test if entire user string was filled,
+	BEQL	40$		; yes, just exit.
+	ADDL2	R4,R5		; no, pad remainder of string with spaces,
+	SUBW3	R2,(R3),R2
+	MOVC5	#0,(SP),#^A/ /,R2,(R5)
+40$:	MOVL	#1,R0		; exit successfully.
+	RET
+;
+	.END

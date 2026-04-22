@@ -1,0 +1,664 @@
+;	Smallmacs.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the VAX/Smalltalk-80 macro library
+;
+;	Written: August 12, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 12, 1981 by S.B. - Written
+;	August 18, 1981 by S.B. - Add constants
+;	August 20, 1981 by S.B. - Add constants
+;	August 24, 1981 by S.B. - Optimize some macros
+;	August 25, 1981 by S.B. - Optimize some macros
+;	September 2, 1981 by S.B. - added romlw and romsw
+;	September 10, 1981 by S.B. - fixed romic* len op
+;	September 14, 1981 by S.B. - change gcptrs to gcstatic
+;					add offsets for biblt and textscanner
+;	September 17, 1981 by S.B. - add form offsets
+;	September 24, 1981 by S.S. - add stack statistics stuff
+;	September 25, 1981 by S.S. - add prefetch information
+;	October 14, 1981 by S.S. - Add obj_ptrs bit
+;	October 15, 1981 by S.S. - Add stored/touched macros
+;	October 16, 1981 by S.S. - Optimize some macros
+;	October 21, 1981 by S.S. - Change name from touched to opened
+;	November 24, 1981 by S.S. - Add an additional swept bit
+;	December 30, 1981 by S.B. - Add hooks for static and cache spaces
+;	December 31, 1981 by S.B. - Add pusha to call
+;
+;
+
+; this macro defines the values needed
+.macro	small_defs
+.noshow
+; label var for printf
+..pazl = 0
+
+;;	Assembly flags
+; performance = 1
+; debug = 1
+
+;;	Fixed OOPs
+oop_nil		= ^X2
+oop_false	= ^X4
+oop_true	= ^X6
+oop_processor	= ^X8
+oop_ustable	= ^X0A
+oop_smallinteger = ^X0C
+oop_string	= ^X0E
+oop_array	= ^X10
+oop_systemdictionary = ^X12
+oop_float	= ^X14
+oop_methodcontext = ^X16
+oop_blockcontext = ^X18
+oop_point	= ^X1A
+oop_largeinteger = ^X1C
+oop_displaybitmap = ^X1E
+oop_message	= ^X20
+oop_compiledmethod = ^X22
+oop_semaphore	= ^X26
+oop_character	= ^X28
+oop_doesnotunderstand = ^X2A
+oop_cannotreturn = ^X2C
+oop_monitor	= ^X2E
+oop_specialmessages = ^X30
+oop_charactertable = ^X32
+oop_mustbeboolean = ^X34
+
+lastknownoop = oop_mustbeboolean
+
+;; ote flags & masks
+ote_addr	= ^XFF000001
+ote_free	= ^X00000001
+ote_ptrs	= ^X01000000
+ote_swept_1	= ^X02000000
+ote_swept_2	= ^X04000000
+ote_mark	= ^X08000000
+ote_cached	= ^X10000000
+ote_words	= ^X20000000
+ote_needs_entry	= ^X40000000
+ote_static	= ^X80000000	; MUST be msb so blss works!
+
+; note - if ote_static = 1 and ote_needs_entry = 0, then the object has an
+; entry in the entry table.
+; ote_needs_entry is set to 0 in dynamic objects.
+
+ote_swept_mask	= ote_swept_1 ! ote_swept_2
+
+ote_free_bit	= 00
+ote_ptrs_bit	= 24
+ote_swept_1_bit	= 25
+ote_swept_2_bit	= 26
+ote_mark_bit	= 27
+ote_cached_bit	= 28
+ote_words_bit	= 29
+ote_needs_entry_bit = 30
+ote_static_bit	= 31
+
+;; fields in the size word of an object
+obj_size	= ^XFF000000
+obj_ptrs	= ^X01000000
+obj_age		= ^XFC000000
+
+obj_age_inc	= ^X04000000
+
+obj_age_size	= 6	; six bits for this field
+
+obj_age_bits	= 26
+obj_ptrs_bit	= 24
+
+;;	Field offsets
+
+; header fields
+hdr_len = 2	; number of lwords in header
+hdr_size  = 0	; size field for object
+hdr_class = 1	; class field for object
+
+; object fields
+context_sender = 0
+context_ip = 1
+context_sp = 2
+context_method = 3
+context_nargs = 3
+context_initialip = 4
+context_home = 5
+context_receiver = 5
+context_temps = 6
+
+method_header = 0
+method_literals = 1
+
+assoc_value = 1
+
+class_superclass = 0
+class_dictionary = 1
+class_ispec = 2
+
+dictionary_vals = 1
+dictionary_keys = 2
+
+message_selector = 0
+message_args = 1
+
+processor_processlists = 0
+processor_activeprocess = 1
+
+process_context = 1
+process_priority = 2
+process_mylist = 3
+
+linkedlist_firstlink = 0
+linkedlist_lastlink = 1
+
+link_nextlink = 0
+
+point_x = 0
+point_y = 1
+
+character_value = 0
+
+stream_array = 0
+stream_index = 1
+stream_readlimit = 2
+stream_writelimit = 3
+
+semaphore_excesssignals = 2
+
+bitblt_destform = 0
+bitblt_sourceform = 1
+bitblt_halftoneform = 2
+bitblt_rule = 3
+bitblt_destx = 4
+bitblt_desty = 5
+bitblt_width = 6
+bitblt_height = 7
+bitblt_sourcex = 8
+bitblt_sourcey = 9
+bitblt_clipx = 10
+bitblt_clipy = 11
+bitblt_clipwidth = 12
+bitblt_clipheight = 13
+
+txtscan_chari = 14
+txtscan_xtable = 15
+
+form_bits = 0
+form_width = 1
+form_height = 2
+
+;;	Storage Manager Constants
+
+;;	Bit Masks
+mheader_ctxsize = ^X80	; bit for context size needed
+
+ispec_var = ^X2000	; var bit in an ispec
+ispec_words = ^X4000	; words bit in an ispec
+ispec_ptrs = ^X8000	; ptrs bit in an ispec
+
+;;	Bit Field Values
+
+mheader_litbase = 1	; bit number of method header nlits
+mheader_litlen = 6	; there are 6 nlits bits
+mheader_tempbase = 8	; bit number of method header ntemps
+mheader_templen = 5	; there are 5 ntemps bits
+mheader_flagbase = 13	; bit number of method header flags
+mheader_flaglen = 3	; there are 3 bits in the flags
+
+mhdrext_pnumbase = 1	; bit number of method header extention prim #
+mhdrext_pnumlen = 8	; there are 8 pnum bits
+mhdrext_nargbase = 9	; bit number of method header nargs field
+mhdrext_narglen = 5	; there are 5 narg bits
+
+ispec_ffbase = 1	; bit number of ispec fixed field count
+ispec_fflen = 11	; there are 11 ff bits
+
+;; Object sizes
+
+scontextsize = 6+12	; small context field count
+lcontextsize = 6+32	; large context field count
+
+;; Internal buffer sizes
+semaphorebuflen = 256	; size of semaphore buffer
+
+cachesize = 256		; size of method cache
+
+;;	Sundry Numbers
+si_0	=	0@1!1
+si_1	=	1@1!1
+si_2	=	2@1!1
+si_n1	=	-1@1!1
+
+; condition code bits in PSL
+N = ^x08
+Z = ^x04
+V = ^x02
+C = ^x01
+
+.show
+.endm	small_defs
+
+; psect definitions
+.macro	psect_defs
+
+.psect	interp,long,pic,usr,con,rel,lcl,shr,rd,nowrt,novec,exe ; interpreter
+.psect	prims,long,rd,nowrt,exe		; primitive code
+.psect	memman,long,rd,nowrt,exe	; memory manager code
+.psect	misc,long,rd,nowrt,exe		; misc. support code
+.psect	drivers,long,rd,nowrt,exe	; device drivers
+.psect	static,long,rd,wrt,noexe	; static variables
+.psect	gcstatic,long,rd,wrt,noexe	; gc'd statics
+.psect	text,long,rd,nowrt,noexe	; literal strings
+.psect	pure,long,rd,nowrt,noexe	; pure data
+
+.endm	psect_defs
+
+; here start the actual macros
+
+; the call macro. Pushes args on stack in reverse order.
+; an arg whose 1st character is "!" causes a pushal rather than a pushl
+
+.macro	call	subr,a1,a2,a3,a4,a5,a6,a7,a8,a9
+..nargs=0
+..alen = 0	; init these to keep assembler happy
+..fcp = 0
+.irp	..temp,<a9,a8,a7,a6,a5,a4,a3,a2,a1>
+.if nb,..temp
+..fcp = %locate(<!>,..temp) ; is arg prefixed by "!"?
+.if eq	..fcp
+..alen = %length(..temp)-1
+	pushal	%extract(1,..alen,..temp)
+.iff
+	pushl	..temp
+.endc
+	..nargs=..nargs+1
+.endc
+.endr
+	calls	#..nargs,subr
+.endm	call
+
+; the entry macro
+
+.macro	entry	name,mask=^"",a0,a1,a2,a3,a4,a5,a6,a7
+..argo=4
+.irp	arg,<a0,a1,a2,a3,a4,a5,a6,a7>
+.if	nb,arg
+	arg = ..argo
+	..argo = ..argo+4
+.endc
+.endm	; irp
+	.entry	name,^M<mask>
+.endm	entry
+
+; macro to clear condition codes
+
+.macro	ccc
+	bicl	#^x0F,4(fp)
+.endm	ccc
+
+; macro to set condition codes
+
+.macro	set	arg
+	bisl	#arg,4(fp)
+.endm	set
+
+; macro called when an object's oop is stored in another object
+; note that dote must point at the dest ote
+
+.macro	stored	soop,dote
+	pushr	#^M<r0,r1,r2,r3,r4,r5>
+	qstored	soop,dote
+	popr	#^M<r0,r1,r2,r3,r4,r5>
+.endm	stored
+
+; quick version of the above macro -- kills regs r0,r1,r2,r3,r4,r5
+; note that dote must point at the dest ote
+
+.macro	qstored	soop,dote,?l1,?l2
+.if	dif	dote,r1
+	movl	dote,r1		; put dote in r1 if not there already
+.endc
+	movl	soop,r2		; get the source oop in question
+	blbs	r2,l1		; ignore SmallIntegers here
+	getote	r2,r3		; get the ote address
+	movl	(r3),r4		; get the value
+	blss	l1		; it is static
+	bitl	ote_sweptbit,r4 ; is it already moved?
+	bneq	l2		; yep
+	movl	freebase,r0	; init address to move this guy to
+	bsbw	altmoveobject	; move this object
+	movl	r0,freebase	; put new base back
+l2:	bbc	#ote_needs_entry_bit,(r1),l1 ; dest doesn't need an entry
+	bicl3	#ote_addr,(r1),@nextentry ; give dest an entry
+	bicl	#ote_needs_entry,(r1) ; note that it doesn't need one now
+	addl	#4,nextentry	; bump entry pointer
+l1:
+.endm	qstored
+
+; macro called when an object's oop is stored in a variable
+
+.macro	vstored	soop
+	pushr	#^M<r0,r2,r3,r4,r5>
+	qvstored soop
+	popr	#^M<r0,r2,r3,r4,r5>
+.endm	vstored
+
+; quick version of the above macro -- kills regs r0,r2,r3,r4,r5
+
+.macro	qvstored soop,?l1
+	movl	soop,r2		; get the source oop in question
+	blbs	r2,l1		; ignore SmallIntegers here
+	getote	r2,r3		; get the ote address
+	movl	(r3),r4		; get the value
+	blss	l1		; it is static
+	bitl	ote_sweptbit,r4 ; is it already moved?
+	bneq	l1		; yep
+	movl	freebase,r0	; init address to move this guy to
+	bsbw	altmoveobject	; move this object
+	movl	r0,freebase	; put new base back
+l1:
+.endm	qvstored
+
+; macro called when an object has been opened
+
+.macro	opened	oop
+.endm	opened
+
+; macro for accessing the ote for an oop
+; returns the address of the ote in specified loc or r0
+; always smashes r0
+
+.macro	getote	oop,dest=r0
+.ntype	ooptype,oop
+ooptype = ooptype@-4
+ooplen = %length(oop)-1
+.if	eq	ooptype-5
+	movaw	(r11)[oop],dest
+.iff
+ .if	le	ooptype-1	; oop is a literal
+	moval	%extract(1,ooplen,oop)*2(r11),dest
+ .iff	; oop is general
+	movl	oop,r0
+	movaw	(r11)[r0],dest
+ .endc
+.endc
+.endm	getote
+
+; given an oop, returns the address of the object in dest or r0
+; always smashes r0
+
+.macro	getobj	oop,dest=r0
+.ntype	ooptype,oop
+ooptype = ooptype @-4
+ooplen = %length(oop)-1
+.if	le	ooptype-1	; oop is a literal
+	bicl3	#ote_addr,%extract(1,ooplen,oop)*2(r11),dest
+.iff
+	ashl	#-1,oop,r0	; cvt oop to index in reg
+	bicl3	#ote_addr,(r11)[r0],dest
+.endc
+.endm	getobj
+
+; loads a pointer from an object into r0
+; smashes r1
+
+.macro	romlp	idx,oop
+.ntype	idxtype,idx
+idxlen	= %length(idx)-1
+errorifr0 idx
+	getobj	<oop>		; get a pointer to object
+.if	eq	<idxtype@-4>-5	; is index a register?
+	movl	hdr_len*4(r0)[idx],r0	; yep - index from it
+.iff
+ .if	le	<idxtype@-4>-1	; idx is a literal
+	movl	<hdr_len+%extract(1,idxlen,idx)>*4(r0),r0
+ .iff
+	movl	idx,r1		; general idx, put into a reg
+	movl	hdr_len*4(r0)[r1],r0	; and index with it
+ .endc
+.endc
+.endm	romlp
+
+; loads a word from an object into r0
+; smashes r1
+
+.macro	romlw	idx,oop
+.ntype	idxtype,idx
+idxlen	= %length(idx)-1
+errorifr0 idx
+	getobj	oop		; get a pointer to object
+.if	eq	<idxtype@-4>-5	; is index a register?
+	movzwl	hdr_len*4(r0)[idx],r0	; yep - index from it
+.iff
+ .if	le	<idxtype@-4>-1	; idx is a literal
+	movzwl	<hdr_len*4>+<%extract(1,idxlen,idx)*2>(r0),r0
+ .iff
+	movl	idx,r1		; general idx, put into a reg
+	movzwl	hdr_len*4(r0)[r1],r0	; and index with it
+ .endc
+.endc
+.endm	romlw
+
+; loads a longword from an object into r0
+
+.macro	romll	idx,oop
+	romlp	idx,oop		; use romlp
+.endm	romll
+
+; loads a byte from an object into r0
+
+.macro	romlb	idx,oop
+.ntype	idxtype,idx
+idxlen = %length(idx)
+errorifr0 idx
+	getobj	oop		; get a pointer to object
+.if	eq	<idxtype@-4>-5	; is index a register?
+	movl	hdr_len*4(r0)[idx],r0	; yep - index from it
+.iff
+ .if	le	<idxtype@-4>-1	; is index a literal?
+	movzbl	<hdr_len*4>+%extract(1,idxlen,idx)(r0),r0
+ .iff
+	movl	idx,r1		; nope, put into a reg
+	movzbl	hdr_len*4(r0)[r1],r0	; and index with it
+ .endc
+.endc
+.endm	romlb
+
+; causes an error if the arg uses r0
+
+.macro	errorifr0 arg
+.ntype	argtype,arg	; get the type of arg
+.if	eq	<argtype&^XFF00>-^X40 ; if indexed mode
+ .if	eq	argtype&^X0F ; is index reg r0?
+.error	; r0 not allowed for this argument
+ .iff
+	argtype = argtype@-8	; index is ok, put specifier in low byte
+ .endc
+.endc
+.if	gt	<argtype@-4>-3  ; not literal or general
+ .if	eq	argtype&^X0F	; is reg specifier r0?
+.error	; r0 not allowed for this argument
+ .endc
+.endc
+.endm	errorifr0
+
+; stores a pointer into an object
+; smashes r1
+
+.macro	romsp	idx,oop,val,?l1
+.ntype	idxtype,idx
+idxlen	= %length(idx)
+	errorifr0 idx		; idx can't be in r0
+	getote	oop,r0		; open the oop
+	bitl	#ote_needs_entry,(r0) ; does it need an entry?
+	beql	l1		; no
+	bicl3	#ote_addr,(r0),@nextentry ; create entry for object
+	addl	#4,nextentry	; bump pointer
+l1:	bicl3	#ote_addr,(r0),r0 ; get ptr to object
+.if	eq	<idxtype@-4>-5	; if index is in register
+	movl	val,hdr_len*4(r0)[idx]
+.iff
+ .if	le	<idxtype@-4>-1	; is idx a literal?
+	movl	val,<hdr_len+%extract(1,idxlen,idx)>*4(r0)
+ .iff
+	movl	idx,r1		; put into reg for indexing
+	movl	val,hdr_len*4(r0)[r1]
+ .endc
+.endc
+	vstored	val
+.endm	romsp
+
+; stores a word into an object
+; smashes r1
+
+.macro	romsw	idx,oop,val
+.ntype	idxtype,idx
+idxlen	= %length(idx)
+	errorifr0 idx		; idx can't be in r0
+	getobj	oop		; get a pointer to oop
+.if	eq	<idxtype@-4>-5	; if index is in register
+	movw	val,hdr_len*4(r0)[idx]
+.iff
+ .if	le	<idxtype@-4>-1	; is idx a literal?
+	movw	val,<hdr_len*4>+<%extract(1,idxlen,idx)*2>(r0)
+ .iff
+	movl	idx,r1		; put into reg for indexing
+	movw	val,hdr_len*4(r0)[r1]
+ .endc
+.endc
+.endm	romsw
+
+; stores a longword into an object
+
+.macro	romsl	idx,oop,val
+.ntype	idxtype,idx
+idxlen	= %length(idx)
+	errorifr0 idx		; idx can't be in r0
+	getobj	oop		; get a pointer to oop
+.if	eq	<idxtype@-4>-5	; if index is in register
+	movl	val,hdr_len*4(r0)[idx]
+.iff
+ .if	le	<idxtype@-4>-1	; is idx a literal?
+	movl	val,<hdr_len+%extract(1,idxlen,idx)>*4(r0)
+ .iff
+	movl	idx,r1		; put into reg for indexing
+	movl	val,hdr_len*4(r0)[r1]
+ .endc
+.endc
+.endm	romsl
+
+; stores a byte into an object
+
+.macro	romsb	idx,oop,val
+.ntype	idxtype,idx
+idxlen	= %length(idx)
+	errorifr0 idx		; error if idx is in r0
+	getobj	oop		; get a pointer to oop
+.if	eq	<idxtype@-4>-5	; if index is in register
+	movl	val,hdr_len*4(r0)[idx]
+.iff
+ .if	le	<idxtype@-4>-1	; is idx a literal?
+	movb	val,<hdr_len*4>+%extract(1,idxlen,idx)(r0)
+ .iff
+	movl	idx,r1		; put into reg for indexing
+	movb	val,hdr_len*4(r0)[r1]
+ .endc
+.endc
+.endm	romsb
+
+; returns class of an object
+
+.macro	romlc	oop,?l1,?l2
+	blbc	oop,l1		; branch if not SmallInteger
+	movl	#oop_smallinteger,r0	; was one
+	brb	l2
+l1:	getobj	oop		; get a pointer to object
+	movl	hdr_class*4(r0),r0	; return the class
+l2:
+.endm	romlc
+
+
+; allocates a new object with pointer fields
+
+.macro	romicp	class,len,?l1,?l2
+	errorifr0 class		; error if class is in r0
+.ntype	lentype,len		; see if len is a literal
+.if	le	<lentype@-4>-1
+	movl	len*4,r0	; make a new object
+.iff
+	ashl	#2,len,r0	; cvt len to byte length
+.endc
+	bsbw	allocate	; make a new object
+	bicl	#ote_addr,(r0)	; wipe ote flags
+	bisl	ote_sweptbit,(r0) ; show it is in tospace
+	bisl	#ote_ptrs,(r0)	; set the pointers bit in the ote
+	bicl3	#ote_addr,(r0),r0 ; get a pointer to the object base
+	ashl	#-2,(r0),r1	; get lword len of object for loop count
+	bisl	#obj_ptrs,(r0)+	; set the pointers bit in the size field
+	movl	class,(r0)+	; put the class in
+	subl	#hdr_len,r1	; without header
+	beql	l1		; nothing to do
+l2:	movl	#oop_nil,(r0)+	; nil out the object
+	sobgtr	r1,l2		; loop til done
+l1:	movl	newoop,r0	; move oop to r0
+.endm	romicp
+	
+; allocate a new object with word fields
+
+.macro	romicw	class,len,?l1,?l2
+	errorifr0 class		; error if class is in r0
+.ntype	lentype,len		; see if len is a literal
+.if	le	<lentype@-4>-1
+	movl	len*2,r0	; make a new object
+.iff
+	ashl	#1,len,r0	; cvt len to byte length
+.endc
+	bsbw	allocate	; make a new object
+	bicl	#ote_addr,(r0)	; clear the ote flags
+	bisl	ote_sweptbit,(r0) ; show it is in tospace
+	bisl	#ote_words,(r0)	; set the words bit in the ote
+	bicl3	#ote_addr,(r0),r0 ; get a pointer to the object base
+	addl3	#2,(r0)+,r1	; get lword len of object for loop count
+	ashl	#-2,r1,r1	;
+	movl	class,(r0)+	; put the class in
+	subl	#hdr_len,r1	; without header
+	beql	l1		; nothing to do
+l2:	clrl	(r0)+		; clear out the object
+	sobgtr	r1,l2		; loop til done
+l1:	movl	newoop,r0	; recover the oop
+.endm	romicw
+
+; allocate a new object with byte fields
+
+.macro	romicb	class,len,?l1,?l2
+	errorifr0 class		; error if class is in r0
+	movl	len,r0		; make a new object
+	bsbw	allocate	; make a new object
+	bicl	#ote_addr,(r0)	; clear the ote flags
+	bisl	ote_sweptbit,(r0) ; show it is in tospace
+	bicl3	#ote_addr,(r0),r0 ; get a pointer to the object base
+	addl3	#3,(r0)+,r1	; get lword len of object for loop count
+	ashl	#-2,r1,r1	;
+	movl	class,(r0)+	; put the class in
+	subl	#hdr_len,r1	; without header
+	beql	l1		; nothing to do
+l2:	clrl	(r0)+		; clear out the object
+	sobgtr	r1,l2		; loop til done
+l1:	movl	newoop,r0	; recover the oop
+.endm	romicb
+
+; conveniently calls printf
+
+.macro	printf	str,a1,a2,a3,a4,a5,a6,a7,a8
+.macro	subprintf plab,xstr,xa1,xa2,xa3,xa4,xa5,xa6,xa7,xa8
+	call	printf,!pazl'plab,xa1,xa2,xa3,xa4,xa5,xa6,xa7,xa8
+.save_psect local_block
+.psect	text
+pazl'plab:	.asciz	str
+.restore_psect
+.endm	subprintf
+	subprintf	\..pazl,<str>,a1,a2,a3,a4,a5,a6,a7,a8
+..pazl = ..pazl + 1
+.endm	printf
+
+

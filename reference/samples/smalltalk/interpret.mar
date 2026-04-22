@@ -1,0 +1,1125 @@
+.title	interpret
+;	Interpret.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the Smalltalk-80 bytecode interpreter
+;
+;	Written: August 13, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 13, 1981 by S.B. - Written
+;	August 18, 1981 by S.B. - fleshed out
+;	August 19, 1981 by S.B. - fleshed out
+;	August 20, 1981 by S.B. - fleshed out
+;	August 21, 1981 by S.B. - tidied up
+;	August 24, 1981 by S.B. - changed register allocations
+;	August 28, 1981 by S.B. - fixed process handling
+;	September 2, 1981 by S.B. - fix hooks to dispatch tables
+;	September 10, 1981 by S.B. - fixed bug in activatemethod
+;					fixed bug in dumpcontext (ip)
+;					Fixed bug in loadcontext (self)
+;					Fixed bug in Pop&JmpFalseShort
+;	September 14, 1981 by S.B. - Add gcstatic psect for gc'd things
+;	September 24, 1981 by S.S. - Add stack usage statistics
+;	September 25, 1981 by S.S. - Collect prefetch statistics
+;	October 9, 1981 by S.S. - Reuse active context objects
+;	October 14, 1981 by S.S. - Trap references to objects
+;	October 16, 1981 by S.S. - Speed things up a bit
+;	October 28, 1981 by S.B. - Hibernate when out of processes
+;	November 17, 1981 by S.B. - Try a speedup in return
+;	December 31, 1981 by S.B. - Add hacks to support static region
+;				    Some random clean-up
+;	January 1, 1981 by S.B. - Fix bug in caseb
+;	January 13, 1981 by S.B. - Add jump freq monitor
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	interp
+
+; registers maintained by interpreter
+; pointers are to the 1st field of the objects
+; r11 - base of object table
+; r10 - stack pointer into active context
+; r9  - pointer to temp frame
+; r8  - pointer to method literals
+; r7  - instruction pointer into current method
+; r6  - current bytecode
+
+; main interpreter entry point
+mainloop::
+	blbc	processevent,1$ ; branch if no process event
+	clrl	processevent
+	bsbw	handleprocess	; there was one - handle it
+1$:	movzbl	(r7)+,r6	; get the next bytecode
+	incl	bccount		; count it
+
+	.if df	debug
+	call	printbytecode,r6 ; print the bytecode
+	.endc
+
+	movl	disptab[r6],r0	; get the address to dispatch to
+	jmp	(r0)		; dispatch to it
+
+; the bytecode primitives
+
+; 0000iiii - push instance variable #iiii
+
+pushinstvar::
+	bicl3	#^XF0,r6,r0	; isolate index bits
+	addl	#4,r10		; bump sp
+	movl	@selfpointer[r0],(r10) ; push indexed field on stack
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop	; and loop
+
+; 0001iiii - push temp variable #iiii
+
+pushtempvar::
+	bicl3	#^XF0,r6,r0	; isolate index bits
+	addl	#4,r10		; bump sp
+	movl	(r9)[r0],(r10)	; push temp on stack
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+; 001iiiii - push literal constant #iiiii
+
+pushlitconst::
+	bicl3	#^XE0,r6,r0	; isolate index bits
+	addl	#4,r10		; bump sp
+	movl	(r8)[r0],(r10)	; push literal on stack
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+; 010iiiii - push literal variable #iiiii
+pushlitvar::
+	bicl3	#^XE0,r6,r0	; isolate index bits
+	movl	(r8)[r0],r0	; get the association
+	romlp	#assoc_value,r0 ; get the association value
+	addl	#4,r10		; bump sp
+	movl	r0,(r10)	; push on stack
+	qvstored r0		; this variable has been referenced
+	brw	mainloop
+
+; 01100iii - pop and store instance variable #iii
+popstoinstvar::
+	bicl3	#^XF8,r6,r0	; isolate index bits
+	movl	(r10),@selfpointer[r0] ; shove stack top into instance
+	qstored	(r10),selfoteptr ; this variable has been referenced
+	subl	#4,r10		; pop sp
+	brw	mainloop
+
+; 01101iii - pop and store temp variable #iii
+popstotempvar::
+	bicl3	#^XF8,r6,r0	; isolate index bits
+	movl	(r10),(r9)[r0]	; shove top into temps
+	qvstored (r10)		; this variable has been referenced
+	subl	#4,r10		; pop sp
+	brw	mainloop
+
+; 01110iii - push common object (self, true, false, nil, -1, 0, 1, 2)[iii]
+pushcomobj::
+	bicl3	#^XF8,r6,r0	; isolate index bits
+	addl	#4,r10		; bump sp
+	movl	commonobjects[r0],(r10) ; push the common object on stack
+	tstl	r0		; was it self?
+	bneq	1$		; nope
+	qvstored (r10)		; this variable has been referenced
+1$:	brw	mainloop
+
+; 011110ii - return common object (self, true, false, nil)[ii]
+retcomobj::
+	bicl3	#^XFC,r6,r0	; isolate index bits
+	movl	commonobjects[r0],r2 ; get the object to return
+				 ; get the context to return to
+	movl	<context_sender-context_temps>*4(r9),r3
+	brw	doreturn	; return it
+
+.save_psect
+.psect static
+commonobjects:
+self::	.long	0		; save reg for self oop also
+	.long	oop_true
+	.long	oop_false
+	.long	oop_nil
+	.long	si_n1
+	.long	si_0
+	.long	si_1
+	.long	si_2
+.restore_psect
+
+; 01111100 - return stack top from message
+rettopmes::
+	movl	(r10),r2	; get value to return
+	subl	#4,r10		; pop stack
+	movl	<context_sender-context_temps>*4(r9),r3 ; get return context
+	brw	doreturn	; return it
+
+; 01111101 - return stack top from block
+rettopblk::
+	movl	(r10),r2	; get value to return
+	subl	#4,r10		; pop stack
+	movl	activecontextptr,r0 ; get the active context pointer
+	movl	context_sender*4(r0),r3 ; get return context
+	brw	doreturn	; return it
+
+; 0176-0177, 0212-0217 - usused opcodes
+unusedop::
+	brw	mainloop	; just loop
+
+; 10000000
+; jjkkkkkk
+; push (instance, temp, direct literal, indirect literal)[jj] var #kkkkkk
+pushgen::
+.if df	performance
+	incl	morebytes	; count the second byte
+.endc
+	movzbl	(r7)+,r1	; get the next bytecode for indices
+	bicl3	#^XC0,r1,r2	; isolate k in r2
+	ashl	#-6,r1,r1	; isolate j in r1
+	addl	#4,r10		; bump sp
+	caseb	r1,#0,#3	; dispatch to right code
+1$:	.word	pushgen1-1$
+	.word	pushgen2-1$
+	.word	pushgen3-1$
+	.word	pushgen4-1$
+	halt			; Bomb
+
+pushgen1:	; instance
+	movl	@selfpointer[r2],(r10) ; push instance var on stack
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+pushgen2:	; temp
+	movl	(r9)[r2],(r10)	; push temp var on stack
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+pushgen3:	; direct literal
+	movl	(r8)[r2],(r10)	; push direct literal
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+pushgen4:	; indirect literal
+	movl	(r8)[r2],r0	; get the association
+	romlp	#assoc_value,r0	; get the association value
+	movl	r0,(r10)	; push on stack
+	qvstored r0		; this variable has been referenced
+	brw	mainloop
+
+
+; 10000001
+; jjkkkkkk
+; store (instance, temp, illegal, indirect literal)[jj] var #kkkkkk
+storegen::
+	movl	(r10),r3	; get the top of stack
+storegenmerge:
+.if df	performance
+	incl	morebytes	; count the second byte
+.endc
+	movzbl	(r7)+,r1	; get the next bytecode for indices
+	bicl3	#^XC0,r1,r2	; isolate k in r2
+	ashl	#-6,r1,r1	; isolate j in r1
+	caseb	r1,#0,#3	; dispatch to indexed code
+1$:	.word	storegen1-1$
+	.word	storegen2-1$
+	.word	storegen3-1$
+	.word	storegen4-1$
+	halt			; Bomb
+
+storegen1:	; instance
+	movl	r3,@selfpointer[r2] ; store val into self
+	qstored	r3,selfoteptr	; this variable has been referenced
+	brw	mainloop
+
+storegen2:	; temp
+	movl	r3,(r9)[r2]	; store val into temps
+	qvstored r3		; this variable has been referenced
+	brw	mainloop
+
+storegen3:	; illegal
+	brw	mainloop	; just loop
+
+storegen4:	; indirect literal
+	movl	(r8)[r2],r0	; get the association
+	romsp	#assoc_value,r0,r3 ; store value into it
+	brw	mainloop
+
+; 10000010
+; jjkkkkkk
+; pop and store (instance, temp, illegal, indirect literal)[jj] var #kkkkkk
+popstoregen::
+	movl	(r10),r3	; get the top of stack
+	subl	#4,r10		; pop sp
+	brw	storegenmerge	; merge with store code
+
+; 10000011
+; jjjkkkkk
+; send literal selector #kkkkk with jjj args
+sendlitshort::
+.if df	performance
+	incl	morebytes	; count the second byte
+.endc
+	movzbl	(r7)+,r3	; get the next bytecode
+	bicl3	#^XE0,r3,r2	; isolate the ks (literal index)
+	ashl	#-5,r3,r3	; isolate the js (argcount)
+	movl	(r8)[r2],r2	; get the selector
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendit		; send it
+
+; 10000100
+; jjjjjjjj
+; kkkkkkkk
+; send literal selector #kkkkkkkk with jjjjjjjj args
+sendlitlong::
+.if df	performance
+	addl	#2,morebytes	; count the operand bytes
+.endc
+	movzbl	(r7)+,r3	; get the argcount
+	movzbl	(r7)+,r2	; and the selector index
+	movl	(r8)[r2],r2	; get the selector
+	brw	sendit		; and send it
+
+; 10000101
+; jjjkkkkk
+; send literal selector #kkkkk to superclass with jjj args
+supersendshort::
+.if df	performance
+	incl	morebytes	; count the second byte
+.endc
+	movzbl	(r7)+,r3	; get the next byte
+	bicl3	#^XE0,r3,r2	; isolate the ks
+	ashl	#-5,r3,r3	; get the argcount
+	movl	(r8)[r2],r2	; get the selector
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendsuper	; send it to superclass
+
+; 10000110
+; jjjjjjjj
+; kkkkkkkk
+; send literal selector #kkkkkkkk to superclass with jjjjjjjj args
+supersendlong::
+.if df	performance
+	addl	#2,morebytes	; count the operand bytes
+.endc
+	movzbl	(r7)+,r3	; get the argcount
+	movzbl	(r7)+,r2	; and the selector index
+	movl	(r8)[r2],r2	; get the selector
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendsuper	; send it to superclass
+
+; 10000101 - pop stack top
+poptop::
+	subl	#4,r10		; just decrement the sp
+	brw	mainloop
+
+; 10001000 - duplicate stack top
+duptop::
+	movl	(r10)+,(r10)	; that was easy
+	qvstored (r10)		; this variable has been referenced
+	brw	mainloop
+
+; 10001001 - push active context
+pushactivecontext::
+	addl	#4,r10		; bump sp
+	movl	activecontext,(r10) ; and stuff on stack
+	clrl	contextcount	; can't risk reusing contexts now
+	brw	mainloop
+
+; 10010iii - jump iii+1 (1 thru 8)
+jumpshort::
+.if df	performance
+	incl	jumpstaken
+.endc
+	bicl3	#^XF8,r6,r2	; isolate the i bits
+	incl	r2		; jumps minimum of 2 beyond this instruction
+	addl	r2,r7		; bump the ip
+	brw	mainloop
+
+; 10011iii - pop and jump on false iii+1
+jumpfalseshort::
+	movl	(r10),r2	; get the top of stack
+	subl	#4,r10		; pop it
+	cmpl	r2,#oop_false	; is it false?
+	beql	1$		; yep
+	cmpl	r2,#oop_true	; no, is it true?
+	bneq	2$		; no, error
+	brw	mainloop	; yep, just loop
+
+2$:	brw	badboolean
+
+1$:	bicl3	#^XF8,r6,r2	; isolate the i bits
+	incl	r2		; jumps minimum of 2 beyond this instruction
+	addl	r2,r7		; bump the ip
+.if df	performance
+	incl	jumpstaken
+.endc
+	brw	mainloop
+
+; 10100iii
+; jjjjjjjj
+; jump (iii-4)*256+jjjjjjjj
+jumplong::
+.if df	performance
+	incl	morebytes	; count the operand byte
+.endc
+.if df	performance
+	incl	jumpstaken
+.endc
+	bicl3	#^XF8,r6,r2	; isolate the i bits
+	subl	#4,r2		; -4
+	ashl	#8,r2,r2	; *256
+	movzbl	(r7)+,r0	; get the next byte
+	addl	r0,r2		; + jjjjjjjj
+	addl	r2,r7		; bump the ip
+	brw	mainloop
+
+; 101010ii
+; jjjjjjjj
+; pop and jump on true ii*256+jjjjjjjj
+jumptruelong::
+.if df	performance
+	incl	morebytes	; count the operand byte
+.endc
+	movl	(r10),r2	; get the top of stack
+	subl	#4,r10		; pop it
+	cmpl	r2,#oop_true	; is it true?
+	beql	1$		; yep
+	incl	r7		; skip next byte
+	cmpl	r2,#oop_false	; no, is it false?
+	bneq	2$		; no, error
+	brw	mainloop	; yep, just loop
+2$:	brw	badboolean
+
+1$:	bicl3	#^XFC,r6,r2	; isolate the i bits
+	ashl	#8,r2,r2	; *256
+	movzbl	(r7)+,r0	; get the next byte
+	addl	r0,r2		; + jjjjjjjj
+	addl	r2,r7		; bump the ip
+.if df	performance
+	incl	jumpstaken
+.endc
+	brw	mainloop
+	
+; 101011ii
+; jjjjjjjj
+; pop and jump on false ii*256+jjjjjjjj
+jumpfalselong::
+.if df	performance
+	incl	morebytes	; count the operand bytes
+.endc
+	movl	(r10),r2	; get the top of stack
+	subl	#4,r10		; pop it
+	cmpl	r2,#oop_false	; is it false?
+	beql	1$		; yep
+	incl	r7		; skip next byte
+	cmpl	r2,#oop_true	; no, is it true?
+	bneq	badboolean	; no, error
+	brw	mainloop	; yep, just loop
+
+1$:	bicl3	#^XFC,r6,r2	; isolate the i bits
+	ashl	#8,r2,r2	; *256
+	movzbl	(r7)+,r0	; get the next byte
+	addl	r0,r2		; + jjjjjjjj
+	addl	r2,r7		; bump the ip
+.if df	performance
+	incl	jumpstaken
+.endc
+	brw	mainloop
+
+; bad boolean handler
+badboolean::
+	addl	#4,r10		; unpop the boolean
+	movl	#oop_mustbeboolean,r2 ; setup the selector
+	clrl	r3		; 0 argcount
+	brw	sendit		; send it
+
+; 1011iiii
+; send (+, -, <, >, <=, >=, =, ~=, *, /, \\, @, bitShift:, //,
+; bitAnd:, bitOr:)[iiii]
+sendarithprim::
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	bicl3	#^XF0,r6,r2	; get the primitive index
+	movl	r2,specialprimindex ; save it for failures
+	blbs	-4(r10),1$	; fail if receiver is not SmallInteger
+	brw	specialprimfail
+
+1$:	moval	specialprimfail,failpoint ; setup dispatch for failure
+	brw	specialdispatch
+
+; 1100iiii
+; send (**, **, **, **, **, **, ==, class, blockCopy:, value, value:,
+; **, **, **, **, **)[iiii]
+sendcommonprim::
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	bicl3	#^XF0,r6,r2	; get the primitive index
+	addl	#16,r2		; offset the index to commons
+	movl	r2,specialprimindex ; save it for failures
+	moval	specialprimfail,failpoint ; setup dispatch for failure
+specialdispatch:
+	caseb	r2,#0,#31	; dispatch to indexed code
+1$:	.word primplus-1$	; +
+	.word primminus-1$	; -
+	.word primlss-1$	; <
+	.word primgtr-1$	; >
+	.word primleq-1$	; <=
+	.word primgeq-1$	; >=
+	.word primequal-1$	; =
+	.word primnequal-1$	; ~=
+	.word primtimes-1$	; *
+	.word primdivide-1$	; /
+	.word primmod-1$	; \\
+	.word primpoint-1$	; @
+	.word primbitshift-1$	; bitShift:
+	.word primdiv-1$	; //
+	.word primbitand-1$	; bitAnd:
+	.word primbitor-1$	; bitOr:
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word primeq-1$		; ==
+	.word primclass-1$	; class
+	.word commonbc-1$	; blockCopy:
+	.word commonval-1$	; value
+	.word commonvalwa-1$	; value:
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	.word specialprimfail-1$ ; **
+	halt			; bomb
+
+; here are the specified common prims. They just check the receiver's class
+commonbc:	; blockCopy:
+	movl	-4(r10),r1	; get the receiver
+	romlc	r1		; get its class
+	cmpl	r0,#oop_methodcontext
+	beql	1$		; ok
+	cmpl	r0,#oop_blockcontext
+	beql	1$		; ok, good class
+	brw	specialprimfail	; wrong class
+1$:	moval	specialprimfail,failpoint ; setup fail point
+	brw	primblockcopy	; do the prim
+
+commonval:	; value
+	romlc	(r10)		; get receiver's class
+	cmpl	r0,#oop_blockcontext
+	bneq	specialprimfail	; wrong class
+	moval	specialprimfail,failpoint ; setup fail point
+	clrl	argcount	; tell value no args
+	brw	primvalue	; do the prim
+
+commonvalwa:	; value:
+	romlc	-4(r10)		; get receiver's class
+	cmpl	r0,#oop_blockcontext
+	bneq	specialprimfail	; wrong class
+	moval	specialprimfail,failpoint ; setup fail point
+	movl	#1,argcount	; tell value one arg
+	brw	primvalue	; do the prim
+
+specialprimfail::
+	ashl	#1,specialprimindex,r4	; get the prim index *2
+	getobj	#oop_specialmessages	; open the array of selectors
+	movl	hdr_len*4(r0)[r4],r2	; get the selector
+	ashl	#-1,<hdr_len+1>*4(r0)[r4],r3 ; and the argcount as int
+	brw	sendit		; send it normally
+
+; statics for above
+.save_psect
+.psect	static
+specialprimindex:
+	.long	0
+.restore_psect
+
+
+; 1101iiii - send literal selector #iiii with no args
+sendlit0::
+	bicl3	#^XF0,r6,r2	; isolate the literal index
+	movl	(r8)[r2],r2	; get the selector
+	clrl	r3		; no args
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendit		; send it
+
+; 1110iiii - send literal selector #iiii with 1 arg
+sendlit1::
+	bicl3	#^XF0,r6,r2	; isolate the literal index
+	movl	(r8)[r2],r2	; get the selector
+	movl	#1,r3		; 1 arg
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendit		; send it
+
+; 1111iiii - send literal selector #iiii with 2 args
+sendlit2::
+	bicl3	#^XF0,r6,r2	; isolate the literal index
+	movl	(r8)[r2],r2	; get the selector
+	movl	#2,r3		; 2 args
+
+	.if df	performance
+	incl	sendcount
+	.endc
+
+	brw	sendit		; send it
+
+;; the return code
+; expects
+; r2 = value to return
+; r3 = context to return to
+doreturn::
+
+	.if df	debug
+	call	printreturn,r2	; trace it
+	.endc
+.if df	performance
+	incl	retcount
+.endc
+	movl	activecontext,oldcontext ; save old context
+	cmpl	contextcount,#1	; can we trash the current context?
+	bgtr	3$		; yep
+	movl	activecontextptr,r4	; get ptr to active context
+	movl	context_sender*4(r4),oldsender ; save old sender
+	movl	#oop_nil,context_sender*4(r4) ; snap active context's sender
+	bsbw	dumpcontext	; dump the current context
+	movl	context_ip*4(r4),oldip ; save old ip
+	movl	#oop_nil,context_ip*4(r4) ; nil the old ip
+	cmpl	r3,#oop_nil	; is return context nil?
+	bneq	3$		; nope
+5$:	brw	1$		; yep - error
+3$:	movl	r3,activecontext ; setup new active context
+	vstored	r3		; referenced this variable
+	bsbw	loadcontext	; load the new context
+	cmpl	context_ip*4(r4),#oop_nil ; is new ip nil?
+	beql	5$		; yep - error
+	addl	#4,r10		; bump sp
+	movl	r2,(r10)	; push result on stack
+	qvstored r2		; referenced this variable
+	tstl	contextcount	; can we reuse this context?
+	bleq	2$		; nope
+	movl	oldcontext,r2	; get the context to reuse
+	getobj	r2,r3		; open it up
+	bicl3	#obj_size,(r3)+,r4 ; get the context's size
+	cmpl	r4,#<scontextsize+hdr_len>*4 ; is it a small context?
+	bneq	2$		; nope
+	cmpl	(r3)+,#oop_methodcontext ; is it a methodcontext?
+	beql	4$		; yep
+	clrl	contextcount	; nope - blocks are dangerous
+	brb	2$
+4$:	movl	contextlist,(r3) ; link this context into the list
+	movl	r2,contextlist
+	decl	contextcount	; one less we can deal with
+2$:	brw	mainloop	; and run with it
+
+1$:	movl	oldcontext,activecontext ; reload the old context
+	getobj	activecontext,r4 ; get ptr to it
+	addl	#hdr_len*4,r4	; offset ptr past header
+	movl	oldsender,context_sender*4(r4) ; put sender back
+	movl	oldip,context_ip*4(r4) ; and ip
+	bsbw	loadcontext	; load the context
+	addl	#4,r10		; push active context as receiver
+	movl	activecontext,(r10)
+	movl	#oop_cannotreturn,r2 ; setup selector
+	clrl	r3		; no args
+	brw	sendit		; send the error
+
+; statics for return
+.save_psect
+.psect	static
+oldcontext: .long 0
+oldsender: .long 0
+oldip:	.long	0
+.restore_psect
+
+;; the context dump/load code
+; called with jsb/bsb
+dumpcontext::
+	movl	activecontextptr,r4 ; get ptr in r4
+	subl3	r4,r10,r0	; correct context offset for sp
+	subl	#<context_temps-1>*4,r0 ; account for stackframe offset & org
+	ashl	#-1,r0,r0	; cvt to field index, SmallInteger
+	bisl3	#1,r0,context_sp*4(r4) ; set SI bit and store
+	subl3	r8,r7,r0	; correct method offset for ip
+	addl	#method_literals*4,r0 ; since r8 pointed at literals
+	ashl	#1,r0,r0	; cvt to SmallInteger
+	addl3	#3,r0,context_ip*4(r4) ; set SI bit, cvt to 1 org, and store
+	rsb
+
+; r4 points at new context on return
+loadcontext::
+	getote	activecontext	; get the ote for this context
+	bicl3	#ote_addr,(r0),r4 ; get a pointer to the context
+	bitl	#ote_needs_entry,(r0) ; does it perchance need an entry?
+	beql	10$		; fortunately, no
+	movl	r4,@nextentry	; yep - give it an entry
+	addl	#4,nextentry	; and bump pointer
+10$:	addl	#hdr_len*4,r4	; offset past header
+	movl	r4,activecontextptr ; save the pointer
+	ashl	#-1,context_ip*4(r4),r7 ; get new ip
+	decl	r7		; cvt to 0 origin
+	ashl	#1,context_sp*4(r4),r10 ; get new sp (as integer*4)
+	bicl	#3,r10		; wipe smallinteger bit
+	addl	#<context_temps-1>*4,r10 ; cvt to 0 org and offset to stack
+	addl	r4,r10		; point at stack
+	movl	r4,r9		; assume this is a MethodContext
+	movl	activecontext,home ; home context is then active context
+	blbc	context_method*4(r4),1$ ; branch if it is
+	movl	context_home*4(r4),home ; else open the home context
+	getobj	home,r9
+	addl	#hdr_len*4,r9	; offset past header
+	movl	r9,homepointer
+1$:	movl	context_method*4(r9),r0 ; get the oop of the current method
+	movl	r0,method	; save it
+	getobj	r0,r8		; get the method pointer
+	addl	#hdr_len*4,r8	; offset past header
+	addl	r8,r7		; cvt ip to pointer
+	addl	#method_literals*4,r8 ; offset to literals
+	movl	context_receiver*4(r9),r0 ; get the receiver pointer
+	movl	r0,self		; save self oop
+	blbs	r0,2$		; skip following if self is a smallinteger
+	getote	r0		; open self
+	movl	r0,selfoteptr	; save ptr to ote for stored
+	bicl3	#ote_addr,(r0),r0 ; get ptr to self
+	addl3	#hdr_len*4,r0,selfpointer ; offset past header and save
+2$:	addl	#context_temps*4,r9 ; offset r9 to temp frame
+	pushr	#^M<r1,r2,r3,r4,r5>
+	qvstored method		; we stored a pointer to this guy
+	qvstored self		; and this guy too
+	popr	#^M<r1,r2,r3,r4,r5>
+	rsb
+
+;; the send code
+
+; sends message to superclass
+sendsuper:
+	movl	<method_header-method_literals>*4(r8),r0 ; get the header
+	extzv	#mheader_litbase,#mheader_litlen,r0,r0 ; extract nlits
+	movl	-4(r8)[r0],r0	; get last literal
+	romlp	#assoc_value,r0	; get the value from association
+	romlp	#class_superclass,r0 ; get the superclass of this class
+	movl	r0,r4		; put in class reg
+	brw	sendwithclass	; send it
+
+; expects:
+; r2 = selector oop
+; r3 = argcount
+sendit::
+	mnegl	r3,r0		; negate argcount for receiver index
+	romlc	(r10)[r0]	; get the receiver's class
+	movl	r0,r4		; put initial class in class reg
+
+; entry for send to super - expects r4 has class to send to
+sendwithclass:
+
+	.if df	debug
+	call	printsend,r2,r3,r4 ; print the send
+	.endc
+
+	movl	r4,currentclass	; save class
+	movl	r4,originalclass ; save again for cache insertion
+	movl	r3,argcount	; save argcount
+
+	.if df	performance
+	incl	cachetries	; note number of tries
+	.endc
+
+	addl3	r4,r2,r6	; compute hash value for message cache
+	ashl	#-1,r6,r6	; lsb is always 0
+	bicl	#^C<cachesize-1>,r6 ; mask to form index
+	cmpl	r2,cacheselectors[r6] ; match on selector?
+	bneq	4$		; no
+	cmpl	r4,cacheclasses[r6] ; match on class?
+	bneq	4$		; nope
+; got it!
+	.if df	performance
+	incl	cachehits	; count the hit
+	.endc
+
+	brw	50$
+
+; re-probe the cache
+4$:	mcoml	r6,r6		; second probe is complement of first
+	bicl2	#^C<cachesize-1>,r6 ; mask off the upper bits
+	cmpl	r2,cacheselectors[r6] ; match on selector?
+	bneq	1$		; nope - look up the method
+	cmpl	r4,cacheclasses[r6] ; match on class?
+	bneq	1$		; nope
+; got it!
+	.if df	performance
+	incl	cachehits	; count the hit
+	.endc
+
+50$:	getobj	cachemethods[r6],currentmethodpointer ; save pointer to method
+	brw	210$		; use it
+
+1$:	mnegl	cacheswitch,cacheswitch ; toggle the cacheswitch
+	beql	22$		; normal insert
+	mcoml	r6,r6		; flip the hash value bits
+	bicl	#^C<cachesize-1>,r6 ; mask off the upper bits
+22$:	ashl	#-1,r2,hashval	; save hash value of selector
+3$:	romlp	#class_dictionary,currentclass	; get the message dictionary
+	getobj	r0,r1		; open the dictionary object
+	bicl3	#obj_size,(r1),r0 ; get length of dictionary
+	subl	#<hdr_len+dictionary_keys>*4,r0 ; length of key part
+	ashl	#-2,r0,r0	; cvt to index mask
+	movl	r0,r3		; save number of keys
+	decl	r0		; cvt to hash mask
+	mcoml	r0,r0
+	bicl3	r0,hashval,r4	; r4 is now index into keys
+	clrl	wrapped		; note no wrap yet
+11$:	movl	<hdr_len+dictionary_keys>*4(r1)[r4],r0 ; get the key
+	cmpl	r0,r2		; match?
+	bneq	25$		; yep
+	brw	10$
+
+25$:	cmpl	r0,#oop_nil	; nil?
+	beql	20$		; yep - not in this dictionary
+	aoblss	r3,r4,11$	; loop til end of keys
+	tstl	wrapped		; have we wrapped yet?
+	bneq	20$		; yep - not in this dictionary
+	clrl	r4		; no, reset index
+	incl	wrapped		; note the wrapping
+	brb	11$		; keep looking
+
+; here we look to the superclass for the dictionary
+20$:	romlp	#class_superclass,currentclass ; get the superclass from class
+	movl	r0,currentclass	; make this class the current class
+	cmpl	r0,#oop_nil	; is it nil?
+	beql	23$		; nope - keep looking
+	brw	3$
+
+; here we send a doesNotUnderstand selector
+23$:	cmpl	r2,#oop_doesnotunderstand ; are we recurring?
+	bneq	70$		; no
+	halt			; yep - just halt for now
+70$:	romicp	#oop_message,#2	; make a message object with 2 fields
+	movl	r0,r4		; save it
+	movl	r0,savedoop	; save it where gc can find it
+	romicp	#oop_array,argcount ; get an array for the args
+	movl	r0,r3		; save it
+	getobj	r4,r5		; open the message object
+	movl	r2,<hdr_len+message_selector>*4(r5) ; put selector in
+	vstored	r2		; saved this oop
+	movl	r3,<hdr_len+message_args>*4(r5) ; put array in
+	vstored	r3		; show that we have stored a pointer
+	getobj	r3		; open the array
+	addl	#hdr_len*4,r0	; offset to 1st field
+	movl	argcount,r3	; get the argcount
+	mnegl	r3,r1		; get the negated argcount
+	incl	r1		; point at 1st arg (pushes one if none before)
+	moval	(r10)[r1],r10	; point sp at first arg
+	tstl	r3		; any args to copy?
+	beql	60$		; no
+61$:	movl	(r10)+,(r0)+	; copy the args into the array
+	vstored	-4(r0)		; might have stored an oop
+	sobgtr	r3,61$		; loop til done
+	ashl	#2,argcount,r0	; cvt argcount to byte count
+	subl	r0,r10		; reset sp to 1st arg slot
+60$:	movl	r4,(r10)	; put message object there
+	vstored	r4		; mark it as referenced
+	clrl	savedoop	; clear out save location
+	movl	#oop_doesnotunderstand,r2 ; setup selector
+	movl	#1,r3		; and argcount
+	brw	sendit		; and send it
+
+; here we have found a match and will get the method
+; r6 is index of cache home
+; r4 is index of key & value
+; r2 contains selector
+; r1 points to class object
+10$:				; get the value associated with key
+	romlp	r4,<<hdr_len+dictionary_vals>*4(r1)>
+	movl	r2,cacheselectors[r6] ; load selector into cache
+	movl	originalclass,cacheclasses[r6] ; and class
+	movl	r0,cachemethods[r6] ; and method
+	getobj	r0,r4		; open the method
+	movl	r4,currentmethodpointer ; save pointer to it
+	movl	<hdr_len+method_header>*4(r4),r1 ; get the method header
+	movb	#scontextsize,cachectxsizes[r6] ; assume small context
+	bitl	#mheader_ctxsize,r1 ; large context needed?
+	beql	300$		; nope
+	movb	#lcontextsize,cachectxsizes[r6] ; yep
+				 ; extract ntemps
+300$:	extzv	#mheader_tempbase,#mheader_templen,r1,r0
+	movb	r0,cachentemps[r6]
+				 ; extract nlits
+	extzv	#mheader_litbase,#mheader_litlen,r1,r0
+	movb	r0,cachenlits[r6]
+	extzv	#mheader_flagbase,#mheader_flaglen,r1,r1 ; extract flags
+	movl	r1,r0		; save for arg count
+	cmpl	r1,#4		; is arg count in flags?
+	bleq	52$		; yep
+	cmpl	r1,#7		; is arg count in header extention?
+	beql	400$		; yep
+	clrl	r0		; no, it is 0
+	brb	52$
+
+400$:	movzbl	cachenlits[r6],r0 ; get the literal count for extention
+	movl	<hdr_len+method_literals-2>*4(r4)[r0],r4 ; get the extention
+	extzv	#mhdrext_nargbase,#mhdrext_narglen,r4,r0 ; extract nargs
+52$:	movb	r0,cacheargcounts[r6] ; save arg count in cache
+	cmpl	r1,#7		; need to look at header extention?
+	beql	100$		; yep
+	movl	flag_dispatch[r1],cacheprims[r6] ; nope - put dispatch in cache
+	brw	200$		; crunch it
+
+100$:	extzv	#mhdrext_pnumbase,#mhdrext_pnumlen,r4,r1 ; extract prim #
+	movl	primitivedispatch[r1],cacheprims[r6] ; put dispatch address in
+200$:	tstl	fromperform	; are we here from perform?
+	beql	210$		; no
+	clrl	fromperform	; yep - wipe flag
+	cmpb	argcount,cacheargcounts[r6] ; same arg count?
+	beql	220$		; yep
+	brw	performfail	; nope - fail the perform
+
+220$:	clrl	performarray	; ok - wipe the perform state
+	clrl	performselector
+210$:	movl	cacheprims[r6],r0 ; get the dispatch address for this method
+	moval	activatemethod,failpoint ; setup failures to activate method
+	movl	r6,currentindex	; save index across failures
+	jmp	(r0)		; dispatch to it
+
+;; flag primitives
+; here the flags indicate return instance(ntemps)
+flag_retinst:
+	movzbl	cachentemps[r6],r1	; get ntemps
+	romlp	r1,(r10)	; get the requested field
+	movl	r0,(r10)	; replace top
+	qvstored r0		; this guy has been referenced
+	brw	mainloop
+
+; here we activate a method
+activatemethod::
+
+	.if df	debug
+	call	printactivation	; trace it
+	.endc
+
+	.if df	performance
+	incl	actcount
+	.endc
+
+	movl	currentindex,r6	; restore current index
+	cmpb	#scontextsize,cachectxsizes[r6] ; do we need a large context?
+	beql	6$		; nope
+	brw	1$		; yep
+
+6$:	incl	contextcount	; this context might be reusable
+	movl	contextlist,r2	; try to get a context from the list
+	beql	1$		; none there
+
+.if df performance
+	incl	ctxcachehit	; count the hit
+.endc
+	getobj	r2,r3		; open the context up
+	addl	#hdr_len*4,r3	; point to the variable fields
+	movl	(r3),contextlist ; link is in the first field
+	movl	#scontextsize,r1 ; get count of fields to nil out
+5$:	movl	#oop_nil,(r3)+	; nil one
+	sobgtr	r1,5$		; loop for them all
+	movl	r2,r0		; put the oop where expected
+	brw	2$
+
+1$:	movzbl	cachectxsizes[r6],r0 ; get the context size needed
+.if df	performance
+	incl	amthnum
+	ashl	#2,r0,-(sp)
+	addl	#hdr_len*4,(sp)
+	addl	(sp)+,amthbyt
+.endc
+	romicp	#oop_methodcontext,r0 ; get a context
+
+2$:	movl	r0,newcontext	; save its oop
+	getobj	r0,r4		; open the context
+	movl	cachemethods[r6],r3 ; set up method to activate
+	movl	activecontext,<hdr_len+context_sender>*4(r4) ; put sender in
+	movzbl	cachenlits[r6],r1 ; get nlits
+	addl	#method_literals+hdr_len,r1	; offset to first bytecode
+	ashl	#2,r1,r1	; cvt to byte offset
+				; offset into new context and save
+	addl3	currentmethodpointer,r1,newpc
+	movl	r3,<hdr_len+context_method>*4(r4) ; store method
+	movl	r3,method	; so moveobject can find it
+	movzbl	cachentemps[r6],r1	; get ntemps
+	addl	#hdr_len+context_temps-1,r1 ; add in offset to temp frame
+	ashl	#2,r1,r1	; cvt to byte offset
+	addl3	r4,r1,newsp	; save new sp
+	moval	<hdr_len+context_receiver>*4(r4),r2 ; get pointer to rcvr slot
+	mnegl	argcount,r3	; get the arg count negated as index to rcvr
+	moval	(r10)[r3],r1	; get pointer to the receiver on stack
+	movl	(r1),r6		; save receiver oop
+	moval	-4(r10)[r3],r10	; pop receiver and args off old stack
+	addl3	#1,argcount,r3	; get the real argcount+1 for receiver
+	pushr	#^M<r4>		; save reg from qvstored
+3$:	movl	(r1)+,(r2)+	; copy the receiver and args to new stack
+	pushr	#^M<r1,r2,r3>	; save regs from qvstored
+	qvstored -4(r2)		; may have saved a pointer
+	popr	#^M<r1,r2,r3>	; restore regs
+	sobgtr	r3,3$		; loop til done
+	popr	#^M<r4>
+	movl	r4,r5		; save new context ptr from bashing
+	bsbw	dumpcontext	; dump the old context
+	movl	newcontext,activecontext ; make new context active
+				; setup internal pointers
+	addl	#hdr_len*4,r5	; context pointer
+	movl	r5,activecontextptr
+	movl	newsp,r10	; sp
+	addl3	#context_temps*4,r5,r9 ; temp frame
+	addl3	#<hdr_len+method_literals>*4,currentmethodpointer,r8 ; literals
+	movl	newpc,r7	; ip
+	movl	r6,self		; save self oop
+	movl	activecontext,home ; set up home context
+	blbs	r6,7$		; skip following if smallinteger
+	getobj	r6,r0		; cvt receiver oop to pointer
+	addl3	#hdr_len*4,r0,selfpointer ; point past header
+7$:	brw	mainloop	; and munch on it
+
+; failure routine for non-existant primitives
+primfail::
+	jmp	@failpoint
+
+
+; dispatch table for header flags
+.save_psect
+.psect	pure
+flag_dispatch:
+	.address activatemethod
+	.address activatemethod
+	.address activatemethod
+	.address activatemethod
+	.address activatemethod
+	.address mainloop
+	.address flag_retinst
+.restore_psect
+
+; statics for send
+.save_psect
+.psect	static
+currentclass::	.long 	0	; current class in lookup chain
+currentmethod:	.long	0	; temporary variables
+currentmethodpointer:
+		.long	0
+currentindex:	.long	0	; current cache index
+method::	.long	0	; current method
+home::		.long	0	; home context
+homepointer::	.long	0	; pointer to it
+originalclass::	.long	0	; class of receiver
+argcount::	.long	0	; arg count
+cachehash:	.long	0	; hash value for message cache
+hashval:	.long	0	; hash value for dictionary lookup
+wrapped:	.long	0	; wrapped flag for dictionary scanning
+newcontext:	.long	0	; oop for new context
+newpc:		.long	0	; save for new pc
+newsp:		.long	0	; save for new sp
+bccount::	.long	0	; count of bytecodes executed
+cacheswitch:	.long	0	; flag for cache insertion set selection
+methodcache::			; symbol used for clearing cache
+cacheselectors:	.blkl	cachesize ; message cache selector array
+cacheclasses:	.blkl	cachesize ; message cache class array
+cachemethods:	.blkl	cachesize ; message cache method array
+cacheprims:	.blkl	cachesize ; message cache primitive address array
+cacheargcounts:	.blkb	cachesize ; message cache arg counts
+cachenlits:	.blkb	cachesize ; message cache literal counts
+cachentemps:	.blkb	cachesize ; message cache temp counts
+cachectxsizes:	.blkb	cachesize ; message cache context size
+.align	long
+.restore_psect
+
+;; the process & semaphore handler
+; called with bsbw
+handleprocess:
+	movl	semaphoregetindex,r2 ; get the index into semaphore buffer
+1$:	cmpl	r2,semaphoreputindex ; anything left in semaphore list?
+	beql	2$		; nope
+	call	syncsignal,semaphorebuffer[r2] ; signal a semaphore
+	clrl	semaphorebuffer[r2] ; wipe semaphore so gc doesn't keep it
+	incl	r2		; bump index
+	bicl	#^C<semaphorebuflen-1>,r2 ; wrap index
+	brb	1$		; loop thru buffer
+
+2$:	movl	r2,semaphoregetindex ; restore index
+	tstl	newprocess	; is there a new process?
+	bneq	6$		; maybe
+	brw	3$		; nope
+
+6$:	cmpl	newprocess,#oop_nil ; is there any process to run?
+	bneq	5$		; yep
+	halt			; nope - fatal error
+
+5$:	bsbw	dumpcontext	; restore the active context state
+.if df	performance
+	incl	procswitches
+.endc
+	romlp	#assoc_value,#oop_processor ; get the processor
+	movl	r0,r2		; save it
+	romlp	#processor_activeprocess,r0 ; get the active proc.
+	romsp	#process_context,r0,activecontext ; store the active context
+				; activate the new process
+	romsp	#processor_activeprocess,r2,newprocess
+	romlp	#process_context,newprocess	; get the new process context
+	movl	r0,activecontext ; activate the context
+	vstored	r0		; we have changed the active context
+	clrl	contextcount	; can't reuse any contexts now
+	bsbw	loadcontext	; load it
+	clrl	newprocess	; wipe the flag
+3$:	clrl	processevent	; in case syncsignal set it
+				; has an async signal happened recently?
+	cmpl	semaphoregetindex,semaphoreputindex
+	beql	4$		; nope
+	movl	#1,processevent	; yep - make sure flag is set properly
+4$:	rsb
+
+;; statics for the interpreter
+.save_psect
+.psect	static
+activecontextptr::.long	0	; pointer to it
+selfpointer::	.long	0	; pointer to the receiver
+selfoteptr:	.long	0	; pointer to the receiver's ote
+processevent::	.long	0	; set low bit when a process event is pending
+failpoint::	.long	0	; failure address for primitives
+fromperform::	.long	0	; non-zero if send came from perform
+contextlist::	.long	0	; listhead of linked free small methodcontexts
+contextcount::	.long	0	; number of contexts we can safely recover
+cachehits::	.long	0
+cachetries::	.long	0
+actcount::	.long	0
+sendcount::	.long	0
+ctxcachehit::	.long	0
+.psect	gcstatic
+activecontext::	.long	0	; the active context
+newprocess::	.long	0	; if non-zero, then the oop of a new process
+				; if nil, no process is runnable
+savedoop:	.long	0	; loc for oop of object saved across allocate call
+.restore_psect
+
+	.end
+

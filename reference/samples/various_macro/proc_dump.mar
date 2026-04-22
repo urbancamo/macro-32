@@ -1,0 +1,203 @@
+        .Title  EXCEPTION       Exception Handler
+        .Ident  /V2.8-00/       ; 17-Nov-1987   EAH908
+        .Sbttl  HEADING         Program Description
+;++
+;
+; PROJECT:
+;       VAX/VMS Error handling
+;
+; PROGRAM:
+;       EXCEPTION.MAR
+;
+; AUTHOR:                               CREATION DATE:
+;       Edward A. Heinrich                      03-Jul-1984
+;
+; FUNCTION:
+;       Exception Handler - Abort an image gracefully
+;
+; ENTRY POINTS:
+;       EXCEPTION (by VMS)
+;
+; CALL FORMAT:
+;       By VMS as a result of an exception condition
+;
+; ABSTRACT:
+;       EXCEPTION is invoked by VMS as a result of an exception condition or by
+;       a program directly to output an error message and unwind the call
+;       frames to the point where the condition handler was established.
+;       job is interactive, the same information will be displayed on the
+;       terminal.  EXCEPTION then sets the PHD$V_DUMP bit in the process
+;       header and merges in the VMS image dump code to produce a binary dump
+;       disk file of the contents of memory at the time of the exception.
+;
+;
+;
+;--
+
+        .Page
+        .Sbttl  MODIFICATIONS   Detailed Modification History
+;
+; MODIFICATIONS HISTORY:
+; ---------------------
+;
+;       V2.8-00 EAH908  Edward A. Heinrich      17-Nov-1987     15:30
+;               Purge .DMP files to avoid eating a disk.
+;
+;       V2.7-00 EAH664  Edward A. Heinrich      28-Aug-1986     15:20
+;               Allow images executing in EXEC mode to create dumps.
+;
+;       V2.6-01 EAH513  Edward A. Heinrich      18-Mar-1986     08:35
+;               Add code to force image dumps.  Fix display of SP address.
+;
+
+        .Page
+        .Sbttl  MACROS          Macro Definitions
+;
+;       VMS macro definitions
+;
+        $CHFDEF                         ; Define condition handler offsets
+        $JPIDEF                         ; Define JPI offsets
+        $PSLDEF                         ; Processor status word definitions
+
+
+        .Page
+        .Sbttl  IMPURE          Data Declarations
+
+        .Psect  RTLRWC  EXE, PIC, NOSHR, WRT, QUAD
+
+
+
+JPI_IMAGE:      .Long     0             ; Length of image name
+                .Address JPI_IMAGE_NAME ; Make us a descriptor for FAO
+JPI_IMAGE_NAME: .Blkb    128            ; For small image names
+
+
+DUMP_DESC:      .Long   256             ; Descriptor for dump file name
+                .Address DUMPSPEC       ;
+DUMPSPEC:       .Blkb   256             ; Buffer for dump file name
+
+
+        .Page
+        .Sbttl  PURE            Storage Declarations
+
+        .Psect  RTLROD  EXE, PIC, SHR, NOWRT, LONG, REL
+
+JPI_ITEMS:                              ; Begin JPI item list
+        .Word    128                    ; Size of image name buffer
+        .Word    JPI$_IMAGNAME          ; Request current image name
+        .Address JPI_IMAGE_NAME         ; Address to return image name to
+        .Address JPI_IMAGE              ; Address to return image name length
+        .Long    0                      ; Indicate end of list
+
+
+        .Page
+        .Sbttl  EXCEPTION               Code
+
+        .Psect  RTLCOD  PIC,SHR,EXE,NOWRT,USR,RD,LONG
+
+;+
+;       EXCEPTION Entry Point - Entered as a condition handler by VMS
+;
+;       Argument list set up by VMS.
+;-
+        .Align  Long
+
+        .Entry  EXCEPTION, ^M<R2,R3,R4,R5,R6,R7,R8>
+                                        ; A place to begin at
+
+        .
+        .
+        .
+
+        $GETJPIW_S -                    ; Get Job/Process Information
+                EFN     = #1,         - ; Specify an event flag
+                ITMLST  = JPI_ITEMS     ; Address of item list
+
+;
+;       We are going to create a .DMP file.  Before we do so we want to purge
+;       down previous versions of the .DMP file to aviod eating all the free
+;       disk space.
+;
+  700$: PUSHAB  DUMP_DESC               ; Current directory buffer        EAH908
+        PUSHAB  DUMP_DESC               ; Buffer to receive length        EAH908
+        PUSHL   #0                      ; No new directory                EAH908
+        CALLS   #3, G^SYS$SETDDIR       ; Call RMS routine                EAH908
+        BLBC    R0, 900$                ; Branch if any problems          EAH908
+;
+;       Now build dump file name
+;
+        LOCC    #^A/]/, JPI_IMAGE, JPI_IMAGE_NAME                       ; EAH908
+        BEQL    900$                    ; Branch if not found             EAH908
+        MOVAB   1(R1), R2               ; Save address + 1                EAH908
+        MOVL    R0, JPI_IMAGE           ; Copy remaining length           EAH908
+        LOCC    #^A/./, JPI_IMAGE, (R2) ; Search for period               EAH908
+        BEQL    900$                    ; Branch if not found             EAH908
+        SUBL3   R2, R1, R0              ; Compute length of image name    EAH908
+        INCL    R0                      ; Account for period we found     EAH908
+        MOVAB   DUMPSPEC, R3            ; Start of filename buffer        EAH908
+        ADDL2   DUMP_DESC, R3           ; Offset into buffer              EAH908
+        ADDL    R0, DUMP_DESC           ; Update descriptor length        EAH908
+        MOVC3   R0, (R2), (R3)          ; Copy filename to dumpname bufferEAH908
+        ADDL2   #6, DUMP_DESC           ; Add in next 6 bytes             EAH908
+        MOVL    #^A/DMP;/, (R3)+        ; Tack on the extension           EAH908
+        MOVW    #^A/-3/, (R3)+          ; And wildcard version            EAH908
+
+  800$: PUSHAB  DUMP_DESC               ; Address of file to delete       EAH908
+        CALLS   #1, G^LIB$DELETE_FILE   ; Let VMS delete the file for us  EAH908
+        BLBS    R0, 800$                ; If success try again            EAH908
+;
+;       Force image to dump - First call IMAGE_DUMP to set the dump bit in the
+;       PHD then call EXE$IMGDMP_MERGE, if in USER mode, to merge in the dump
+;       code.  If in EXEC mode then call EXE$IMGDMP_EXEC.
+;
+  900$: $CMKRNL_S       -               ; Go to kernel mode to
+                routin  = DUMP_IMAGE    ; ... set PHD bit to force dump of image
+        MOVPSL  R0                      ; Get PSL in R0
+        EXTZV   #PSL$V_CURMOD, #PSL$S_CURMOD, R0, R0
+                                        ; Get current mode from PSL
+        CMPL    #PSL$C_EXEC, R0         ; Are we in EXEC mode?
+        BNEQ    1000$                   ; Nope do USER mode dump entry
+        JSB     G^EXE$IMGDMP_EXEC       ; Do dump with EXEC mode entry
+        BRB     2000$                   ; And join common code
+
+        .Align  Long
+ 1000$: JSB     G^EXE$IMGDMP_MERGE      ; Merge in dump code
+;
+;       Final cleanup - unwind call stack
+;
+ 2000$: MOVL    CHF$L_MCHARGLST(AP),R2  ; Point R2 to mechanism array
+        $UNWIND_S -                     ; Unwind the call stack
+                depadr  = CHF$L_MCH_DEPTH(R2)
+                                        ; Make sure you get the right number
+
+        RET                             ; Exit back to INIT
+
+
+
+        .Sbttl  DUMP_IMAGE      Set PHD$M_IMGDMP bit
+;+
+;
+; FUNCTIONAL DESCRIPTION:
+;       Kernel mode routine to set the image dump requested bits in the PHD.
+;
+; INPUTS:
+;       None.
+;
+; OUTPUTS:
+;       R0      SS$_NORMAL
+;
+;-
+        .Align  Long
+        .Entry  DUMP_IMAGE, 0           ; KERNEL routine entry address
+
+        MOVL    G^CTL$GL_PHD, R0        ; Get current process PHD address
+        BISW    #PHD$M_IMGDMP, PHD$W_FLAGS(R0)
+                                        ; Indicate a desire to dump
+        MOVZBL  #SS$_NORMAL, R0         ; Always return success
+        RET                             ; And be gone
+
+
+
+
+        .End                            ; That's all folks
+

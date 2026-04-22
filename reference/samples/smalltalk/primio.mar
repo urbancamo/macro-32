@@ -1,0 +1,395 @@
+.title	primio
+;	primio.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the primitives for I/O
+;
+;	Written: August 31, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 31, 1981 by S.B. - Written
+;	September 2, 1981 by S.B. - Stubbed the unimplemented prims
+;	September 25, 1981 by S.S. - Stack stuff
+;	October 5, 1981 by S.S. - Add snapshot primitive
+;	October 21, 1981 by S.S. - Change snapshot to use new gc
+;	October 23, 1981 by S.B. - Add cursor handling
+;	October 28, 1981 by S.B. - Add mouse event
+;				   Fix time/tickWordsInto:
+;	December 31, 1981 by S.B. - Fix obj size bug and handle static space
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+; r mousePoint
+primmousepoint::
+	romicp	#oop_point,#2	; make a new point
+	movl	r0,(r10)	; put it on stack
+	getobj	r0		; open it
+	movl	#1,mouselock	; lock out mouse updates
+	ashl	#1,mousex,r1	; cvt x to smallinteger
+	bisl3	#1,r1,<hdr_len+point_x>*4(r0) ; put it in
+	ashl	#1,mousey,r1	; cvt y to smallinteger
+	bisl3	#1,r1,<hdr_len+point_y>*4(r0) ; put it in
+	clrl	mouselock	; allow mouse updates
+	brw	mainloop
+
+; r cursorLocPut: pt
+primcursorlocput::
+	blbs	(r10),1$	; fail if arg is SmallInteger
+	getobj	(r10),r2	; open the point
+	cmpl	hdr_class*4(r2),#oop_point ; is arg a point?
+	bneq	1$		; no, fail
+	blbc	<hdr_len+point_x>*4(r2),1$ ; fail if x or y is not SmallInteger
+	blbc	<hdr_len+point_y>*4(r2),1$
+	ashl	#-1,<hdr_len+point_x>*4(r2),r3 ; get x as integer
+	ashl	#-1,<hdr_len+point_y>*4(r2),r4 ; and y
+	subl	#4,(r10)	; pop the arg
+	call	putmouse,r3,r4	; update the mouse location
+	call	updatecursor,r3,r4 ; update the cursor location
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r cursorLink:
+primcursorlink::
+	clrl	cursorlink	; assume no link
+	cmpl	(r10),#oop_true	; shall we link the cursor?
+	bneq	1$		; no
+	incl	cursorlink	; yes
+1$:	subl	#4,r10		; pop the arg
+	brw	mainloop	; stub
+
+.save_psect
+.psect	static
+cursorlink::
+	.long	0		; non-zero to link cursor
+.restore_psect
+
+; r inputSemaphore: s
+priminputsemaphore::
+	movl	(r10),inputsemaphore ; save the semaphore
+	qvstored (r10)		; move it if needed
+	subl	#4,r10		; pop it off stack
+	brw	mainloop
+
+; r sampleInterval: i
+primsampleinterval::
+	movl	(r10),r1	; get the interval
+	blss	1$		; fail if negative
+	blbc	r1,1$		; fail if not SI
+	ashl	#-1,r1,sampleinterval ; save as integer
+	subl	#4,r10		; pop it
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r inputWord
+priminputword::
+	movl	iwordgetidx,r2	; get the index into queue
+	ashl	#1,iwordqueue[r2],r1 ; get a word as SI
+	bisl3	#1,r1,(r10)	; replace top with it
+	incl	r2		; bump index
+	bicl	#^C<iwordquelen-1>,r2 ; wrap index
+	movl	r2,iwordgetidx	; put it back
+	brw	mainloop
+
+; r copyBits
+primcopybits::
+	call	copybits	; do the bitblt
+	bvs	1$		; on error
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r snapshot
+primsnapshot::
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_activeprocess,r0 ; get its active context
+	romsp	#process_context,r0,activecontext ; save the current
+						; active context oop
+	bsbw	dumpcontext	; save the current context
+	call	gctheworld	; clean up EVERYTHING
+	call	openoutfile	; open an output file
+	moval	pagebuffer,r2	; get a pointer to the output buffer
+	subl3	tospacebase,freebase,r4 ; calculate size of dynamic region
+	movl	r4,(r2)		; save it
+	ashl	#-1,maxoop,r3	; find last used oop
+1$:	bitl	#ote_free,(r11)[r3] ; look for the first non-free object
+	beql	2$
+	sobgtr	r3,1$		; try them all
+	halt			; fatal error -- crap out
+2$:	incl	r3		; point past the last used oop
+	ashl	#2,r3,4(r2)	; set size of object table region
+	movl	realstaticlen,8(r2) ; set size of static region
+	movl	staticoopcount,12(r2) ; and its oop count
+	call	putpage,r2	; write out the header block
+	movl	staticbase,r5	; get base of static region
+	movl	staticlen,r6	; and its length
+	beql	10$		; no statics to dump!
+	addl	#511,r6		; round up to page boundary
+	bicl	#511,r6
+	ashl	#-9,r6,r6	; cvt to pages
+20$:	call	putpage,r5	; write out a page of statics
+	addl	#512,r5		; bump pointer
+	sobgtr	r6,20$		; loop til done
+10$:	addl	#127,r3		; round up to the next block boundary
+	bicl	#127,r3
+	addl	#511,r4
+	bicl	#511,r4
+	ashl	#-7,r3,r3	; get block count
+	ashl	#-9,r4,r4
+	movl	tospacebase,r5	; get address to write out
+3$:	call	putpage,r5	; write a block
+	addl	#512,r5		; point to the next page to write
+	sobgtr	r4,3$		; loop until done
+	movl	r11,r5		; get address of object table
+4$:	clrl	r4		; initialize buffer index
+7$:	movl	(r5)+,r6	; get another ote
+	bitl	#ote_free,r6	; is this object live?
+	bneq	5$		; nope
+	bitl	#ote_static,r6	; is it static?
+	beql	30$		; nope
+	subl	staticbase,r6	; remove static memory bias
+	brb	31$
+30$:	subl	tospacebase,r6	; remove dynamic memory bias
+31$:	bicl	#ote_swept_mask,r6 ; clear swept bit
+	brb	6$		; join common code
+5$:	movl	#1,r6		; signal a free oop
+6$:	movl	r6,(r2)[r4]	; put it into the temp buffer
+	aoblss	#<512/4>,r4,7$	; fill up this buffer
+	call	putpage,r2	; write it out
+	sobgtr	r3,4$		; loop until done
+	call	closeoutfile	; close the file
+	bsbw	loadcontext	; reload the current context
+	brw	mainloop
+
+.save_psect
+.psect	static
+pagebuffer:
+	.blkb	512
+.restore_psect
+
+; r timeWordsInto: a
+primtimewordsinto::
+	movl	(r10),r2	; get the arg
+	getote	r2		; see if it is a byte object
+	bitl	#ote_words!ote_ptrs,(r0) ; both bits are off for a byte obj
+	bneq	3$		; no - fail
+	getobj	r2,r3		; open the array
+	bicl3	#obj_size,(r3),r0 ; get the length
+	cmpl	r0,#<hdr_len*4>+4 ; at least 4 bytes?
+	bgeq	4$		; yep, no problem
+3$:	brw	1$		; nasty comment
+4$:	$gettim_s	timadr=basetime ; get the current system time
+	subl	tickoffset,basetime ; adjust it
+	sbwc	tickoffset+4,basetime+4
+	ediv	#20000000,basetime,r4,r5 ; convert to seconds
+	ashl	#1,r4,r4	; only need to divide by 10M
+	divl	#10000000,r5	; get the last second
+	addl	r5,r4		; add it in
+	movl	r4,hdr_len*4(r3) ; copy the time into array
+	movl	(r10),-(r10)	; return the arg
+	qvstored (r10)		; move it if needed
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+.disable lsb
+; r tickWordsInto: a
+primtickwordsinto::
+	movl	(r10),r2	; get the arg
+	getote	r2		; see if it is a byte object
+	bitl	#ote_words!ote_ptrs,(r0) ; both bits are off for a byte obj
+	bneq	3$		; no - fail
+	getobj	r2,r3		; open the array
+	bicl3	#obj_size,(r3),r0 ; get the length
+	cmpl	r0,#<hdr_len*4>+4 ; at least 4 bytes?
+	bgeq	4$		; yep
+3$:	brw	1$		; no, fail
+4$:	$gettim_s	timadr=basetime ; get current system time
+	bicl	#^xFFFFF000,basetime+4 ; clip to a reasonable value
+	ediv	#10000,basetime,r4,r5 ; get time in milliseconds
+	subl3	currenttick,r4,r5
+	movl	r4,currenttick	; store it for later
+	mcoml	t_flag,t_flag
+	bneq	9$
+	call	g^lib$stat_timer,!t_code,!t_value
+	printf	<<10><13>/wall=%d, cpu=%d/<13><10>>,r5,t_value
+9$:	call	g^lib$init_timer
+	movl	r4,hdr_len*4(r3) ; put 32 bit time into array normally
+	movl	(r10),-(r10)	; return the arg
+	qvstored (r10)		; make sure it is moved into tospace
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r signal: s atTick: t
+primsignalattick::
+	$cantim_s		; wipe any pending timer requests
+	romlc	-4(r10)		; get class of semaphore
+	cmpl	r0,#oop_semaphore ; is it a semaphore?
+	beql	2$		; yep
+	clrl	ticksemaphore	; nope - delete tick semaphore
+	subl	#8,r10		; pop the args
+	brw	mainloop
+
+2$:	blbc	(r10),10$	; fail if SI
+	brw	1$
+10$:	getote	(r10)		; insure this object is byte indexable
+	bitl	#ote_words!ote_ptrs,(r0) ; both bits are off for a byte obj
+	beql	11$		; no - fail
+	brw	1$
+11$:	bicl3	#ote_addr,(r0),r2	; open the byte indexable object
+	bicl3	#obj_size,(r2),r0 ; get the length
+	cmpl	r0,#<hdr_len*4>+4 ; is it at least 4 bytes?
+	bgeq	12$		; no, fail
+	brw	1$
+12$:	movl	-4(r10),ticksemaphore ; setup semaphore for wakeup
+	movl	hdr_len*4(r2),currenttick ; copy time word
+	$gettim_s	timadr=basetime ; get current system time
+	bicl	#^C^XFFFFF000,basetime+4 ; wipe low bits
+	emul	#10000,currenttick,#0,r2 ; cvt to VMS time in r3,r2
+	movl	r2,basetime
+	bisl	r3,basetime+4	; add to system time
+	$setimr_s daytim=basetime,astadr=timeast ; post the wakeup ast
+	subl	#8,r10		; pop args
+	qvstored ticksemaphore	; move it if needed
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; AST routine called at timed wakeup
+	.entry	timeast,^m<>
+
+	tstl	ticksemaphore	; is there still a semaphore there?
+	beql	1$		; no - just leave
+	call	asyncsignal,ticksemaphore ; signal the semaphore
+	clrl	ticksemaphore	; wipe it
+1$:	ret
+
+
+; r beCursor
+primbecursor::
+	romlp	#form_bits,(r10) ; get bitmap from cursorform
+	getobj	r0		; get a pointer to it
+	addl	#hdr_len*4,r0	; offset past header
+	call	loadcursor,r0	; load the cursor with it
+	brw	mainloop	; stub
+
+; r beDisplay
+primbedisplay::
+	movl	(r10),displayoop ; remember this form as display
+	qvstored (r10)		; move it
+	brw	mainloop
+
+.save_psect
+.psect	gcstatic
+displayoop::
+	.long	0
+.restore_psect
+
+; r scanCharactersFrom: a to: b in: c rightX: d stopConditions: e displaying: f
+primscancharacters::
+	call	scancharacters	; scan the characters
+	bvs	1$		; failure
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r drawLoopX: x Y: y
+primdrawloop::
+	jmp	@failpoint	; unimplemented
+
+
+; virtual mouse button code
+; called from debugger and asts
+
+	entry	pushb,<r2,r3>,but,sense
+
+	$setast_s #0		; disable asts
+	movl	iwordputidx,r2	; get the index into queue
+	movl	#3@12,r3	; assume down
+	tstl	sense(ap)	; is the button down or up?
+	bneq	1$		; down
+	movl	#4@12,r3	; up
+1$:	bisl	but(ap),r3	; merge the button code in
+	movl	r3,iwordqueue[r2] ; put the event into the queue
+	incl	r2		; bump index
+	bicl	#^C<iwordquelen-1>,r2 ; wrap index
+	movl	r2,iwordputidx	; replace the index
+	$setast_s #1		; enable asts
+	call	asyncsignal,inputsemaphore ; signal the input semaphore
+	ret
+
+; mouse mover - sets mouseX & Y, and causes a mouse event
+	entry	putmouse,<r2,r3>,mx,my
+
+	$setast_s #0		; disable asts
+	movl	mx(ap),mousex	; load the mouse locations
+	movl	my(ap),mousey
+	tstl	mousex		; can't be negative
+	bgeq	1$		; it isn't
+	clrl	mousex		; not anymore
+1$:	tstl	mousey		; can't be negative
+	bgeq	2$		; it isn't
+	clrl	mousey		; not anymore
+2$:	movl	iwordputidx,r2	; get the index into the queue
+	movl	#1@12,r3	; a mouse x location
+	bisl	mousex,r3	; put the mouse location in
+	movl	r3,iwordqueue[r2] ; put the event into the queue
+	incl	r2		; bump index
+	bicl	#^C<iwordquelen-1>,r2 ; wrap index
+	movl	#2@12,r3	; a mouse y location
+	bisl	mousey,r3
+	movl	r3,iwordqueue[r2] ; put the event into the queue
+	incl	r2		; bump index
+	bicl	#^C<iwordquelen-1>,r2 ; wrap index
+	movl	r2,iwordputidx	; replace the index
+	$setast_s #1		; enable asts
+	call	asyncsignal,inputsemaphore ; signal the input semaphore
+	call	asyncsignal,inputsemaphore ; twice
+	ret
+
+
+; statics for io
+.save_psect
+.psect	static
+t_code::
+	.long	2
+t_value::
+	.long	0
+t_flag::
+	.long	0
+mousex::
+	.long	0		; mouse x location
+mousey::
+	.long	0		; and y
+mouselock::
+	.long	0		; set non-zero to lock out updates
+sampleinterval::
+	.long	0		; interval between samples
+basetime::
+	.quad	0		; time system started (in seconds)
+currenttick::
+	.long	0		; current millisecond tick
+tickwakeup::
+	.long	0		; delta ticks to wakeup semaphore
+iwordquelen = 256
+iwordqueue:
+	.blkl	iwordquelen	; queue for input words
+iwordgetidx:
+	.long	0
+iwordputidx:
+	.long	0
+.psect	gcstatic
+inputsemaphore::
+	.long	0		; semaphore to signal on event
+ticksemaphore::
+	.long	0		; semaphore to signal on timeout
+.restore_psect
+
+
+	.end

@@ -1,0 +1,166 @@
+.title	fastkbio
+
+.psect	fastkbio
+
+;	Written: May 14, 1980 by Stoney Ballard - ML3-2/E41
+;	Updated: October 26, 1981 by S.B.
+;
+;	This is a package of terminal output qio handlers to allow block
+;	output as fast as VMS can do it.
+;
+;	The functions defined here are:
+;
+;	extern int cflushb();
+;	extern int cputs(s);
+;	extern     zprintf(...);
+;
+;
+;	** Macro definitions **
+	$iodef
+
+;	** Static tables **
+kbdev:				;descriptor for TT:
+	.long	2$-1$		;length
+	.long	1$		;address
+1$:	.ascii	/TT/		;name
+2$:
+
+;	** Static variables **
+kbchan:	.blkl	1		;channel number for TT:
+opened:	.long	0		;set to non-zero when opened
+
+obuff:	.blkb	^D512		;512 byte input buffer
+obufflen = .-obuff		;length of buffer
+obufcnt:.long	0		;number of chars in buffer
+ccbuf:	.long	0		;carriage control word
+
+iostab:				;i/o status block
+ioss:	.blkw	1		;returned status
+iosof:	.blkw	1		;terminator offset
+ioster:	.blkw	1		;terminator
+iostsiz:.blkw	1		;terminator size
+
+inprogress:
+	.long	0		; flag set when output is in progress
+zbuff:	.blkb	512		; buffer for sprintf
+
+;	** Macro definitions **
+	$iodef
+	$ssdef
+
+
+; utility to open tt if needed
+
+openkb:
+	tstw	opened		;TT: opened yet?
+	bneq	1$		;yes
+	movw	#1,opened	;no, mark for opened
+	$assign_s -
+		devnam=kbdev,-	;assign a channel for TT:
+		chan=kbchan
+	cmpl	#ss$_normal,r0	;ok?
+	beqlu	1$		;yep, proceed
+	movl	#-1,r0		; no, return -1
+	ret			; return from caller
+1$:	rsb			; return from me
+
+
+;	extern int cputb(c)
+;	char c;
+;
+;	puts char (c) into output buffer. Returns -1 on failure, 1 if ok.
+;
+	.entry	cputb,^m<>
+
+	bsbw	openkb		; open the terminal
+	tstl	inprogress	; is a dump in progress?
+	beql	1$		; no
+	$waitfr_s #2		; yep - wait for event flag
+1$:	moval	obuff,r0	;get buffer start pointer
+	addl2	obufcnt,r0	;create pointer to next byte
+	movb	4(ap),(r0)	;put char in buffer
+	incl	obufcnt		;count the char
+	cmpl	obufcnt,#obufflen ;is buffer full?
+	bgeq	doflush		;yes, do the flush
+	movl	#1,r0		;return ok in case anyone's interested
+	ret
+
+;	extern int cflushb();
+;
+;	flushes the putb buffer. Returns -1 on failure, 1 if ok.
+;
+	.entry	cflushb,^m<>
+doflush:			;entry point from putb
+	tstl	inprogress	; is a dump in progress?
+	beql	2$		; no
+	$waitfr_s #2		; yep - wait for event flag
+2$:	tstl	obufcnt		;anything in buffer?
+	beql	1$		;no
+	incl	inprogress	; note that a dump is in progress
+	$qio_s	efn=#2,-	;make the write call
+		chan=kbchan,-
+		func=#io$_writelblk!io$m_noformat,-
+		iosb=iostab,-	;i/o status block
+		astadr=flushast,- ; ast address
+		p1=obuff,-	;output buffer
+		p2=obufcnt,-	;number of chars to write
+		p4=ccbuf	;carriage control word
+	cmpl	#ss$_normal,r0	;ok?
+	beqlu	1$		;yep
+	movl	#-1,r0		; no, return -1
+	ret
+
+1$:	clrl	obufcnt		;nothing in buffer now
+	movl	#1,r0		; return 1
+	ret
+
+; ast for above - just clears inprogress flag
+	.entry	flushast,^m<>
+	clrl	inprogress	; just wipe flag
+	ret
+	
+
+;	extern int cputs(s)
+;	char *s;
+;
+;	puts string (s) into output buffer. Returns -1 on failure, 1 if ok.
+;
+	.entry	cputs,^m<r2,r3>
+
+	bsbw	openkb		; open the terminal
+	tstl	inprogress	; is a dump in progress?
+	beql	5$		; no
+	$waitfr_s #2		; yep - wait for event flag
+5$:	movl	4(ap),r3	; get pointer to string
+3$:	moval	obuff,r2	;get buffer start pointer
+	addl2	obufcnt,r2	;create pointer to next byte
+2$:	movb	(r3)+,(r2)+	;put char in buffer
+	beql	1$		; zero byte, done
+	incl	obufcnt		;count the char
+	cmpl	obufcnt,#obufflen ;is buffer full?
+	blss	2$		; no, loop for more
+	calls	#0,cflushb	;yes, do the flush
+	tstl	r0		; ok?
+	blss	4$		; no, complain
+	brb	3$		; ok, loop for more
+
+1$:	movl	#1,r0		;return ok in case anyone's interested
+4$:	ret
+
+
+;	extern zprintf(fmt, arg, arg...);
+;	like printf, but block mode
+
+	.entry	zprintf,^m<r2,r3>
+
+	movzbl	(ap),r2		; get arg count
+	addl3	#1,r2,r3	; argcount for sprintf
+1$:	pushl	(ap)[r2]	; push the args we got
+	sobgtr	r2,1$		; loop til done
+	pushal	zbuff		; give sprintf the address of its output buf.
+	calls	r3,sprintf	; do the formatting
+	pushal	zbuff		; copy to block buffer
+	calls	#1,cputs	; do it!
+	ret
+
+	.end

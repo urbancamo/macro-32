@@ -28,12 +28,12 @@ All paths are relative to this skill directory.
 ### Meta-index — `../../../reference/INDEX.md`
 **Start here for callable routines.** 995 routines across 26 facilities (LIB$, STR$, MTH$, OTS$, SMG$, SYS$/$*, RMS, and every utility prefix), each linked to its section in the source manual. Grouped by facility, alphabetical within each group. Faster than grepping — use the meta-index first, then follow the link.
 
-### Primary — `../../../reference/VAX_MACRO_INSTRUCTION_SET_REF.md`
-The authoritative VSI/DEC manual. Use this first for anything about the language itself.
+### Primary — `../../../reference/VAX-VMS-731/vax-macro-ref-2001.md`
+The authoritative VAX MACRO and Instruction Set Reference Manual — the canonical language reference. Use this first for anything about the language itself.
 
 | Looking for… | Go to |
 |---|---|
-| Instruction semantics, operand specifiers, condition-code effects | Chapter 9 (`# **Chapter 9. VAX Instruction Set**`) |
+| Instruction semantics, operand specifiers, condition-code effects | Chapter 9 — grep for `# **9**` then `### **VAX Instruction Set**` |
 | Addressing modes + their encodings | Chapter 5 |
 | Assembler directives (`.PSECT`, `.ENTRY`, `.MACRO`, …) | Chapter 6 |
 | Source statement format, symbols, numbers, expressions | Chapters 2–3 |
@@ -45,19 +45,19 @@ The authoritative VSI/DEC manual. Use this first for anything about the language
 | Directives + language summary | Appendix C |
 | Exceptions during execution | Appendix E |
 
-### Secondary — `../../../reference/VSI_MACRO_COMPILER.md`
-Porting guide and compiler reference. Use when the question is about *how code runs now* (Alpha/I64) rather than pure VAX.
+### Secondary — `../../../reference/VAX-VMS-731/macro32-porting-2001.md`
+The canonical OpenVMS MACRO-32 Porting and User's Guide. Use when the question is about *how code runs on Alpha* rather than pure VAX, compiler behaviour, or compiler built-ins.
 
 | Looking for… | Go to |
 |---|---|
-| Porting VAX MACRO to Alpha or Itanium | Chapters 1, 3 |
-| How the compiler differs across platforms | Chapter 2 |
+| Porting VAX MACRO to Alpha | Chapters 1, 3 |
+| How to use the MACRO-32 compiler | Chapter 2 |
 | Performance tuning for ported code | Chapter 4 |
 | 64-bit addressing | Chapter 5, Appendix E |
 | Compiler qualifiers (`/qualifiers`) | Appendix A |
 | Specialized directives (compiler-only) | Appendix B |
-| **Compiler built-ins** (Alpha instr, PALcode, Itanium) | Appendix C |
-| Porting macros VAX→Alpha/I64 | Appendix D |
+| **Compiler built-ins** (Alpha instructions, PALcode) | Appendix C |
+| Porting macros VAX→Alpha | Appendix D |
 
 ### OpenVMS Run-Time Library — `../../../reference/VAX-VMS-731/rtl-*.md`
 The RTL provides callable routines (`CALLS`/`CALLG`) for resource allocation, data conversion, I/O, math, screen handling, string manipulation, and language support. Per-routine entries include Format, Arguments (with OpenVMS usage / type / access / mechanism), Description, Condition Values Returned, and Examples.
@@ -69,8 +69,6 @@ The RTL provides callable routines (`CALLS`/`CALLG`) for resource allocation, da
 | **MTH$** | `rtl-mth.md` | Math (integer + floating-point functions — D, F, G, H, S, T floats, trig, log, hyperbolic, complex) |
 | **OTS$** | `rtl-ots.md` | General-purpose language support (division, conversion, copy, fill, move — the runtime helpers the compilers emit calls to) |
 | **SMG$** | `rtl-smg.md` | Screen Management — terminal pasteboard/virtual display, menus, input fields, keypad definition |
-
-For a **quick flat index** of all LIB$ routines with one-line descriptions (faster to grep than the full manual): `../../../reference/LIB_ROUTINES.md` (199 routines from the VSI wiki). Always cross-reference `rtl-lib.md` for argument specs.
 
 ### OpenVMS System Services — `../../../reference/VAX-VMS-731/system-services-*.md`
 The `SYS$*` / `$*` services (`$QIO`, `$GETJPI`, `$CREPRC`, `$CRETVA`, `$DELTVA`, `$CMKRNL`, `$CMEXEC`, etc.) — kernel-level routines for process control, I/O, memory, synchronization, logical names, security. Per-service entries include Format, C Prototype, Arguments, Privileges, Required Quota, Related Services, Condition Values.
@@ -94,10 +92,20 @@ Callable interfaces to OpenVMS utilities: SOR (SORT/MERGE), DCX (data compressio
 ### VAX Device Support — `../../../reference/VAX-VMS-731/vax-device-support-ref.md`
 Reference companion to the Device Support Manual. Use only when writing or reading VAX device drivers — data structures (UCB, CRB, IRP), driver entry points, IOC routines.
 
-### Older MACRO-32 editions (historical)
-Superseded by the primary VSI refs at the top of this list, but occasionally contain material the VSI editions dropped:
-- `../../../reference/VAX-VMS-731/vax-macro-ref-2001.md` — HP 2001 edition of the VAX MACRO Reference (older counterpart to `VAX_MACRO_INSTRUCTION_SET_REF.md`)
-- `../../../reference/VAX-VMS-731/macro32-porting-2001.md` — HP 2001 edition of the MACRO-32 Porting Guide (older counterpart to `VSI_MACRO_COMPILER.md`)
+### Example programs — `../../../reference/samples/`
+Real-world MACRO-32 source code, kept as optional reading for idiomatic patterns. Use these to see how features are *actually used together*, not as authoritative references — if a sample disagrees with the manual, the manual wins.
+
+| Location | What to look at it for |
+|---|---|
+| `samples/mbrt1.mar` | Arithmetic, output via LIB$PUT_OUTPUT — self-contained Mandelbrot generator |
+| `samples/zap.mar` | RMS indexed-file patching — XAB usage, bucket I/O, interactive commands |
+| `samples/dte_hayes.mar` | Modem driver — channel I/O, descriptors-by-reference, callable from `SET HOST/DTE/DIAL` |
+| `samples/mdml1{a,b,c}.mar`, `miml1.mar` | ML/I macro processor port — full application split into machine-dependent + independent parts, shows how to structure a multi-module program |
+| `samples/rc2009sc/` | Short textbook examples (e.g. `example5_8.mar` — computation with labelled data) |
+| `samples/various_macro/` | VMS utilities — privilege fixups (`fixup_setprv.mar`), AST queueing (`queue_ast.mar`), process dumps (`proc_dump.mar`), network processes |
+| `samples/smalltalk/` | A full VAX/Smalltalk-80 VM — 21 modules showing non-trivial MACRO-32 architecture: arithmetic primitives, memory, graphics, I/O, file system |
+| `samples/vax_mp/src/VMS_VSMP/` | Kernel-mode loadable code (SIMH VMS SMP support) — advanced: `startcpu.mar`, `smpcore.mar`, `dynpatch.mar`, `timesync.mar`. Only relevant for privileged/system work. |
+| `samples/vmsdisasm/` | VMS image disassembler — shows how to decode VAX instruction streams in MACRO-32 |
 
 ### Tutorial — `../../../reference/macro-made-easy/part-*.md`
 Hunter Goatley's 12-part series. Use for conceptual grounding and idiomatic examples, not as an authoritative reference.
@@ -123,10 +131,10 @@ Hunter Goatley's 12-part series. Use for conceptual grounding and idiomatic exam
 - Assuming x86-style operand order — MACRO-32 is source-then-destination
 - Omitting the register save mask word after `.ENTRY`
 - Treating `MOVAL` as a load when it's an lea-style address computation
-- Assuming VAX behavior holds on Alpha/I64 — check `VSI_MACRO_COMPILER.md` for platform differences and built-ins
+- Assuming VAX behavior holds on Alpha — check `macro32-porting-2001.md` for platform differences and built-ins
 
 ## Red flags — stop and look it up
 - You're about to state what a mnemonic does without having grepped the manual
 - You're guessing an opcode hex value — grep Appendix D instead
 - You're about to describe condition-code behavior from memory — it's in Chapter 9 under each instruction group
-- You're porting code and haven't checked `VSI_MACRO_COMPILER.md` for platform-specific notes
+- You're porting code and haven't checked `macro32-porting-2001.md` for Alpha-specific notes

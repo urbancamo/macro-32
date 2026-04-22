@@ -1,0 +1,304 @@
+.title	primcntl
+;	primcntl.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the primitive control routines
+;
+;	Written: August 26, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 26, 1981 by S.B. - Written
+;	August 27, 1981 by S.B. - More writing
+;	August 28, 1981 by S.B. - Add process control
+;	August 31, 1981 by S.B. - Fix bugs
+;	September 10, 1981 by S.B. - Fix bug in blockCopy: (pop stack & IP)
+;	September 25, 1981 by S.S. - Collect stack statistics
+;	October 9, 1981 by S.S. - Reuse active context frames
+;	October 29, 1981 by S.B. - Add hibernate primitive
+;	November 20, 1981 by S.S. - Force hibernate primitive to call gc
+;	December 31, 1981 by S.B. - Patch to handle static space
+;	January 1, 1981 by S.B. - Fix a few bugz
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+; r blockCopy: argcount
+primblockcopy::
+	blbs	(r10),3$	; fail if argcount is not SmallInteger
+	brw	1$
+3$:	movl	-4(r10),r2	; get the context to copy
+	getobj	r2,r3		; open it
+				; branch if this is a MethodContext
+	blbc	<hdr_len+context_method>*4(r3),2$
+				; it wasn't - get the home field
+	movl	<hdr_len+context_home>*4(r3),r2
+2$:	bicl3	#obj_size,(r3),r0 ; get size in bytes
+	ashl	#-2,r0,r0	; get the length as lword count
+	subl	#hdr_len,r0	; without header
+.if df	performance
+	incl	ablknum
+	ashl	#2,r0,-(sp)
+	addl	#hdr_len*4,(sp)
+	addl	(sp)+,ablkbyt
+.endc
+	romicp	#oop_blockcontext,r0 ; make a new context with the same len
+	movl	r0,-4(r10)	; replace receiver with it
+	getobj	r0,r4		; open the new context
+	addl	#hdr_len*4,r4	; offset pointer past header
+	addl3	#3,r7,r0	; calculate initial IP, skip jmp & cvt to 0 org
+	subl	r8,r0		; correct pointer base in r7
+	addl	#method_literals*4,r0 ; since r8 pointed at literals
+	ashl	#1,r0,r0	; cvt to SI
+	bisl3	#1,r0,r0	; set the SI bit
+	movl	r0,context_initialip*4(r4) ; put it in
+	movl	r0,context_ip*4(r4) ; and again
+	movl	#si_0,context_sp*4(r4) ; store an sp of 0
+	movl	(r10),context_nargs*4(r4) ; put arg count in
+	movl	r2,context_home*4(r4) ; put home context in
+	clrl	contextcount	; it wouldn't be safe to reuse contexts now
+	subl	#4,r10		; pop arg
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r value[: [value: ...]]
+; this routine expects the arg count in "argcount"
+primvalue::
+.if df	performance
+	incl	valcount
+.endc
+	mnegl	argcount,r5	; get the arg count negated
+	movl	(r10)[r5],r2	; get the BlockContext
+	getote	r2		; open its ote
+	bitl	#ote_needs_entry,(r0) ; does it need an entry?
+	beql	10$		; fortunately, no
+	bicl3	#ote_addr,(r0),@nextentry ; give it an entry
+	addl	#4,nextentry	; bump entry pointer
+10$:	bicl3	#ote_addr,(r0),r3 ; open the object
+	addl	#hdr_len*4,r3	; point past header
+	ashl	#-1,context_nargs*4(r3),r4 ; get the argcount expected as int
+	cmpl	r4,argcount	; same as given?
+	beql	4$
+	brw	1$		; no, fail
+4$:	tstl	r5		; any args to copy?
+	beql	2$		; no
+	moval	context_temps*4(r3),r4	; get a pointer to dest stack
+	moval	4(r10)[r5],r0	; get a pointer to source stack args
+	movl	argcount,r1	; get the real argcount
+	pushr	#^M<r2,r3,r5>	; save regs from qvstored
+3$:	movl	(r0)+,(r4)+	; copy an arg
+	pushr	#^M<r0,r1,r4>	; save regs
+	qvstored -4(r4)		; copy from fromspace to tospace
+	popr	#^M<r0,r1,r4>
+	sobgtr	r1,3$		; loop thru args
+	popr	#^M<r2,r3,r5>
+2$:	moval	-4(r10)[r5],r10	; pop the args and receiver
+	movl	context_initialip*4(r3),context_ip*4(r3) ; init the ip
+	ashl	#1,argcount,r0	; cvt initial SP to SI
+	bisl3	#1,r0,context_sp*4(r3) ; store the sp
+	movl	activecontext,context_sender*4(r3) ; store the caller
+	bsbw	dumpcontext	; dump the active context
+	movl	r2,activecontext ; activate this blockcontext
+	qvstored r2		; copy from fromspace to tospace
+	bsbw	loadcontext	; load it up
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r valueWithArguments: args
+primvaluewithargs::
+.if df	performance
+	incl	valcount
+.endc
+	movl	(r10),r0	; get the arg array
+	blbc	r0,4$		; fail if SmallInteger
+	brw	1$
+4$:	getote	r0,r2		; open the array's ote
+	bitl	#ote_needs_entry,(r2) ; does it need an entry?
+	beql	10$		; fortunately, no
+	bicl3	#ote_addr,(r2),@nextentry ; yep - give it one
+	addl	#4,nextentry	; bump pointer
+10$:	bicl3	#ote_addr,(r2),r2 ; open the array
+	cmpl	hdr_class*4(r2),#oop_array ; is it really an array?
+	beql	5$		; yep
+	brw	1$		; no - fail
+5$:	getobj	-4(r10),r3	; open the BlockContext
+	addl	#hdr_len*4,r3	; point past header
+	ashl	#-1,context_nargs*4(r3),r0 ; get the argcount expected as int
+	subl3	#hdr_len*4,(r2),r1 ; get the length of array in bytes
+	ashl	#-2,r1,r1	; cvt to lword count
+	cmpl	r0,r1		; same as expected?
+	beql	20$
+	brw	1$		; no, fail
+20$:	tstl	r0		; any args to copy?
+	beql	2$		; no
+	moval	context_temps*4(r3),r4	; get a pointer to dest stack
+	moval	hdr_len*4(r2),r5 ; get a pointer to array args
+	pushr	#^M<r1,r3>	; save regs from qvstored
+3$:	movl	(r5)+,(r4)+	; copy an arg
+	pushr	#^M<r0,r4,r5>
+	qvstored -4(r4)		; copy from fromspace to tospace
+	popr	#^M<r0,r4,r5>
+	sobgtr	r0,3$		; loop thru args
+	popr	#^M<r1,r3>
+2$:	movl	context_initialip*4(r3),context_ip*4(r3) ; init the ip
+	ashl	#1,r1,r1	; cvt initial sp to SI
+	bisl3	#1,r1,context_sp*4(r3) ; store the sp
+	movl	activecontext,context_sender*4(r3) ; store the caller
+	movl	-4(r10),r2	; get the blockcontext
+	subl	#8,r10		; pop the stack
+	bsbw	dumpcontext	; dump the active context
+	movl	r2,activecontext ; activate this blockcontext
+	qvstored r2		; copy from fromspace to tospace
+	bsbw	loadcontext	; load it up
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r perform: sel withArguments: argarray
+primperformwithargs::
+	movl	r10,performsp	; save the sp
+	movl	(r10),r2	; get the array of args
+	blbc	r2,4$
+5$:	brw	1$		; fail if SmallInteger
+4$:	movl	r2,performarray	; save the array
+	vstored	r2		; copy from fromspace to tospace
+	getobj	r2,r2		; open the array
+	cmpl	hdr_class*4(r2),#oop_array ; is it an array?
+	bneq	5$		; no, fail
+	bicl3	#obj_size,(r2),r3 ; get size in bytes
+	ashl	#-2,r3,r3	; get the length of the array in lwords
+	subl	#hdr_len,r3	; account for header
+	movl	r3,performargcount ; save length
+				; see if args will fit on stack
+	subl3	#hdr_len*4,activecontextptr,r0	; get ptr to base of actctx
+	addl3	(r0),r0,r0	; calculate address past end of stack
+	moval	-8(r10)[r3],r1	; address of last arg on stack
+	cmpl	r0,r1		; does it fit?
+	bgtru	10$
+	brw	1$		; no - fail
+
+10$:	movl	-(r10),performselector	; get the selector & pop array
+	vstored	(r10)		; copy from fromspace to tospace
+	tstl	r3		; any args?
+	beql	2$		; no
+	addl	#hdr_len*4,r2	; point at 1st arg
+3$:	movl	(r2)+,(r10)+	; copy arg to stack
+	pushr	#^M<r2,r3>	; save regs from qvstored
+	qvstored -4(r10)	; copy from fromspace to tospace
+	popr	#^M<r2,r3>
+	sobgtr	r3,3$		; loop thru args
+2$:	subl	#4,r10		; correct sp
+	incl	fromperform	; set flag to force arg count check
+	movl	performselector,r2 ; setup selector
+	movl	performargcount,r3 ; and arg count
+	brw	sendit		; and send it
+
+1$:	clrl	performarray	; wipe saves for gc
+	clrl	performselector
+	jmp	@failpoint	; fail
+
+; come here when arg count mismatches
+performfail::
+	movl	performsp,r10	; restore sp
+	movl	performselector,-4(r10) ; restore selector
+	movl	performarray,(r10) ; and arg array
+	clrl	performarray	; wipe saves for gc
+	clrl	performselector
+	jmp	@failpoint	; fail
+
+
+; statics for perform
+.save_psect
+.psect	static
+performargcount:
+	.long	0
+performsp:
+	.long	0
+.psect	gcstatic
+performarray::		; note: must be seen by gc
+	.long	0
+performselector::	; note: must be seen by gc
+	.long	0
+.restore_psect
+
+;; process control primitives
+; r signal
+primsignal::
+	call	syncsignal,(r10) ; call synchronous signal with semaphore
+	brw	mainloop
+
+; r wait
+primwait::
+	movl	(r10),r2	; get the semaphore
+	getobj	r2,r3		; open it
+	addl	#hdr_len*4,r3	; offset past header
+	movl	semaphore_excesssignals*4(r3),r1 ; get excess sigs
+	cmpl	r1,#si_0	; is it > 0?
+	beql	1$		; no
+	subl3	#2,r1,semaphore_excesssignals*4(r3) ; yep, dec it
+	brw	mainloop
+
+; here we suspend the active process
+1$:	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_activeprocess,r0 ; get the active process
+	movl	r0,r5		; save it
+	romsp	#process_mylist,r5,r2 ; setup backlink to process list
+	cmpl	linkedlist_firstlink*4(r3),#oop_nil ; anything on proc list?
+	beql	2$		; no
+	movl	linkedlist_lastlink*4(r3),r4 ; get the tail of list
+	romsp	#link_nextlink,r4,r5 ; tack act proc on end
+	brw	3$
+
+2$:	movl	r5,linkedlist_firstlink*4(r3) ; make this process the only one
+3$:	movl	r5,linkedlist_lastlink*4(r3) ; act proc is now last on list
+	call	suspendactive	; suspend the active process
+	brw	mainloop
+
+; r resume
+primresume::
+	call	resume,(r10)	; resume the process receiver
+	brw	mainloop
+
+; r suspend
+primsuspend::
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_activeprocess,r0 ; get the active proc.
+	cmpl	r0,(r10)	; is it the receiver?
+	bneq	1$		; no - fail
+	call	suspendactive	; suspend the active process
+	brw	mainloop
+
+1$:	jmp	@failpoint
+
+; r hibernate
+primhibernate::
+	incl	hibernating	; note that we are hibernating
+	$hiber_s		; hibernate
+	brw	mainloop
+
+.save_psect
+.psect	static
+hibernating::	.long	0
+.restore_psect
+
+; r collectGarbage
+primGC::
+	call	gc		; start a garbage collection
+	bvs	1$		; no work to do
+	movl	#oop_true,(r10)	; return true
+	brb	2$
+1$:	movl	#oop_false,(r10) ; return false
+2$:	brw	mainloop
+
+; r flushCache
+primflushcache::
+	movc5	#0,0,#0,#<cachesize*3>@2,methodcache ; erase cache
+	brw	mainloop
+
+
+	.end

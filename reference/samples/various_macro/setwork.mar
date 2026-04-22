@@ -1,0 +1,198 @@
+        .title setwork-kernel
+;
+;   SETWORK - short routine to queue a special kernel AST to another
+;             process to change its working set limit, quota, and extent.
+;
+;   Kenneth Adelman;    Nov 1987
+;
+;       4(AP) = PID
+;       8(AP) = LIMIT
+;       12(AP) = QUOTA
+;       16(AP) = EXTENT
+;
+        .library /SYS$LIBRARY:LIB/
+        $acbdef
+
+spec_limit  = acb$c_length
+spec_quota  = acb$c_length+4
+spec_extent = acb$c_length+8
+code_off    = acb$c_length+12
+
+        $dyndef
+        $ipldef
+        $ssdef
+        $pcbdef
+        $phddef
+        $pridef
+
+        .macro  minw2,x,y,?l
+        cmpw    x,y
+        bgtru   l
+        movw    x,y
+l:
+        .endm
+
+        .macro  maxw2,x,y,?l
+        cmpw    x,y
+        blssu   l
+        movw    x,y
+l:
+        .endm
+
+        .entry pokewset,^m<r2,r3,r4,r5,r6>
+;
+;       Get the internal PID of the process to queue the nASTy by
+;
+
+        movl    4(ap),r0
+        jsb     g^exe$epid_to_ipid
+        tstl    r0
+        beql    nonproc
+        movl    r0,r6           ;save ipid
+
+;
+;       Allocate a buffer to hold the ACB, three longwords of data, and the
+;       AST code.
+;
+
+        movl    #codelen+code_off,r1
+        jsb     g^exe$allocbuf
+        blbs    r0,10$
+        ret
+10$:    movl    r2,r5           ;save address
+
+;
+;       Fill in the ACB
+;
+
+        movl    r6,acb$l_pid(r5)
+        movb    #dyn$c_acb,acb$b_type(r5)
+        movw    r1,acb$w_size(r5)
+        movb    #1@acb$v_kast,acb$b_rmod(r5)
+        movab   code_off(r5),acb$l_kast(r5)
+
+;
+;       Copy the working set sizes and the code.
+;
+
+        movl    8(ap),spec_limit(r5)
+        movl    12(ap),spec_quota(r5)
+        movl    16(ap),spec_extent(r5)
+        pushl   r5
+        movc3   #codelen,w^code,@acb$l_kast(r5)
+        popl    r5
+
+;
+;       Queue the nASTy
+;
+
+        movzbl  #pri$_ticom,r2  ;set priority increment class
+        movzwl  acb$l_pid(r5),r0   ;destination pid
+begin_lock:
+        dsbint  lock_ipl
+        jsb     g^sch$qast
+        enbint
+        ret
+lock_ipl:
+        .long   ipl$_synch
+end_lock:
+        assume <end_lock-begin_lock> le 512
+nonproc:
+        movl    #ss$_nonexpr,r0
+        ret
+
+;
+;       This *PIC* code executes in the context of the target.
+;
+
+code:
+        movl    g^ctl$gl_phd,r1
+        pushr   #^m<r8,r9,r10,r11>
+
+;       min_wset = phd->phd$w_wsdyn - phd->phd$w_wslist +
+;                  2 * phd->phd$w_wsfluid + 3;
+
+        subw3   #1,phd$w_wslist(r1),r0
+        mulw3   #2,phd$w_wsfluid(r1),r8
+        addw2   #2,r8
+        addw2   phd$w_wsdyn(r1),r8
+        subw2   r0,r8
+
+;       if (spec_limit) {
+;           limit = min(auth_limit,max(min_wset,spec_limit));
+;       } else {
+;           limit = phd->phd$w_dfwscnt - phd->phd$w_wslist + 1;
+;       }
+
+        movw    spec_limit(r5),r9
+        beql    10$
+        maxw2   r8,r9
+        brb     11$
+10$:    subw3   r0,phd$w_dfwscnt(r1),r9
+11$:
+
+;       if (spec_quota) {
+;           quota = min(auth_limit,max(min_wset,spec_quota));
+;       } else {
+;           quota = phd->phd$w_wsquota - phd->phd$w_wslist + 1;
+;       }
+
+        movw    spec_quota(r5),r10
+        beql    20$
+        maxw2   r8,r10
+        brb     21$
+20$:    subw3   r0,phd$w_wsquota(r1),r10
+21$:
+
+;       if (spec_extent) {
+;           extent = min(auth_extent,max(min_wset,spec_extent));
+;       } else {
+;           extent = phd->phd$w_wsext - phd->phd$w_wslist + 1;
+;       }
+
+        movw    spec_extent(r5),r11
+        beql    30$
+        maxw2   r8,r11
+        brb     31$
+30$:    subw3   r0,phd$w_wsextent(r1),r11
+31$:
+
+;           extent = max(limit, extent);
+;           quota = max(limit, quota);
+
+        maxw2   r9,r10
+        maxw2   r10,r11
+
+;       phd->phd$w_dfwscnt = phd->w_wslist - 1 + limit;
+;       phd->phd$w_wsquota = phd->w_wslist - 1 + quota;
+;       phd->phd$w_wsextent = phd->w_wslist - 1 + extent;
+
+        addw3   r0,r9,phd$w_dfwscnt(r1)
+        addw3   r0,r10,phd$w_wsquota(r1)
+        addw3   r0,r11,phd$w_wsextent(r1)
+        maxw2   phd$w_wsquota(r1),phd$w_wsauth(r1)
+        maxw2   phd$w_wsextent(r1),phd$w_wsauthext(r1)
+
+;
+;       After changing the working set limits, check to see if this
+;       process is over its limit. If it is, $ADJWSL it down.
+;
+        addw3   phd$w_wssize(r1),phd$w_wslist(r1),r8
+        movw    phd$w_wsquota(r1),r9
+        cmpl    g^sch$gl_borrowlim,g^sch$gl_freecnt
+        bgtru   40$
+        movw    phd$w_wsextent(r1),r9
+40$:    subw    r8,r9                   ; r8 contains the number of pages to adj
+ust by
+        bgequ   50$                     ; if the overdraft < 0, WS is ok
+        clrl    -(sp)                   ; return ws
+        cvtwl   r9,-(sp)
+        calls   #2,g^sys$adjwsl
+50$:
+        popr    #^m<r8,r9,r10,r11>
+
+        setipl  #ipl$_astdel
+        movl    r5,r0
+        jmp     @#exe$deanonpaged
+codelen = .-code
+        .end

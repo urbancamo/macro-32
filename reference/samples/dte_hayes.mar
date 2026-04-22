@@ -1,0 +1,348 @@
+;<TITLE>DTE_HAYES.MAR   Hayes compatible dialler module </TITLE>
+
+;To make life easier, here's a fairly defensively coded Hayes dialler
+;module.  It's designed for use with SET HOST/DTE/DIAL, but can be linked
+;into pretty much any code.  If you use it from another program, call it
+;as DIAL_ROUTINE( dial_string, modem_channel, terminal_channel), where
+;dial_string is a character string passed by descriptor containing the
+;number to dial, modem_channel is a word passed by value and
+;terminal_channel can be anything you like since it doesn't get used (but
+;is defined by the SET HOST/DTE/DIAL calling sequence).
+; 
+;This has been tested with my Super 5 "SUPER MODEM 2400" (why do
+;cheap-arse Taiwanese modems always get given names with "super" etc in
+;them?), Case Quattros (aka SB2422) of various revisions (and bugs) and a
+;Compuspec M9600 (which no-one outside of NZ will have heard of, but it
+;goes up to 12kbps, if you can find someone to tell you what the
+;incantation is to turn that mode on), attached to ports with or without
+;modem control as well as DECservers.
+; 
+		.title DTE_HAYES   SET HOST/DTE dialler for Hayes "AT" modems
+;++
+;
+; DTE_HAYES -- Hayes compatible dialler module for SET HOST/DTE
+;
+; This module allows a modem that understands the Hayes "AT" command set
+; to be used with SET HOST/DTE/DIAL.
+;
+; To set up, compile and link as follows:
+;
+;	$ MACRO DTE_HAYES
+;	$ LINK/SHARE DTE_HAYES
+;
+; To use, place DTE_HAYES.EXE into SYS$SHARE: and issue the command:
+;
+;	$ SET HOST/DTE modem/DIAL=(MODEM_TYPE=HAYES,NUMBER=number)
+;
+; Alternatively, assign the logical DTE_DF03 to point to DTE_HAYES (it doesn't
+; need to be in SYS$SHARE:) and just use SET HOST/DTE/DIAL=number, eg:
+;
+;	$ ASSIGN SYS$LOGIN:DTE_HAYES DTE_DF03
+;	$ SET HOST/DTE modem/DIAL=NUMBER=number
+;
+; (This works becaus DTE_DF03 is the default dialler module loaded if the
+; MODEM_TYPE keyword is left off SET HOST/DTE.)  If you don't have any
+; DF03s, you may wish to assign the logical systemwide.
+;
+;
+;	Don Stokes				30-Oct-1991
+;	Systems Programmer
+;	GP Print Ltd,				Email:	don@zl2tnm.gp.co.nz
+;	Wellington,				Phone:	+64 4 4737-320
+;	New Zealand				Fax:	+64 4 4965-649
+;
+; No warranty or support of any kind is expressed or implied, but bugfixes,
+; suggestions or job offers are always welcome.  Copyright remains with the
+; author.
+;
+;--
+ 
+		.sbttl Macros and things
+ 
+		$STSDEF
+		$SHRDEF
+;
+; CALL macro - call a subroutine, pass parameters on stack
+; Usage:	CALL routine [,p1...,p20]
+;
+		.macro call routine,					-
+			    p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,		-
+			    p12,p13,p14,p15,p16,p17,p18,p19,p20
+		.narg call.argc
+		call.argc = call.argc - 1
+		call.argn = 20
+		.irp call.argv, <p20,p19,p18,p17,p16,p15,p14,p13,p12,	-
+				 p11,p10,p9,p8,p7,p6,p5,p4,p3,p2,p1>
+			.if less_equal call.argn - call.argc
+				pushal call.argv
+			.endc
+			call.argn = call.argn - 1
+		.endr
+		calls #call.argc, G^routine
+		.endm
+ 
+;
+; WANTS -- check if R0 is greater than or equal to value, abort if not
+;
+		.macro wants, okmin, ?L1
+		cmpl R0, #okmin
+		bgeq L1
+		brw failed
+L1:		.endm
+ 
+;
+; Status macro.
+; Every good MACRO program has one of these; this is no exception.
+;
+		.macro status, cond, ?L1
+		blbs cond, L1
+		$EXIT_S cond
+L1:		.endm
+ 
+ 
+ 
+		.sbttl Data areas
+		.psect DTE_RW, long,noexe,wrt,noshr
+ 
+;
+; Workings:
+;
+iosb:		.blkw 4				; Dogsbody iosb
+waittime:	.blkl				; Temp storage for WAIT
+expect_buffer:	.blkb 32			; Expect fifo
+expect_buffer_l = .-expect_buffer
+timeout:	.ascid "Timed out"		; Time out message
+rem$_facility	= ^X1FE				; REM-?-TEXT, message
+rem$_text	= SHR$_TEXT!<REM$_FACILITY@16>
+ 
+ 
+ 
+;
+; Script stuff
+;
+cr = 13
+ 
+send_init:	.ascid "ATQ0"<cr>               ; Enable messages
+send_dial:	.ascid "ATDT"                   ; Tone dial (no-one uses
+send_cr:	.ascid <cr>                     ;   pulse, do they?
+send_reset:	.ascid "ATZ"<cr>                ; Reset modem
+ 
+init_expects:	.address expect_error		; ERROR, didn't like something
+		.address expect_ring		; RING, Abandon ship!
+		.address expect_ok		; OK
+		.long 0
+ 
+dial_expects:				; 1 - 7 = failed
+		.address expect_busy		; BUSY, engaged
+		.address expect_nocarr		; NO CARRIER, multitude of sins
+		.address expect_error		; ERROR, didn't like something
+		.address expect_nodial		; NO DIALTONE, out of order
+		.address expect_noans		; NO ANSWER, noone home
+		.address expect_voice		; VOICE, Biological moduation
+		.address expect_ring		; RING, oops!
+					; 8 onwards = success
+		.address expect_c38k		; 38400bps, if ever 8-)
+		.address expect_c19k		; 19200bps, eg Trailblazers?
+		.address expect_c12k		; 12000bps, eg Compuspec M9600
+		.address expect_c9600		; 9600bps, usually V32
+		.address expect_c4800		; 4800 bps
+		.address expect_c2400		; 2400 bps, usually V22bis
+		.address expect_c1200a		; 1200 bps, usually V22
+		.address expect_c1200b		; 1200 bps with other messages
+		.address expect_c1200c		; 1200 bps with other messages
+		.address expect_c1275		; 1200/75, V23
+		.address expect_c7512		; 75/1200, V23
+		.address expect_c300		; 300, V21 (or Bell 103)
+		.address expect_connect		; Straight CONNECT
+		.long 0
+ 
+expect_ok:	.ascid "OK"
+expect_busy:	.ascid "BUSY"
+expect_nocarr:	.ascid "NO CARRIER"
+expect_noans:	.ascid "NO ANSWER"
+expect_error:	.ascid "ERROR"
+expect_nodial:	.ascid "NO DIALTONE"
+expect_voice:	.ascid "VOICE"
+expect_ring:	.ascid "RING"
+expect_c38k:	.ascid "CONNECT 38400"
+expect_c19k:	.ascid "CONNECT 19200"
+expect_c12k:	.ascid "CONNECT 12000"
+expect_c9600:	.ascid "CONNECT 9600"
+expect_c4800:	.ascid "CONNECT 4800"
+expect_c2400:	.ascid "CONNECT 2400"
+expect_c1200a:	.ascid "CONNECT 1200"<cr>	; To avoid it looking like
+expect_c1200b:	.ascid "CONNECT 1200/"		; CONNECT 12000.
+expect_c1200c:	.ascid "CONNECT 1200 "
+expect_c1275:	.ascid "CONNECT 1275"
+expect_c7512:	.ascid "CONNECT 7512"
+expect_c300:	.ascid "CONNECT 300"
+expect_connect:	.ascid "CONNECT"<cr>
+ 
+ 
+ 
+ 
+		.sbttl Linkage
+;
+; Linkage code
+;
+		.psect DTE_RE, long,exe,nowrt,shr
+		.transfer DIAL_ROUTINE
+		.mask DIAL_ROUTINE
+		brb DIAL_ROUTINE+2
+ 
+ 
+		.sbttl Mainline
+;
+; Main routine
+; 4(AP) = Dial string
+; 8(AP) = channel to modem
+;12(AP) = channel to terminal
+;
+		.entry DIAL_ROUTINE,^m<>
+;
+; Initialise modem
+;
+		call wait @#1000		; Let modem settle from shock
+		call flush @8(AP)		; of being asked to do something
+		call send @8(AP), send_init	; Initialise modem
+		call expect, @8(AP), init_expects, @#5
+		wants 3				; Either OK, ERROR or RING
+ 
+;
+; Dial number
+;
+		call wait @#2000		; Let modem recover from init
+		call send @8(AP), send_dial	; Send ATDT
+		call send @8(AP), @4(AP)	; Send phone
+		call send @8(AP), send_cr	; Send cr
+		call expect, @8(AP), dial_expects, @#40
+		wants 8				; Wait for CONNECT something
+ 
+;
+; Connected.  Display connect message and hand control back to DTEPAD.
+;
+		call LIB$SIGNAL @#rem$_text!STS$K_SUCCESS, @#1, (R1)
+		movl #SS$_NORMAL, R0		; TA-DAH!
+		ret
+ 
+;
+; Report status and die.  R1 = reason.
+;
+failed:		call LIB$SIGNAL @#rem$_text!STS$K_ERROR, @#1, (R1)
+		movl #rem$_text!STS$M_INHIB_MSG!STS$K_ERROR, R0
+		ret
+ 
+ 
+ 
+ 
+		.sbttl Routine to send characters to the modem
+;
+; SEND chan, string
+;
+; Sends one character at a time to modem.
+;
+		.entry send, ^m<R2,R3>
+		movl 8(AP), R0			; R0 = descriptor addr
+		movl 4(R0), R2			; R2 = pointer
+		cvtwl (R0), R3			; R3 = counter
+ 
+1$:		$QIOW_S chan=4(AP), iosb=iosb, -
+			func=#IO$_WRITEVBLK!IO$M_NOFORMAT, -
+			p1=(R2), p2=#1
+		status R0
+		status iosb
+ 
+		call wait @#100
+		status R0
+ 
+		incl R2
+		decl R3
+		bneq 1$
+ 
+		ret
+ 
+ 
+		.sbttl Routine to flush the typeahead buffer
+;
+; FLUSH channel
+;
+; Flushes the typeahead
+;
+		.entry flush, ^m<>
+1$:		$QIOW_S chan=4(AP), iosb=iosb, -
+			func=#IO$_READVBLK!IO$M_PURGE!IO$M_TIMED,-
+			p1=expect_buffer, p2=#0, p3=#0
+		status R0
+		ret
+ 
+ 
+ 
+		.sbttl Routine to read characters and match expected strings
+;
+; EXPECT chan, expect_address, timeout
+;
+; Expects strings to come in through the port.  expect_address is a pointer
+; to an array of pointers to descriptors; zero address terminates the array.
+; R0 at end gives index (plus one) of the string that matched, or zero if it
+; timed out.  R1 points to string that matched or "Timed out" if timeout.
+;
+ 
+		.entry expect, ^m<R2,R3,R4,R5,R6,R7,R8>
+;
+; Read character
+;
+		movc5 #0,#0,#0, #expect_buffer_l, expect_buffer
+1$:		movc3 #31, expect_buffer+1, expect_buffer
+		$QIOW_S chan=4(AP), iosb=iosb, -
+			func=#IO$_READVBLK!IO$M_TIMED!IO$M_NOECHO, -
+			p1=expect_buffer+expect_buffer_l-1, p2=#1, p3=12(AP)
+		status R0
+;
+; Exit if timeout
+;
+		cmpw iosb, #SS$_TIMEOUT
+		bneq 2$
+		movaq timeout, R1		; R1 = timeout message
+		clrl R0				; R0 = 0
+		ret
+2$:		status R0
+ 
+;
+; Search expect list for string in expect buffer
+;
+		movl 8(AP), R7			; R7 = base of expect list
+		clrl R8				; R8 = index into expect list
+4$:		movl (R7)[R8], R6		; R6 = address of expect string
+		beql 5$				; If zero get next character
+		cvtwl (R6), R1			; R1 = length of string
+		subl3 R1, #expect_buffer_l, R2	; R2 = position of candidate
+		movab expect_buffer, R0
+		cmpc R1, @4(R6), (R0)[R2]
+		beql 6$				; compare expect with candidate
+		incl R8				; R8 = next expect number
+		brb 4$
+ 
+5$:		brw 1$				; No match, next please
+ 
+;
+; If found, R1 = address of string, R0 = index (plus 1)
+;
+6$:		movl R6, R1
+		movl R8, R0
+		incl R0
+		ret
+ 
+ 
+ 
+		.sbttl Routine to wait for a period of time
+;
+; WAIT miliseconds
+;
+		.entry wait, ^m<>
+		cvtlf 4(AP), R0
+		mulf3 #0.001, R0, waittime
+		call LIB$WAIT waittime
+		ret
+ 
+ 
+		.end

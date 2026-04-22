@@ -1,0 +1,261 @@
+.title	init
+;	init.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains initialization code.
+;
+;	Written: September 8, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	September 8, 1981 by S.B. - Written
+;	September 16, 1981 by S.B. - Fixed
+;	October 8, 1981 by S.S. - Add performance statistics gathering
+;	October 28, 1981 by S.S. - Initialize system time
+;	October 29, 1981 by S.B. - Double maxoop
+;	November 18, 1981 by S.S. - Set up highest oop accessed
+;	December 30, 1981 by S.B. - Add static region
+;	December 31, 1981 by S.B. - Continue
+;	January 1, 1981 by S.B. - Few fixes
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+.noshow
+psect_defs
+small_defs
+$ssdef
+.show
+.psect	misc
+
+; main entry point for Smalltalk-80
+	entry	startup,<r2,r3,r4,r5,r6,r7,r8,r9,r10,r11>
+
+	call	initspace	; create and init the memory regions
+	call	loadimage	; load the smalltalk image
+	call	getfirstcontext	; get the first context
+	call	initstats	; initialize the performance gathering
+	call	initdisplay	; initialize the display engine
+	call	inittimer	; initialize the timer
+	moval	exchand,(fp)	; setup exception handler
+	jmp	mainloop	; startup smalltalk
+
+
+;; exception handler
+; converts floating overflows into V bit
+
+	entry	exchand,<r2,r3>
+
+	movl	4(ap),r2	; get the signal arg list
+	cmpl	4(r2),#ss$_fltovf ; floating overflow?
+	beql	2$		; yep
+	cmpl	4(r2),#ss$_intdiv ; integer / 0?
+	bneq	1$		; no - let someone else handle it
+2$:	movl	(r2),r3		; get the number of signal args
+	bisl2	#V,(r2)[r3]	; set the V bit in the culprit's psl
+	movl	#ss$_continue,r0	; and return
+	ret
+
+1$:	movl	#ss$_resignal,r0	; resignal the exception
+	ret
+
+;; inits the memory space
+
+; layout of first page is:
+;  0: object area byte length
+;  4: object table byte length
+;  8: static region byte length
+; 12: number of static objects
+; 16: <zeros to end of page>
+oabl  = 0
+otbl  = 4
+srbl  = 8
+socnt = 12
+
+	entry	initspace,<r2,r4>
+
+	clrl	entrylen	; assume no static region
+	clrl	staticlen
+	call	openinfile	; open the image file
+	moval	pagebuf,r4	; point at page buffer
+	call	getpage,r4	; read in the first page
+	subl3	oabl(r4),regionsize,coreleft ; pre-compute this for stats
+	printf	<<10>/Image stats:/<13>>
+	printf	<<10>/Coreleft: %d/<13>>,coreleft
+	printf	<<10>/Static region: %d bytes, %d objects/<13>>,-
+		srbl(r4),socnt(r4)
+	ashl	#-2,otbl(r4),r0
+	printf	<<10>/Dynamic region has %d bytes, highoop is %d/<13>>,-
+		oabl(r4),r0
+	movl	srbl(r4),r0	; get static region len
+	movl	r0,realstaticlen ; save actual length
+	movl	socnt(r4),staticoopcount ; and count of static oops
+	addl	#511,r0		; round up to whole pages
+	bicl3	#511,r0,staticlen ; save len of static region
+	beql	3$		; no static region needed
+	call	G^lib$get_vm,!staticlen,!staticbase ; get the memory
+	blbc	r0,2$		; branch on error
+	ashl	#2,socnt(r4),r0 ; number of bytes max in entry table
+	addl	#511,r0		; round to pages
+	bicl3	#511,r0,entrylen ; and save
+	call	G^lib$get_vm,!entrylen,!entrybase ; get the memory
+	blbc	r0,2$		; branch on error
+3$:	call	G^lib$get_vm,!otmemneeded,!otbase ; get the memory
+	blbc	r0,2$		; branch on error
+	call	G^lib$get_vm,!regionsize,!tospacebase ; get tospace
+	blbc	r0,2$		; error
+	call	G^lib$get_vm,!regionsize,!fromspacebase ; get fromspace
+	blbs	r0,1$		; ok
+2$:	printf	<<10><7>/Unable to acquire Baker region/<13>>
+	halt			; fatal error
+
+1$:	movl	entrybase,nextentry ; setup pointer to base of entry table
+	movl	entrybase,gcentryptr ; init the gc pointer to same
+	addl3	regionsize,tospacebase,tospacetop ; setup Baker space
+	addl3	regionsize,fromspacebase,fromspacetop
+	ashl	#-1,otmemneeded,r1 ; calculate number of oops available in ot
+	subl3	#2,r1,maxoop	; maxoop is 2 less
+	movl	otbase,r11	; setup pointer to ot
+	moval	becomelist,nextbecome ; setup become list
+	ret
+
+.save_psect
+.psect	static
+regionsize:: .long 1@20		; one megabyte per Baker region
+otmemneeded: .long 1@17*4	; 128K ote's needed (4 bytes each)
+.restore_psect
+
+
+;; loads the smalltalk image
+; assumes initspace has read the 1st page into pagebuf
+
+	entry	loadimage,<r2,r3,r4,r5,r6,r7,r8,r9>
+
+	moval	pagebuf,r4	; get pointer to page buffer
+	movl	(r4),r2		; get the byte length of the object area
+	addl3	r2,tospacebase,freebase ; setup address of free memory
+	ashl	#-2,r2,r2	; get the lword length of the object area
+	ashl	#-2,4(r4),r3	; get the lword length of the ot area
+	movl	r3,r8		; save len
+	ashl	#1,r8,highoop	; set up highest oop accessed
+	ashl	#-1,maxoop,r5	; cvt maxoop to lword count
+	incl	r5
+	cmpl	r3,r5		; did we allocate enough ot for it?
+	blequ	20$		; yep
+	printf	<<10><7>/Too many objects in image/<13>>
+	halt			; else, fatal error
+20$:	movl	r3,r5		; save ot length
+	movl	staticlen,r9	; get static area length
+	ashl	#-2,r9,r9	; cvt to lword count
+	addl	#127,r9		; round up to whole pages
+	bicl	#127,r9
+	addl	#127,r2		; round up to whole pages
+	bicl	#127,r2
+	addl	#127,r3		; round up to whole pages
+	bicl	#127,r3
+	ashl	#-2,regionsize,r0 ; lwords in region
+	cmpl	r0,r2		; enough room for image?
+	bgequ	1$		; yep
+	printf	<<10><7>/Insufficient room for dynamic region/<13>>
+	halt			; no - fatal error
+
+1$:	ashl	#-7,r2,r2	; cvt to page counts
+	ashl	#-7,r3,r3
+	ashl	#-7,r9,r9
+	beql	41$		; no static region there
+	movl	staticbase,r4	; setup to inhale static region
+40$:	call	getpage,r4	; get an image page
+	addl	#512,r4		; bump to next page
+	sobgtr	r9,40$		; loop til done
+41$:	movl	tospacebase,r4	; point at dynamic region
+	tstl	r2		; anything there?
+	beql	31$		; no
+30$:	call	getpage,r4	; get an image page
+	addl	#512,r4		; bump pointer to next page
+	sobgtr	r2,30$		; loop til done
+31$:	movl	otbase,r4	; get pointer to object table
+2$:	call	getpage,r4	; get an ot page
+	addl	#512,r4		; bump pointer
+	sobgtr	r3,2$		; loop til done
+	clrl	dynoopcount	; init counter
+	movl	otbase,r4	; fix addresses in object table
+	movl	#2,r7		; init oop counter
+	subl3	#1,r8,r5	; correct ote count for this one
+	moval	freeote,r6	; setup pointer to ote free base
+3$:	movaw	(r4)[r7],r0	; get ptr to this oop
+	blbc	(r0),4$		; ote is not free
+	movl	r7,(r6)		; tack this oop on free oop list
+	bisl	#1,(r6)		; make sure free bit is set
+	movaw	(r4)[r7],r6	; setup new backlink
+	brb	5$
+
+4$:	bbc	#ote_static_bit,(r0),50$ ; branch if in dynamic area
+	addl	staticbase,(r0)	; offset the base address to static memory
+	bbs	#ote_needs_entry_bit,(r0),51$ ; br if it has no entry
+	bicl3	#ote_addr,(r0),@nextentry ; give it an entry
+	addl	#4,nextentry	; bump pointer
+	brb	51$
+50$:	addl	tospacebase,(r0) ; offset the base address to dynamic memory
+	incl	dynoopcount	; count it
+51$:	bisl	ote_sweptbit,(r0) ; set the swept bit
+	bitl	#ote_ptrs,(r0)	; does this guy have pointers?
+	beql	5$		; nope
+	bicl3	#ote_addr,(r0),r2 ; open the object
+	bisl	#obj_ptrs,(r2)	; set the pointers bit in the size field
+5$:	addl	#2,r7		; bump oop
+	sobgtr	r5,3$		; loop thru otes
+	cmpl	r7,maxoop	; at end of ot?
+	bgtru	10$		; yep
+6$:	movl	r7,(r6)		; string rest of oops on free list
+	bisl	#1,(r6)
+	movaw	(r4)[r7],r6
+	acbl	maxoop,#2,r7,6$
+	bisl	#ote_free,(r6)	; set free bit in last oop
+10$:	bicl	#1,freeote	; wipe free bit in oop free list base
+	movl	tospacetop,freetop ; compute core left
+	subl3	freebase,freetop,coreleft 
+	movl	freebase,gcbase ; set up garbage collecting base
+	clrl	contextlist	; show no cached contexts
+	clrl	contextcount	; and none to cache yet
+	call	closeinfile	; close the image file
+	subl3	entrybase,nextentry,r0 ; calculate number of entries
+	ashl	#-2,r0,r0
+	printf	<<10>/Entry count: %d/<13>>,r0
+	subl3	tospacebase,freebase,r0	; number of bytes in dynamic objects
+	ret
+
+.save_psect
+.psect	static
+dynoopcount:
+	.long	0
+.restore_psect
+
+;; finds the first context
+
+	entry	getfirstcontext,<>
+
+	romlp	#assoc_value,#oop_processor ; get the processor
+	romlp	#processor_activeprocess,r0 ; get active process from processor
+	romlp	#process_context,r0	; get its context
+	movl	r0,activecontext	; activate the context
+	bsbw	loadcontext		; load it up
+	ret
+
+;; initializes the timer
+
+	entry	inittimer,<>
+
+	$bintim_s	timbuf=base,-	; get number of ticks since base
+			timadr=tickoffset
+	ret
+
+.save_psect
+.psect	static
+tickoffset::	.quad	0
+pagebuf:	.blkb	512
+
+.psect	text
+base:		.ascid	/31-DEC-1900 16:00:00.00/
+.restore_psect
+
+	.end	startup
+

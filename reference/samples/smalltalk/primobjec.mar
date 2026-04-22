@@ -1,0 +1,377 @@
+.title	primobjec
+;	primobjec.mar
+;
+;	VAX/Smalltalk-80
+;
+;	This file contains the primitives that deal with objects.
+;
+;	Written: August 25, 1981 by Stoney Ballard
+;
+;	Edit History:
+;	August 25, 1981 by S.B. - Written
+;	August 26, 1981 by S.B. - More writing
+;	August 31, 1981 by S.B. - Bug fix
+;	September 25, 1981 by S.S. - Collect stack stuff
+;	December 31, 1981 by S.B. - support static space
+;	January 4, 1981 by S.B. - Add becomelist
+;
+;
+.library "vaxsmall:smallmacs.mlb"
+psect_defs
+small_defs
+.psect	prims
+
+; r objectAt: idx
+primobjectat::
+	movl	(r10),r2	; get the index
+	blbc	r2,1$		; fail if idx is not SmallInteger
+	ashl	#-1,r2,r2	; cvt index to integer
+	bleq	1$		; fail if <= 0
+	getobj	-4(r10),r3	; open the receiver (a CompiledMethod)
+				; get the literal count from header
+	extzv	#mheader_litbase,#mheader_litlen,-
+		<hdr_len+method_header>*4(r3),r1
+	decl	r2		; header is 0
+	cmpl	r2,r1		; is index in range?
+	bgtr	1$		; no, fail
+	movl	hdr_len*4(r3)[r2],-(r10) ; get the field and replace rcvr
+	qvstored (r10)		; move object to tospace
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r objectAt: idx put: val
+primobjectatput::
+	movl	-4(r10),r2	; get the index
+	blbc	r2,1$		; fail if idx is not SmallInteger
+	ashl	#-1,r2,r2	; cvt index to integer
+	bleq	1$		; fail if <= 0
+	getote	-8(r10),r4	; get ptr to receiver's ote
+	bicl3	#ote_addr,(r4),r3 ; open the receiver (a CompiledMethod)
+				; get the literal count from header
+	extzv	#mheader_litbase,#mheader_litlen,-
+		<hdr_len+method_header>*4(r3),r1
+	decl	r2		; header is 0
+	cmpl	r2,r1		; is index in range?
+	bgtr	1$		; no, fail
+	movl	(r10),hdr_len*4(r3)[r2] ; replace the field with value
+	movl	(r10),-8(r10)	; return the value
+	qstored (r10),r4	; move object to tospace
+	subl	#8,r10		; pop the idx and val
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r new
+primnew::
+	movl	(r10),r3	; get the class to instantiate
+	romlp	#class_ispec,r3	; get its instance spec
+	bitl	#ispec_var,r0	; is it indexable?
+	bneq	1$		; yes, fail
+	bitl	#ispec_ptrs,r0	; is it pointers?
+	beql	1$		; no, fail
+	extzv	#ispec_ffbase,#ispec_fflen,r0,r2 ; get the fixed field count
+	romicp	r3,r2		; make a new one
+	movl	r0,(r10)	; replace receiver with it
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r new: size
+primnewvar::
+	movl	(r10),r2	; get the size
+	blbs	r2,5$		; fail if not SmallInteger
+	brw	1$
+5$:	ashl	#-1,r2,r2	; cvt to integer
+	movl	-4(r10),r3	; get the class to instantiate
+	romlp	#class_ispec,r3	; get its instance spec
+	bitl	#ispec_var,r0	; is it indexable?
+	bneq	6$		; no, fail
+	brw	1$
+6$:	extzv	#ispec_ffbase,#ispec_fflen,r0,r1 ; get the fixed field count
+	bitl	#ispec_ptrs,r0	; pointer fields?
+	beql	2$		; no
+	addl	r1,r2		; add fixed fields to size
+	romicp	r3,r2		; make a new instance
+	brw	3$
+
+2$:	tstl	r1		; fixed fields must be 0 if not pointers
+	beql	7$		; fail
+	brw	1$
+7$:	bitl	#ispec_words,r0	; word fields?
+	beql	4$		; nope - bytes
+	romicw	r3,r2		; make a new instance
+	brb	3$
+
+4$:	romicb	r3,r2		; make a new instance
+3$:	movl	r0,-(r10)	; replace receiver with new instance
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r become: a
+
+; flags (and address field) to be copied are:
+bflags = ote_ptrs!ote_words!ote_static!ote_needs_entry!^Cote_addr
+
+; don't forget to deal with object caching when it is installed!
+
+primbecome::
+	bsbw	dumpcontext	; in case we do something silly like make the
+				; current context be another
+	movl	(r10),r2	; get the arg
+	blbs	r2,2$		; fail if SmallInteger
+	vstored	r2		; make sure it is in tospace
+	movl	-4(r10),r3	; get the receiver
+	blbc	r3,3$		; fail if SmallInteger
+2$:	brw	1$
+3$:	cmpl	r2,r3		; are these the same oops?
+	bneq	50$
+	brw	4$		; yep - nop
+
+50$:	vstored	r3		; make sure it is in tospace
+	getote	r2,r2		; open the ote for the arg
+	getote	r3,r3		; and for the receiver
+				; get the address and flags of one
+	bicl3	#^Cbflags,(r3),r1
+	bicl	#bflags,(r3)	; wipe them
+				; get the address and flags of the other
+	bicl3	#^Cbflags,(r2),r0
+	bicl	#bflags,(r2)	; wipe them
+	bisl	r0,(r3)		; copy the addr & flags to first
+	bisl	r1,(r2)		; finish the swap
+	bbc	#ote_static_bit,(r2),10$ ; branch if arg is now dynamic
+	bbs	#ote_static_bit,(r3),4$ ; branch if rcvr is now static
+	brb	30$		; yech
+
+10$:	bbc	#ote_static_bit,(r3),4$ ; branch if rcvr is now dynamic
+30$:	printf	<<10><7>/Static becoming Dynamic!/<13>>
+	cmpl	nextbecome,#endbeclist ; is there room in the become list?
+	blssu	40$		; yep
+	call	gctheworld	; nope - have to gc the world to fix this!
+	brb	4$
+
+40$:	movl	(r10),r2	; get one of the objects
+	getote	r2		; get its ote
+	bbc	#ote_static_bit,(r0),41$ ; branch if this is the new dynamic
+	movl	-4(r10),r2	; this one must be it
+41$:	movl	r2,@nextbecome	; install its oop in the become list
+	addl	#4,nextbecome	; and bump the pointer
+	qvstored r2		; insure that this object is in tospace
+4$:	subl	#4,r10		; just pop the arg
+	bsbw	loadcontext	; put the context back
+	brw	mainloop
+
+1$:	bsbw	loadcontext	; put the context back
+	jmp	@failpoint	; fail
+
+; r instVarAt: idx
+priminstvarat::
+	movl	(r10),r2	; get the index
+	blbc	r2,4$		; fail if not SmallInteger
+	ashl	#-1,r2,r2	; cvt to integer
+	bgtr	5$		; ok
+4$:	brw	1$		; fail if <= 0
+5$:	getote	-4(r10),r1	; get the receiver's ote
+	bicl3	#ote_addr,(r1),r3 ; get a ptr to the object
+	bitl	#ote_ptrs,(r1)	; pointer fields?
+	beql	2$		; no
+	addl	#hdr_len-1,r2	; account for header & cvt to 0 origin
+	bicl3	#obj_size,(r3),r1 ; get size field
+	ashl	#-2,r1,r1	; cvt length to lword count
+	cmpl	r2,r1		; is index in range?
+	bgeq	4$		; no, fail
+	tstl	(r3)[r2]
+	bneq	999$
+	halt
+999$:	movl	(r3)[r2],-(r10)	; replace receiver with field
+	qvstored (r10)		; move object to tospace
+	brw	mainloop
+
+2$:	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r2 ; account for header & cvt to 0 origin
+	bicl3	#obj_size,(r3),r0 ; get size field
+	ashl	#-1,r0,r0	; get the length in words
+	cmpl	r2,r0		; is index in range?
+	bgeq	1$		; no
+	movzwl	(r3)[r2],r2	; get the word
+	ashl	#1,r2,r2	; cvt to SmallInteger
+	bisl3	#1,r2,-(r10)	; replace receiver with result
+	brw	mainloop
+
+3$:	addl	#<hdr_len*4>-1,r2 ; account for header & cvt to 0 origin
+	bicl3	#obj_size,(r3),r0 ; get size field
+	cmpl	r2,r0		; is index in range?
+	bgeq	1$		; no
+	movzbl	(r3)[r2],r2	; get the byte
+	ashl	#1,r2,r2	; cvt to SmallInteger
+	bisl3	#1,r2,-(r10)	; replace receiver with result
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r instVarAt: idx put: val
+priminstvaratput::
+	movl	-4(r10),r2	; get the index
+	blbc	r2,4$		; fail if not SmallInteger
+	ashl	#-1,r2,r2	; cvt to integer
+	bgtr	6$		; ok
+4$:	brw	1$		; fail if <= 0
+6$:	getote	-8(r10),r4	; get the receiver's ote
+	bicl3	#ote_addr,(r4),r3 ; open the object
+	bitl	#ote_ptrs,(r4)	; pointer fields?
+	beql	2$		; no
+	addl	#hdr_len-1,r2	; account for header & cvt to 0 origin
+	bicl3	#obj_size,(r3),r1 ; get size field
+	ashl	#-2,r1,r1	; cvt length to lword count
+	cmpl	r2,r1		; is index in range?
+	bgeq	4$		; no, fail
+	movl	(r10),(r3)[r2]	; replace field with receiver
+	qstored (r10),r4	; move object to tospace
+	brb	5$
+
+2$:	movl	(r10),r4	; get the val
+	blbc	r4,1$		; fail if not SmallInteger
+	ashl	#-1,r4,r4	; cvt to integer
+	blss	1$		; fail if negative
+	bitl	#ote_words,(r1)	; word fields?
+	beql	3$		; no, bytes
+	addl	#<hdr_len*2>-1,r2 ; account for header & cvt to 0 org
+	bicl3	#obj_size,(r3),r0 ; get size field
+	ashl	#-1,r0,r0	; get the word len of array
+	cmpl	r2,r0		; is index in range?
+	bgeq	1$		; no
+	movw	r4,(r3)[r2]	; stuff val into field
+	brb	5$
+
+3$:	addl	#<hdr_len*4>-1,r2 ; account for header & cvt to 0 org
+	bicl3	#obj_size,(r3),r0 ; get size field
+	cmpl	r2,r0		; is index in range?
+	bgeq	1$		; no
+	movb	r4,(r3)[r2]	; stuff val into field
+5$:	movl	(r10),-8(r10)	; return the val given
+	subl	#8,r10		; pop the args
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r asOop
+primasoop::
+	blbs	(r10),1$	; fail if receiver is SmallInteger
+	bisl	#1,(r10)	; just set the low bit of the receiver oop
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r asObject
+primasobject::
+	movl	(r10),r2	; get the receiver
+	blbc	r2,1$		; fail if not SmallInteger
+	bicl	#1,r2		; wipe the low bit
+	cmpl	r2,maxoop	; is this a real oop?
+	bgtr	1$		; no, fail
+	getote	r2		; open the ote for this oop
+	bitl	#ote_free,(r0)	; is this oop free?
+	bneq	1$		; yep - fail
+	movl	r2,(r10)	; replace receiver with this oop
+	qvstored r2		; insure it is in tospace
+	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r someInstance
+primsomeinstance::
+	movl	(r10),r2	; get the class to look for
+	cmpl	r2,#oop_smallinteger ; is it class SmallInteger?
+	beql	1$		; yep - fail
+	movl	#2,r3		; init the oop index
+4$:	getote	r3		; open the ote for this oop
+	bitl	#ote_free,(r0)	; is this oop free?
+	bneq	2$		; yep
+	tstl	noigcneeded	; is gc through?
+	beql	5$		; nope - no problems
+	bbs	#ote_static_bit,(r0),5$ ; no problem if this object is static
+	bitl	ote_sweptbit,(r0) ; is this object in tospace?
+	beql	2$		; no - can't touch it
+5$:	bicl3	#ote_addr,(r0),r0 ; get a ptr to the class
+	cmpl	hdr_class*4(r0),r2 ; right class?
+	beql	3$		; yep
+2$:	acbl	maxoop,#2,r3,4$	; loop thru oops
+1$:	jmp	@failpoint	; fail if we didn't find one
+
+3$:	movl	r3,(r10)	; return the oop
+	qvstored r3		; move object to tospace
+	brw	mainloop
+
+; r nextInstance
+primnextinstance::
+	movl	(r10),r3	; init the oop index
+	romlc	r3		; get the class to look for
+	movl	r0,r2		; save it
+	cmpl	r2,#oop_smallinteger ; is it class SmallInteger?
+	beql	1$		; yep - fail
+	brb	2$		; start at test of loop
+
+4$:	getote	r3		; open the ote for this oop
+	bitl	#ote_free,(r0)	; is this oop free?
+	bneq	2$		; yep
+	tstl	noigcneeded	; is gc through?
+	beql	5$		; nope - no problems
+	bbs	#ote_static_bit,(r0),5$ ; no problem if this object is static
+	bitl	ote_sweptbit,(r0) ; is this object in tospace?
+	beql	2$		; no - can't touch it
+5$:	bicl3	#ote_addr,(r0),r0 ; get a ptr to the class
+	cmpl	hdr_class*4(r0),r2 ; right class?
+	beql	3$		; yep
+2$:	acbl	maxoop,#2,r3,4$	; loop thru oops
+1$:	jmp	@failpoint	; fail if we didn't find one
+
+3$:	movl	r3,(r10)	; return the oop
+	qvstored r3		; move object to tospace
+	brw	mainloop
+
+; r newMethod: size header: hdr
+primnewmethod::
+	movl	(r10),r2	; get the header
+	blbs	r2,4$		; fail if not SmallInteger
+	brw	1$
+4$:	movl	-4(r10),r3	; get the bytecode count
+	blbs	r3,5$
+	brw	1$		; fail if not SmallInteger
+5$:	ashl	#-1,r3,r3	; cvt to integer
+	extzv	#mheader_litbase,#mheader_litlen,r2,r4 ; get the literal count
+	incl	r4		; account for header
+	ashl	#2,r4,r4	; cvt to byte count
+	addl	r3,r4		; add in bytecode count
+	romicb	-8(r10),r4	; make a new instance
+	movl	r0,-8(r10)	; replace receiver with new instance
+	subl	#8,r10		; pop args
+	getobj	r0,r3		; open the new method
+	movl	r2,<hdr_len+method_header>*4(r3) ; put header in
+	extzv	#mheader_litbase,#mheader_litlen,r2,r4 ; get literal count
+	beql	2$		; none
+	moval	<hdr_len+method_literals>*4(r3),r3 ; get ptr to literals
+3$:	movl	#oop_nil,(r3)+	; nil a literal out
+	sobgtr	r4,3$		; loop thru literals
+2$:	brw	mainloop
+
+1$:	jmp	@failpoint	; fail
+
+; r initialPC
+; this primitive is used to circumvent the computation done in Smalltalk for
+; computing the initial PC of a method.
+
+priminitialpc::
+	getobj	(r10),r2	; open the compiled method
+	addl	#hdr_len*4,r2	; offset to fields
+	extzv	#mheader_litbase,#mheader_litlen,-
+		method_header*4(r2),r4 ; get the literal count
+	incl	r4		; count the header too
+	ashl	#2,r4,r4	; cvt to byte count
+	incl	r4		; cvt to 1 origin
+	ashl	#1,r4,r4	; cvt to SI
+	bisl3	#1,r4,(r10)	; replace receiver
+	brw	mainloop
+
+	.end
