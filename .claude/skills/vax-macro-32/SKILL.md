@@ -55,6 +55,46 @@ Porting guide and compiler reference. Use when the question is about *how code r
 | **Compiler built-ins** (Alpha instr, PALcode, Itanium) | Appendix C |
 | Porting macros VAX→Alpha/I64 | Appendix D |
 
+### OpenVMS Run-Time Library — `../../../reference/VAX-VMS-731/rtl-*.md`
+The RTL provides callable routines (`CALLS`/`CALLG`) for resource allocation, data conversion, I/O, math, screen handling, string manipulation, and language support. Per-routine entries include Format, Arguments (with OpenVMS usage / type / access / mechanism), Description, Condition Values Returned, and Examples.
+
+| Facility | File | What's in it |
+|---|---|---|
+| **LIB$** | `rtl-lib.md` | Resource allocation (virtual memory, event flags), data type conversions, common-area I/O, condition handling, CRC, tree building, date/time, signal handling. Callable as `LIB$GET_INPUT`, `LIB$PUT_OUTPUT`, `LIB$SIGNAL`, `LIB$STOP`, `LIB$SPAWN`, etc. |
+| **STR$** | `rtl-str.md` | String manipulation (`STR$COPY_R`, `STR$CONCAT`, `STR$COMPARE`, descriptor manipulation) |
+| **MTH$** | `rtl-mth.md` | Math (integer + floating-point functions — D, F, G, H, S, T floats, trig, log, hyperbolic, complex) |
+| **OTS$** | `rtl-ots.md` | General-purpose language support (division, conversion, copy, fill, move — the runtime helpers the compilers emit calls to) |
+| **SMG$** | `rtl-smg.md` | Screen Management — terminal pasteboard/virtual display, menus, input fields, keypad definition |
+
+For a **quick flat index** of all LIB$ routines with one-line descriptions (faster to grep than the full manual): `../../../reference/LIB_ROUTINES.md` (199 routines from the VSI wiki). Always cross-reference `rtl-lib.md` for argument specs.
+
+### OpenVMS System Services — `../../../reference/VAX-VMS-731/system-services-*.md`
+The `SYS$*` / `$*` services (`$QIO`, `$GETJPI`, `$CREPRC`, `$CRETVA`, `$DELTVA`, `$CMKRNL`, `$CMEXEC`, etc.) — kernel-level routines for process control, I/O, memory, synchronization, logical names, security. Per-service entries include Format, C Prototype, Arguments, Privileges, Required Quota, Related Services, Condition Values.
+
+| File | Coverage |
+|---|---|
+| `system-services-a-g-2003.md` | `$ABORT_IO` … `$GETUAI` (2003 HP edition — **prefer this**) |
+| `system-services-g-z-2003.md` | `$GETUTC` … `$WRITE` (2003 HP edition — **prefer this**) |
+| `system-services-a-g-2002.md` | 2002 Compaq edition — older; check only if the 2003 version dropped something |
+| `system-services-g-z-2002.md` | 2002 Compaq edition — older; same caveat |
+
+### Record Management Services (RMS)
+| File | Purpose |
+|---|---|
+| `../../../reference/VAX-VMS-731/rms-reference.md` | RMS reference — file control blocks (FAB, RAB, NAM, XAB), record operations (`$CREATE`, `$OPEN`, `$GET`, `$PUT`, `$UPDATE`), all file organizations |
+| `../../../reference/VAX-VMS-731/file-applications-guide.md` | How to structure RMS programs — record formats, access modes, sharing, best practices |
+
+### Utility Routines — `../../../reference/VAX-VMS-731/utility-routines.md`
+Callable interfaces to OpenVMS utilities: SOR (SORT/MERGE), DCX (data compression), PSM (print symbiont modification), EDT, LBR (librarian), NCS (national character set), etc. Use when a program needs to invoke a utility's functionality rather than spawn the command.
+
+### VAX Device Support — `../../../reference/VAX-VMS-731/vax-device-support-ref.md`
+Reference companion to the Device Support Manual. Use only when writing or reading VAX device drivers — data structures (UCB, CRB, IRP), driver entry points, IOC routines.
+
+### Older MACRO-32 editions (historical)
+Superseded by the primary VSI refs at the top of this list, but occasionally contain material the VSI editions dropped:
+- `../../../reference/VAX-VMS-731/vax-macro-ref-2001.md` — HP 2001 edition of the VAX MACRO Reference (older counterpart to `VAX_MACRO_INSTRUCTION_SET_REF.md`)
+- `../../../reference/VAX-VMS-731/macro32-porting-2001.md` — HP 2001 edition of the MACRO-32 Porting Guide (older counterpart to `VSI_MACRO_COMPILER.md`)
+
 ### Tutorial — `../../../reference/macro-made-easy/part-*.md`
 Hunter Goatley's 12-part series. Use for conceptual grounding and idiomatic examples, not as an authoritative reference.
 
