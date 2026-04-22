@@ -10,6 +10,7 @@ The skill's core rule: **grep the reference files before answering**. Base-model
 
 ## Reference corpus (greppable markdown)
 
+- **`reference/INDEX.md`** — meta-index of 995 callable routines across all facilities (LIB$, STR$, MTH$, OTS$, SMG$, SYS$, RMS, utilities), each linked to its section. Start here when looking up a routine.
 - `reference/VAX_MACRO_INSTRUCTION_SET_REF.md` — authoritative VSI/DEC MACRO-32 manual (ISA, directives, addressing modes, full opcode table in Appendix D)
 - `reference/VSI_MACRO_COMPILER.md` — MACRO Compiler porting guide, built-ins, Alpha/I64 differences
 - `reference/LIB_ROUTINES.md` — flat 199-routine LIB$ index (one-line descriptions)

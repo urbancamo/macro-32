@@ -16,13 +16,17 @@ Assembly language for the VAX architecture (32-bit, CISC, variable-length instru
 - Reading, porting, or modernizing code from VMS systems (VAX → Alpha / I64)
 
 ## Retrieval workflow
-1. Grep the reference files below for the mnemonic, directive, register, or concept.
-2. Read the matching section before answering.
-3. If the reference does not cover it, say so — do **not** guess operand forms, flag effects, or side effects.
+1. **For a callable routine** (`LIB$*`, `STR$*`, `MTH$*`, `OTS$*`, `SMG$*`, `$*`, `SYS$*`, RMS, utility facilities): start at `../../../reference/INDEX.md` — a 995-routine meta-index grouped by facility, with direct links into the per-manual sections. Finding a routine here is faster than grepping individual files.
+2. **For instructions, directives, or addressing modes:** grep the MACRO-32 reference files listed below.
+3. Read the matching section before answering.
+4. If the reference does not cover it, say so — do **not** guess operand forms, flag effects, calling conventions, or side effects.
 
 ## Reference files
 
 All paths are relative to this skill directory.
+
+### Meta-index — `../../../reference/INDEX.md`
+**Start here for callable routines.** 995 routines across 26 facilities (LIB$, STR$, MTH$, OTS$, SMG$, SYS$/$*, RMS, and every utility prefix), each linked to its section in the source manual. Grouped by facility, alphabetical within each group. Faster than grepping — use the meta-index first, then follow the link.
 
 ### Primary — `../../../reference/VAX_MACRO_INSTRUCTION_SET_REF.md`
 The authoritative VSI/DEC manual. Use this first for anything about the language itself.
