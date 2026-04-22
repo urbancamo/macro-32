@@ -1,0 +1,52 @@
+	.TITLE	HELLO	Minimal Hello World in VAX MACRO-32
+	.IDENT	/V1.0/
+
+;++
+; HELLO.MAR
+;
+;   Writes "Hello, World!" to SYS$OUTPUT via LIB$PUT_OUTPUT.
+;   The condition value returned by LIB$PUT_OUTPUT lands in R0
+;   and is passed back to the caller (DCL) as the image exit status,
+;   so $STATUS is SS$_NORMAL on success.
+;
+; References consulted (all in this repo):
+;	reference/VAX-VMS-731/vax-macro-ref-2001.md
+;	    Chapter 6 -- .ASCID, .PSECT, .ENTRY, .END directives
+;	reference/VAX-VMS-731/rtl-lib.md
+;	    LIB$PUT_OUTPUT -- one arg, string by descriptor, returns
+;	    cond_value (SS$_NORMAL on success + any RMS failure code)
+;	reference/macro-made-easy/part-01-introductions.md
+;	    REVERSE.MAR tutorial walkthrough -- canonical program skeleton
+;
+; Build (on OpenVMS):
+;	$ MACRO HELLO
+;	$ LINK HELLO
+;	$ RUN HELLO
+;--
+
+;
+; Read/write data section -- holds the descriptor + string.
+;
+	.PSECT	HELLO_DATA, NOEXE, WRT, LONG
+
+; .ASCID lays down an 8-byte string descriptor (length, class, type,
+; pointer) immediately followed by the string bytes. MSG therefore
+; labels the descriptor itself, which is what LIB$PUT_OUTPUT expects
+; the address of.
+MSG:	.ASCID	/Hello, World!/
+
+;
+; Code section -- write-protected, executable.
+;
+	.PSECT	HELLO_CODE, EXE, NOWRT, LONG
+
+; .ENTRY defines the entry point and stores the 2-byte register save
+; mask (^M<list>) at that address. The mask is empty because we touch
+; only R0 (which is caller-save / return), so no registers need saving.
+	.ENTRY	HELLO, ^M<>
+
+	PUSHAL	MSG			; Address of the descriptor -> stack
+	CALLS	#1, G^LIB$PUT_OUTPUT	; One arg; result in R0
+	RET				; Return R0 as exit status
+
+	.END	HELLO

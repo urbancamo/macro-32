@@ -1,0 +1,258 @@
+	.TITLE	PRIMESIO	Prompt for N; write first N primes to PRIMES.TXT via RMS
+	.IDENT	/V1.1/
+
+;++
+; PRIMESIO.MAR
+;
+;   Prompts the user for a count N on SYS$INPUT, then writes the first N
+;   prime numbers (2, 3, 5, ...) to the file PRIMES.TXT in the current
+;   default directory, one prime per record.
+;
+;   Primality logic is unchanged from PRIMES.MAR.
+;
+; Interactive session:
+;   $ RUN PRIMESIO
+;   Enter number of primes to generate: 100
+;   $ TYPE PRIMES.TXT
+;        2
+;        3
+;        5
+;   ...
+;
+; File characteristics:
+;   FNM = SYS$DISK:[]PRIMES.TXT  (current default directory)
+;   FAC = PUT                    (write access)
+;   ORG = SEQ                    (sequential organization)
+;   RFM = VAR                    (variable-length records -- standard VMS text)
+;   RAT = CR                     (implied carriage return -- one record per line)
+;   MRS = 6                      (max record size; fits "   541")
+;
+; Error handling:
+;   LIB$GET_INPUT, OTS$CVT_TU_L, and every RMS service return their
+;   status in R0. Low bit clear = failure. On error we best-effort
+;   $CLOSE the file (if it was created) and return the failing status
+;   as the image exit status.
+;
+; References consulted:
+;   reference/VAX-VMS-731/rtl-lib.md
+;       LIB$GET_INPUT -- resultant-string by descriptor, prompt-string
+;       by descriptor, resultant-length by reference (word).
+;   reference/VAX-VMS-731/rtl-ots.md
+;       OTS$CVT_L_TU  -- longword -> right-justified decimal text.
+;       OTS$CVT_TU_L  -- unsigned decimal text -> longword; accepts
+;                        digits and spaces, returns error on anything else.
+;   reference/VAX-VMS-731/rms-reference.md
+;       $CREATE, $CONNECT, $PUT, $CLOSE; FAB/RAB fields.
+;   reference/macro-made-easy/part-09-using-rms-from-macro.md
+;       $FABDEF/$RABDEF, $FAB/$RAB keyword args.
+;   reference/macro-made-easy/part-12-macro-32-example-vax-and-axp.md
+;       $CREATE/$CONNECT/$PUT/$CLOSE sequence (DCLPATCH output path).
+;
+; Build (on OpenVMS):
+;   $ MACRO PRIMESIO
+;   $ LINK PRIMESIO
+;   $ RUN PRIMESIO
+;--
+
+	STR_LEN		= 6			; width of output record buffer
+	IN_MAX		= 80			; input line buffer size
+
+;
+; Symbol macro includes -- must appear before first use in any .PSECT.
+;
+	$DSCDEF				; DSC$K_DTYPE_T, DSC$K_CLASS_S
+	$FABDEF				; FAB$L_* offsets (referenced by $FAB)
+	$RABDEF				; RAB$L_* offsets (referenced by $RAB)
+
+;
+; Read/write data.
+;
+	.PSECT	PRIMESIO_DATA, NOEXE, WRT, LONG
+
+; Parsed count from the user -- loop bound.
+NUM_REQUESTED:	.LONG	0
+
+; Current value being formatted; OTS$CVT_L_TU reads it by reference.
+CANDIDATE_L:	.LONG	0
+
+; Fixed-length record buffer. OTS$CVT_L_TU writes the right-justified
+; decimal text here; $PUT reads it via RBF/RSZ in the RAB.
+OUT_STR:	.BLKB	STR_LEN
+
+; Input line buffer and the word into which LIB$GET_INPUT writes the
+; actual byte count.
+IN_BUF:		.BLKB	IN_MAX
+IN_LEN:		.WORD	0
+
+; Static descriptor over OUT_STR (for OTS$CVT_L_TU as write destination).
+OUT_DESC:	.WORD	STR_LEN
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS OUT_STR
+
+; Descriptor over IN_BUF. LIB$GET_INPUT writes into the buffer using the
+; fixed length stored here (IN_MAX). After the call we overwrite this
+; length field with the actual bytes read (IN_LEN) so OTS$CVT_TU_L only
+; sees the characters the user typed.
+IN_DESC:	.WORD	IN_MAX
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS IN_BUF
+
+; Static descriptor for the prompt string. .ASCID lays down the 8-byte
+; descriptor followed by the string bytes.
+PROMPT:		.ASCID	/Enter number of primes to generate: /
+
+; RMS control blocks -- must be longword-aligned.
+	.ALIGN	LONG
+OUT_FAB:	$FAB	FNM=<SYS$DISK:[]PRIMES.TXT>,-
+			FAC=PUT,-
+			ORG=SEQ,-
+			RFM=VAR,-
+			RAT=CR,-
+			MRS=STR_LEN
+
+	.ALIGN	LONG
+OUT_RAB:	$RAB	FAB=OUT_FAB,-
+			RAC=SEQ,-
+			RBF=OUT_STR,-
+			RSZ=STR_LEN
+
+;
+; Code.
+;
+	.PSECT	PRIMESIO_CODE, EXE, NOWRT, LONG
+
+;
+; PRIMESIO -- program entry point.
+;
+;   R2 = count of primes written so far
+;   R3 = current candidate
+;   R4 = current trial divisor
+;   R5 = D * D              (sqrt bound)
+;   R6 = C / D              (quotient from DIVL3)
+;   R7 = Q * D              (for divisibility reconstruction)
+;
+	.ENTRY	PRIMESIO, ^M<R2,R3,R4,R5,R6,R7>
+
+; -----------------------------------------------------------------------
+; Phase 1: prompt the user and parse the requested count.
+; -----------------------------------------------------------------------
+
+; LIB$GET_INPUT( resultant-string, prompt-string, resultant-length )
+; Displays the prompt, reads one line into IN_BUF, and stores the
+; actual byte count in IN_LEN.
+;
+; Note on branch width: the main prime loop between here and 99$ exceeds
+; the ~127-byte range of BLBC (a byte branch), so each pre-file-open
+; error exit uses "BLBS skip / RET" -- inline return with R0 carrying
+; the failure status.
+	PUSHAW	IN_LEN
+	PUSHAL	PROMPT
+	PUSHAL	IN_DESC
+	CALLS	#3, G^LIB$GET_INPUT
+	BLBS	R0, 1$				; read ok -> continue
+	RET					; read failed -> return R0
+1$:
+
+; Tighten the descriptor so OTS$CVT_TU_L only sees the typed characters
+; (avoids scanning uninitialised buffer past the end of input).
+	MOVW	IN_LEN, IN_DESC			; descriptor length <- actual
+
+; OTS$CVT_TU_L( input-by-descriptor, output-by-reference )
+; Parses the line as an unsigned decimal. Empty input, non-digits, or
+; overflow all yield a non-success status in R0.
+	PUSHAL	NUM_REQUESTED
+	PUSHAL	IN_DESC
+	CALLS	#2, G^OTS$CVT_TU_L
+	BLBS	R0, 2$				; parse ok -> continue
+	RET					; parse failed -> return R0
+2$:
+
+; -----------------------------------------------------------------------
+; Phase 2: create PRIMES.TXT and connect the record stream.
+; -----------------------------------------------------------------------
+	$CREATE	FAB=OUT_FAB
+	BLBS	R0, 3$				; create ok -> continue
+	RET					; create failed -> return R0
+3$:
+
+	$CONNECT RAB=OUT_RAB
+	BLBC	R0, 90$				; created but not connected
+
+; -----------------------------------------------------------------------
+; Phase 3: emit primes.
+; -----------------------------------------------------------------------
+
+; If the user asked for zero primes, create an empty file and exit.
+	TSTL	NUM_REQUESTED
+	BEQL	80$
+
+; Write 2 as the sole even prime.
+	MOVL	#2, CANDIDATE_L
+	BSBW	WRITE_CANDIDATE
+	BLBC	R0, 90$
+
+	MOVL	#1, R2				; count = 1
+	MOVL	#3, R3				; candidate = 3
+
+10$:	CMPL	R2, NUM_REQUESTED
+	BGEQ	80$				; count reached -> done
+
+	MOVL	#3, R4				; divisor = 3
+
+; Inner trial-division loop.
+20$:	MULL3	R4, R4, R5			; R5 = D * D
+	CMPL	R5, R3
+	BGTR	30$				; D*D > C -> prime
+
+	DIVL3	R4, R3, R6			; R6 = C / D
+	MULL3	R4, R6, R7			; R7 = Q * D
+	CMPL	R7, R3
+	BEQL	40$				; exact divide -> not prime
+
+	ADDL2	#2, R4				; next odd divisor
+	BRB	20$
+
+; Candidate is prime: write it, then count it.
+30$:	MOVL	R3, CANDIDATE_L
+	BSBW	WRITE_CANDIDATE
+	BLBC	R0, 90$				; $PUT failed -> close + return
+	INCL	R2
+
+; Advance to next odd candidate.
+40$:	ADDL2	#2, R3
+	BRB	10$
+
+; Normal exit: close the file. $CLOSE's status is our exit status.
+80$:	$CLOSE	FAB=OUT_FAB
+	RET
+
+; Error exit (file was created): preserve R0, best-effort close, return.
+90$:	PUSHL	R0
+	$CLOSE	FAB=OUT_FAB
+	POPL	R0
+99$:	RET
+
+
+;
+; WRITE_CANDIDATE -- BSB/RSB subroutine.
+;   Formats the longword at CANDIDATE_L into OUT_STR (right-justified,
+;   6 chars, leading-space padded) and emits one record via $PUT.
+;
+;   Returns R0 = last service's status (OTS$CVT_L_TU if that failed,
+;   otherwise $PUT).
+;
+;   Clobbers R0, R1. The CALLS routines preserve R2-R7 via their own
+;   entry masks.
+;
+WRITE_CANDIDATE:
+	PUSHAL	OUT_DESC
+	PUSHAL	CANDIDATE_L
+	CALLS	#2, G^OTS$CVT_L_TU
+	BLBC	R0, 10$
+
+	$PUT	RAB=OUT_RAB
+10$:	RSB
+
+	.END	PRIMESIO

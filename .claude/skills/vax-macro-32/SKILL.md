@@ -8,6 +8,24 @@ description: Use when reading, writing, or debugging VAX MACRO-32 assembly (.MAR
 ## Overview
 Assembly language for the VAX architecture (32-bit, CISC, variable-length instructions). Training-data knowledge of MACRO-32 is thin and frequently wrong on opcodes, operand encoding, addressing modes, and VMS conventions. **Always grep the reference files before writing or explaining code.**
 
+## Source file constraint: ASCII only
+MACRO-32 source files (`.MAR`, `.MAC`, `.MACRO`) **must contain only 7-bit ASCII characters** — no Unicode. The VAX MACRO assembler expects ASCII, and source that travels to a VAX/Alpha system (via SIMH, a real system, or any VMS toolchain) must be round-trippable through DEC Multinational Character Set / ISO-8859-1 without loss. This applies to *everything* in the file, including comments.
+
+Common offenders and their ASCII replacements:
+
+| Don't use | Use instead |
+|---|---|
+| `—` (em-dash) | `--` |
+| `–` (en-dash) | `-` |
+| `…` (ellipsis) | `...` |
+| `≤` `≥` | `<=` `>=` |
+| `→` | `->` |
+| `²` `³` | `^2` `^3` or `**2` |
+| `'` `'` `"` `"` (curly quotes) | `'` `"` |
+| `×` `÷` | `*` `/` |
+
+This constraint applies to source files only; markdown docs and skill files in this repo are free to use Unicode.
+
 ## When to Use
 - File extensions: `.MAR`, `.MAC`, `.MACRO`
 - Directives like `.PSECT`, `.ENTRY`, `.MACRO`, `.ENDM`, `.ADDRESS`, `.LONG`
@@ -132,6 +150,10 @@ Hunter Goatley's 12-part series. Use for conceptual grounding and idiomatic exam
 - Omitting the register save mask word after `.ENTRY`
 - Treating `MOVAL` as a load when it's an lea-style address computation
 - Assuming VAX behavior holds on Alpha — check `macro32-porting-2001.md` for platform differences and built-ins
+- **RMS control blocks must be longword-aligned.** `$FAB`, `$RAB`, `$NAM`, `$XAB*` all need to start on a 4-byte boundary. Emit `.ALIGN LONG` immediately before each declaration in the data PSECT; otherwise the assembler produces `%MACRO-I-GENINFO, Generated INFO: RMS BLOCK NOT LONGWORD ALIGNED`.
+- **Conditional branches are byte-range only (±127 bytes).** `BLBC`, `BLBS`, `BEQL`, `BNEQ`, `BGEQ`, `BLSS`, `BGTR`, `BLEQ`, `BCC`, `BCS`, `BVC`, `BVS`, `BBC`, `BBS` — all emit an 8-bit signed displacement. If the target is further away the assembler emits `%MACRO-E-BRDESTRANG, Branch destination out of range`. Only `BRB` is byte and `BRW` is word (±32 KB); there is no "BEQLW". Workarounds when the target is far:
+  - **Invert + `BRW`:** replace `BLBC R0, far` with `BLBS R0, near / BRW far / near:`
+  - **Inline the action:** replace `BLBC R0, 99$` with `BLBS R0, 1$ / RET / 1$:` — useful when the distant label was just `RET` or a short cleanup.
 
 ## Red flags — stop and look it up
 - You're about to state what a mnemonic does without having grepped the manual

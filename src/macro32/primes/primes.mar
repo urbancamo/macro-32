@@ -1,0 +1,144 @@
+	.TITLE	PRIMES	Print the first 100 prime numbers
+	.IDENT	/V1.0/
+
+;++
+; PRIMES.MAR
+;
+;   Prints the first 100 prime numbers (2, 3, 5, ..., 541) to SYS$OUTPUT,
+;   one per line.
+;
+;   Algorithm: trial division.
+;     - Emit 2 as a special case.
+;     - Walk odd candidates C = 3, 5, 7, ...
+;     - For each C, trial-divide by odd divisors D = 3, 5, 7, ...
+;       stopping as soon as D*D > C (no factor <= sqrt(C) means prime).
+;     - Divisibility test without EDIV: compute Q = C / D via DIVL3,
+;       then if Q*D == C, C is divisible by D.
+;
+;   Exit status: R0 holds whatever LIB$PUT_OUTPUT returned on the 100th
+;   call -- SS$_NORMAL on success.
+;
+; References consulted (all in this repo):
+;   reference/VAX-VMS-731/vax-macro-ref-2001.md
+;       Chapter 6 -- .PSECT, .ENTRY, .ASCID directives
+;       Chapter 9 -- DIVL3, MULL3, CMPL, ADDL2, INCL, conditional branches
+;   reference/VAX-VMS-731/rtl-ots.md
+;       OTS$CVT_L_TU -- 2 mandatory args: value (by reference),
+;       output string (by descriptor, fixed-length). Right-justifies
+;       with leading spaces; returns SS$_NORMAL on success.
+;   reference/VAX-VMS-731/rtl-lib.md
+;       LIB$PUT_OUTPUT -- 1 arg: message-string (by descriptor).
+;   reference/macro-made-easy/part-01-introductions.md
+;       $DSCDEF for DSC$K_DTYPE_T / DSC$K_CLASS_S; REVERSE.MAR skeleton.
+;
+; Build (on OpenVMS):
+;   $ MACRO PRIMES
+;   $ LINK PRIMES
+;   $ RUN PRIMES
+;--
+
+	NUM_PRIMES	= 100
+
+;
+; Pull in the descriptor symbols from SYS$LIBRARY:STARLET.MLB.
+;
+	$DSCDEF
+
+;
+; Read/write data -- converted value, output string buffer, and its
+; fixed-length descriptor.
+;
+	.PSECT	PRIMES_DATA, NOEXE, WRT, LONG
+
+; Current value being formatted. OTS$CVT_L_TU reads it by reference.
+CANDIDATE_L:	.LONG	0
+
+; Fixed-length output buffer. Max prime we'll print is 541, so 3 digits
+; suffice; 6 bytes gives room up to 6-digit values with leading spaces.
+STR_LEN		= 6
+OUT_STR:	.BLKB	STR_LEN
+
+; Descriptor for the output buffer -- passed to both OTS$CVT_L_TU (which
+; writes into it) and LIB$PUT_OUTPUT (which reads from it).
+OUT_DESC:	.WORD	STR_LEN			; length in bytes
+		.BYTE	DSC$K_DTYPE_T		; type: text
+		.BYTE	DSC$K_CLASS_S		; class: static
+		.ADDRESS OUT_STR
+
+;
+; Code.
+;
+	.PSECT	PRIMES_CODE, EXE, NOWRT, LONG
+
+;
+; PRIMES -- program entry point.
+;   R2 = count of primes printed so far
+;   R3 = current candidate being tested
+;   R4 = current trial divisor
+;   R5 = divisor * divisor (for sqrt bound)
+;   R6 = candidate / divisor    (quotient)
+;   R7 = quotient * divisor     (used to reconstruct the remainder)
+;
+	.ENTRY	PRIMES, ^M<R2,R3,R4,R5,R6,R7>
+
+; Print 2 as the sole even prime.
+	MOVL	#2, CANDIDATE_L
+	BSBW	PRINT_CANDIDATE
+	MOVL	#1, R2				; count = 1
+
+; Main loop: candidate = 3, step by 2.
+	MOVL	#3, R3
+
+10$:	CMPL	R2, #NUM_PRIMES
+	BGEQ	99$				; count reached -> done
+
+	MOVL	#3, R4				; divisor = 3
+
+; Inner trial-division loop.
+20$:	MULL3	R4, R4, R5			; R5 = divisor * divisor
+	CMPL	R5, R3
+	BGTR	30$				; D*D > candidate -> prime
+
+	DIVL3	R4, R3, R6			; R6 = candidate / divisor
+	MULL3	R4, R6, R7			; R7 = quotient * divisor
+	CMPL	R7, R3
+	BEQL	40$				; exact divide -> not prime
+
+	ADDL2	#2, R4				; next odd divisor
+	BRB	20$
+
+; Candidate R3 is prime -- print it and count it.
+30$:	MOVL	R3, CANDIDATE_L
+	BSBW	PRINT_CANDIDATE
+	INCL	R2
+
+; Advance to next odd candidate and loop.
+40$:	ADDL2	#2, R3
+	BRB	10$
+
+99$:	RET					; R0 carries LIB$PUT_OUTPUT's
+						; SS$_NORMAL from the final print
+
+
+;
+; PRINT_CANDIDATE -- subroutine (BSB/RSB, no stack frame).
+;   Converts the longword at CANDIDATE_L to right-justified decimal text
+;   in OUT_STR (via OUT_DESC), then writes that string to SYS$OUTPUT
+;   via LIB$PUT_OUTPUT.
+;
+;   Clobbers R0, R1 (standard) -- the called CALLS routines preserve R2-R7
+;   via their own entry masks. PRINT_CANDIDATE uses no other registers.
+;
+PRINT_CANDIDATE:
+; OTS$CVT_L_TU( value-by-ref, output-string-by-desc )
+	PUSHAL	OUT_DESC
+	PUSHAL	CANDIDATE_L
+	CALLS	#2, G^OTS$CVT_L_TU
+
+; LIB$PUT_OUTPUT( message-string-by-desc )
+	PUSHAL	OUT_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+	RSB
+
+	.END	PRIMES
