@@ -1,0 +1,230 @@
+	.TITLE	MANDELBROT	132x48 ASCII rendering of the Mandelbrot set
+	.IDENT	/V1.0/
+
+;++
+; MANDELBROT.MAR
+;
+;   Renders the classic Mandelbrot set as ASCII art on a 132-column by
+;   48-row grid, writing one record per row to SYS$OUTPUT.
+;
+; Algorithm (standard escape-time):
+;
+;   For each pixel (col, row):
+;       c = Cr + Ci*i      ; Cr, Ci mapped linearly from pixel coords
+;                           ; to the view window (REAL_MIN..REAL_MAX,
+;                           ; IMAG_MIN..IMAG_MAX)
+;       z = 0              ; start the orbit at the origin
+;       iter = 0
+;       while iter < MAX_ITER:
+;           if |z|^2 > 4: break        ; escaped
+;           z = z*z + c
+;           iter += 1
+;       if iter == MAX_ITER: plot INSET_CHAR   ; point is in the set
+;       else:                plot GRADIENT[iter/3]
+;
+;   z = (Zr + Zi*i) squared-plus-c expands to:
+;       Zr_new = Zr^2 - Zi^2 + Cr
+;       Zi_new = 2*Zr*Zi   + Ci
+;   so we never need OTS$POWCJ or MTH$SQRT -- the inner loop is a few
+;   MULF3 / ADDF3 / SUBF3 / CMPF instructions, all register-to-register
+;   F_floating.
+;
+;   Note: the set is tested with |z|^2 > 4 (not |z| > 2) to avoid
+;   computing a square root per iteration.
+;
+; View window and grid:
+;   REAL: -2.5 ... +1.0     (width 3.5)
+;   IMAG: -1.2 ... +1.2     (height 2.4)
+;   132 cols x 48 rows -- roughly 2:1 horizontal resolution to match
+;   the ~2:1 height-to-width of a typical terminal character cell.
+;
+; References consulted:
+;   reference/VAX-VMS-731/vax-macro-ref-2001.md
+;       Chapter 9 -- ADDF2/3, SUBF3, MULF3, DIVF3, CMPF, CLRF, CLRL,
+;       MOVF, MOVB, CVTLF, INCL, DIVL3, conditional branches.
+;       Chapter 5 -- indexed addressing "label[Rn]" scaled by operand size.
+;       Chapter 6 -- .F_FLOATING literal-data directive, .ASCII.
+;   reference/VAX-VMS-731/rtl-lib.md
+;       LIB$PUT_OUTPUT -- one record per call, RMS implied CR.
+;   reference/samples/mbrt1.mar
+;       Prior Mandelbrot in this repo: pattern for F_floating locals
+;       and the escape-time loop shape (though it routes through
+;       OTS$POWCJ + MTH$SQRT, which we avoid).
+;
+; Build (on OpenVMS):
+;   $ MACRO MANDELBROT
+;   $ LINK MANDELBROT
+;   $ RUN MANDELBROT
+;--
+
+	COLS		= 132
+	ROWS		= 48
+	MAX_ITER	= 30		; must equal 3 * GRADIENT_LEN
+	GRADIENT_LEN	= 10
+
+;
+; Symbol macro includes.
+;
+	$DSCDEF				; DSC$K_DTYPE_T, DSC$K_CLASS_S
+
+;
+; Data.
+;
+	.PSECT	MANDEL_DATA, NOEXE, WRT, LONG
+
+; View window edges as F_floating constants.
+REAL_MIN:	.F_FLOATING	-2.5
+REAL_MAX:	.F_FLOATING	 1.0
+IMAG_MIN:	.F_FLOATING	-1.2
+IMAG_MAX:	.F_FLOATING	 1.2
+
+; 4.0 is the escape radius squared.
+FOURF:		.F_FLOATING	 4.0
+
+; Per-pixel step sizes, computed at runtime from the window + grid.
+DX:		.F_FLOATING	 0.0
+DY:		.F_FLOATING	 0.0
+
+; Row buffer -- one line of output, packed with gradient characters.
+ROW_BUF:	.BLKB	COLS
+
+; Descriptor over ROW_BUF for LIB$PUT_OUTPUT.
+	.ALIGN	LONG
+ROW_DESC:	.WORD	COLS			; length
+		.BYTE	DSC$K_DTYPE_T		; type: text
+		.BYTE	DSC$K_CLASS_S		; class: static
+		.ADDRESS ROW_BUF
+
+; Shade ramp. Index 0 = lightest (fast escape), index 9 = darkest (slow
+; escape). Points in the set use INSET_CHAR instead.
+GRADIENT:	.ASCII	/ .,:-=+*#%/
+INSET_CHAR	= ^A/@/
+
+;
+; Code.
+;
+	.PSECT	MANDEL_CODE, EXE, NOWRT, LONG
+
+;
+; MANDELBROT -- program entry point.
+;
+;   R2  = current row (int)
+;   R3  = current column (int)
+;   R4  = iteration count (int)
+;   R5  = Zr       (F_floating, current real part of z)
+;   R6  = Zi       (F_floating, current imag part of z)
+;   R7  = Cr       (F_floating, real part of c for this column)
+;   R8  = Ci       (F_floating, imag part of c for this row)
+;   R9  = Zr*Zr    (F_floating)
+;   R10 = Zi*Zi    (F_floating)
+;   R11 = scratch  (F_floating; holds 2*Zr*Zi+Ci during update)
+;
+	.ENTRY	MANDELBROT, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+; -----------------------------------------------------------------------
+; Pre-compute the per-pixel step sizes:
+;   DX = (REAL_MAX - REAL_MIN) / COLS
+;   DY = (IMAG_MAX - IMAG_MIN) / ROWS
+; SUBF3 a,b,c   computes c = b - a.
+; DIVF3 divr,divd,quo  computes quo = divd / divr.
+; -----------------------------------------------------------------------
+	SUBF3	REAL_MIN, REAL_MAX, R5		; R5 = 3.5
+	MOVL	#COLS, R6			; R6 = 132 (integer)
+	CVTLF	R6, R6				; R6 = 132.0 (float)
+	DIVF3	R6, R5, DX			; DX = 3.5 / 132.0
+
+	SUBF3	IMAG_MIN, IMAG_MAX, R5		; R5 = 2.4
+	MOVL	#ROWS, R6			; R6 = 48
+	CVTLF	R6, R6				; R6 = 48.0
+	DIVF3	R6, R5, DY			; DY = 2.4 / 48.0
+
+	CLRL	R2				; row = 0
+
+; -----------------------------------------------------------------------
+; Outer row loop.
+; -----------------------------------------------------------------------
+ROW_LOOP:
+; Ci = IMAG_MIN + row * DY
+	CVTLF	R2, R8				; R8 = row (float)
+	MULF2	DY, R8				; R8 *= DY
+	ADDF2	IMAG_MIN, R8			; R8 += IMAG_MIN
+
+	CLRL	R3				; col = 0
+
+; -----------------------------------------------------------------------
+; Inner column loop.
+; -----------------------------------------------------------------------
+COL_LOOP:
+; Cr = REAL_MIN + col * DX
+	CVTLF	R3, R7				; R7 = col (float)
+	MULF2	DX, R7				; R7 *= DX
+	ADDF2	REAL_MIN, R7			; R7 += REAL_MIN
+
+; Initialise orbit z = 0 + 0i, iteration counter.
+	CLRF	R5				; Zr = 0.0
+	CLRF	R6				; Zi = 0.0
+	CLRL	R4				; iter = 0
+
+; -----------------------------------------------------------------------
+; Escape-time iteration. Body is always entered; the escape + max-iter
+; tests live at the top of the loop.
+; -----------------------------------------------------------------------
+ITER_LOOP:
+	MULF3	R5, R5, R9			; R9  = Zr*Zr
+	MULF3	R6, R6, R10			; R10 = Zi*Zi
+
+; |z|^2 = Zr^2 + Zi^2; escape if > 4.
+	ADDF3	R9, R10, R11			; R11 = |z|^2
+	CMPF	R11, FOURF
+	BGTR	ESCAPED				; escaped -> pick gradient char
+
+; z_new = z*z + c:
+;   Zi_new = 2*Zr*Zi + Ci
+;   Zr_new = Zr^2 - Zi^2 + Cr
+; Order matters: compute Zi_new into R11 BEFORE overwriting R5 with Zr_new.
+	MULF3	R5, R6, R11			; R11 = Zr*Zi
+	ADDF2	R11, R11			; R11 = 2*Zr*Zi
+	ADDF2	R8, R11				; R11 = 2*Zr*Zi + Ci  (= Zi_new)
+
+	SUBF3	R10, R9, R5			; R5  = Zr^2 - Zi^2
+	ADDF2	R7, R5				; R5  = Zr^2 - Zi^2 + Cr  (= Zr_new)
+
+	MOVF	R11, R6				; R6  = Zi_new
+
+	INCL	R4				; iter++
+	CMPL	R4, #MAX_ITER
+	BLSS	ITER_LOOP			; loop while iter < MAX_ITER
+
+; Fell through -> point is in the Mandelbrot set.
+	MOVB	#INSET_CHAR, ROW_BUF[R3]
+	BRB	NEXT_COL
+
+; Escape path: pick a gradient character from iter/3.
+; DIVL3 divr,divd,quo  => quo = divd / divr. So DIVL3 #3, R4, R1 gives
+; R1 = R4 / 3 = iter / 3. R1 is a standard scratch register, not in the
+; entry mask -- safe because we don't make a CALLS here.
+ESCAPED:
+	DIVL3	#3, R4, R1			; R1 = iter / 3  (range 0..9)
+	MOVB	GRADIENT[R1], ROW_BUF[R3]
+
+NEXT_COL:
+	INCL	R3
+	CMPL	R3, #COLS
+	BLSS	COL_LOOP			; loop while col < COLS
+
+; End-of-row: emit the buffer as one record.
+	PUSHAL	ROW_DESC
+	CALLS	#1, G^LIB$PUT_OUTPUT
+; (we don't check R0 here; if stdout is broken we'd fail on every row)
+
+	INCL	R2
+	CMPL	R2, #ROWS
+; Invert + BRW: the row-loop body (col + iter loops) exceeds byte-branch
+; range, so we branch the exit condition (byte-close) and use BRW for
+; the long back-edge.
+	BGEQ	DONE
+	BRW	ROW_LOOP			; loop while row < ROWS
+DONE:
+	RET					; R0 = last LIB$PUT_OUTPUT status
+
+	.END	MANDELBROT
