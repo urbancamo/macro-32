@@ -4,12 +4,12 @@
 
 ## What it highlights
 
-| Category | Colour scheme key | Count | Contents |
-|---|---|---:|---|
-| Keyword 1 | "Custom File Types · Keyword 1" | 383 | All VAX MACRO-32 mnemonics from the Permanent Symbol Table (Appendix D of the Reference Manual). |
-| Keyword 2 | "Custom File Types · Keyword 2" | 88 | Assembler directives (`.PSECT`, `.ENTRY`, `.ASCID`, `.BLKB`, `.F_FLOATING`, …) including common abbreviations (`.EXTRN`, `.GLOBL`, `.SBTTL`, …). |
-| Keyword 3 | "Custom File Types · Keyword 3" | 16 | Registers (R0–R11, AP, FP, SP, PC). |
-| Keyword 4 | "Custom File Types · Keyword 4" | 234 | Commonly-used RTL calls, RMS services, symbol macros, and OpenVMS constants (LIB$\*, STR$\*, MTH$\*, OTS$\*, SMG$\*, SYS$\*, \$SSDEF, \$FABDEF, DSC$K_DTYPE_T, SS$_NORMAL, FAB/RAB field offsets, …). |
+| Category  | Colour scheme key               | Count | Contents                                                                                                                                                                                              |
+|-----------|---------------------------------|------:|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Keyword 1 | "Custom File Types · Keyword 1" |   383 | All VAX MACRO-32 mnemonics from the Permanent Symbol Table (Appendix D of the Reference Manual).                                                                                                      |
+| Keyword 2 | "Custom File Types · Keyword 2" |    88 | Assembler directives (`.PSECT`, `.ENTRY`, `.ASCID`, `.BLKB`, `.F_FLOATING`, …) including common abbreviations (`.EXTRN`, `.GLOBL`, `.SBTTL`, …).                                                      |
+| Keyword 3 | "Custom File Types · Keyword 3" |    16 | Registers (R0–R11, AP, FP, SP, PC).                                                                                                                                                                   |
+| Keyword 4 | "Custom File Types · Keyword 4" |   234 | Commonly-used RTL calls, RMS services, symbol macros, and OpenVMS constants (LIB$\*, STR$\*, MTH$\*, OTS$\*, SMG$\*, SYS$\*, \$SSDEF, \$FABDEF, DSC$K_DTYPE_T, SS$_NORMAL, FAB/RAB field offsets, …). |
 
 Comments start with `;`. Case-insensitive matching (VAX MACRO is case-insensitive).
 
