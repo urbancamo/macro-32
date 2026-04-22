@@ -1,104 +1,155 @@
-	.TITLE	MANDELBROT	132x48 ASCII rendering of the Mandelbrot set
-	.IDENT	/V1.0/
+	.TITLE	MANDELBROT	ASCII Mandelbrot (user W x H) written to MANDELBROT.TXT
+	.IDENT	/V1.2/
 
 ;++
 ; MANDELBROT.MAR
 ;
-;   Renders the classic Mandelbrot set as ASCII art on a 132-column by
-;   48-row grid, writing one record per row to SYS$OUTPUT.
+;   Prompts the user for a width (columns) and height (rows) on
+;   SYS$INPUT, then renders the Mandelbrot set as ASCII art at that
+;   resolution into the file MANDELBROT.TXT in the current default
+;   directory -- one record (one line) per row.
 ;
-; Algorithm (standard escape-time):
+;   Width  is capped at MAX_W (512)  -- the static row buffer size.
+;   Height is capped at MAX_H (4096) -- a sanity bound.
+;
+;   Prompts and any error messages still go to SYS$OUTPUT so the user
+;   can interact; only the rendered image is written to the file.
+;
+;   On invalid input (non-digit, zero, or out-of-range) a short error
+;   message is printed and the image exits with SS$_BADPARAM.
+;
+; Algorithm (unchanged):
 ;
 ;   For each pixel (col, row):
-;       c = Cr + Ci*i      ; Cr, Ci mapped linearly from pixel coords
-;                           ; to the view window (REAL_MIN..REAL_MAX,
-;                           ; IMAG_MIN..IMAG_MAX)
-;       z = 0              ; start the orbit at the origin
-;       iter = 0
+;       c = Cr + Ci*i      ; linear map from pixel coords to
+;                           ; REAL_MIN..REAL_MAX / IMAG_MIN..IMAG_MAX
+;       z = 0; iter = 0
 ;       while iter < MAX_ITER:
-;           if |z|^2 > 4: break        ; escaped
+;           if |z|^2 > 4: break       ; escaped
 ;           z = z*z + c
 ;           iter += 1
-;       if iter == MAX_ITER: plot INSET_CHAR   ; point is in the set
-;       else:                plot GRADIENT[iter/3]
+;       plot GRADIENT[iter/3]  or INSET_CHAR if iter == MAX_ITER
 ;
-;   z = (Zr + Zi*i) squared-plus-c expands to:
+;   Inline squaring:
 ;       Zr_new = Zr^2 - Zi^2 + Cr
 ;       Zi_new = 2*Zr*Zi   + Ci
-;   so we never need OTS$POWCJ or MTH$SQRT -- the inner loop is a few
-;   MULF3 / ADDF3 / SUBF3 / CMPF instructions, all register-to-register
-;   F_floating.
+;   Escape test compares squared magnitude (Zr^2 + Zi^2 > 4) -- no sqrt.
 ;
-;   Note: the set is tested with |z|^2 > 4 (not |z| > 2) to avoid
-;   computing a square root per iteration.
+; Output file characteristics:
+;   FNM = SYS$DISK:[]MANDELBROT.TXT   (current default directory)
+;   FAC = PUT
+;   ORG = SEQ
+;   RFM = VAR        (variable-length records)
+;   RAT = CR         (carriage-return carriage control -- one record = one line)
+;   MRS = MAX_W      (max record size; actual RSZ patched at runtime)
 ;
-; View window and grid:
-;   REAL: -2.5 ... +1.0     (width 3.5)
-;   IMAG: -1.2 ... +1.2     (height 2.4)
-;   132 cols x 48 rows -- roughly 2:1 horizontal resolution to match
-;   the ~2:1 height-to-width of a typical terminal character cell.
+; Error handling:
+;   - LIB$GET_INPUT / OTS$CVT_TU_L failure -> RET with R0.
+;   - WIDTH / HEIGHT out of bounds -> message + SS$_BADPARAM.
+;   - $CREATE failure -> RET with R0 (no cleanup needed).
+;   - $CONNECT / $PUT failure -> best-effort $CLOSE, return R0.
 ;
 ; References consulted:
 ;   reference/VAX-VMS-731/vax-macro-ref-2001.md
-;       Chapter 9 -- ADDF2/3, SUBF3, MULF3, DIVF3, CMPF, CLRF, CLRL,
-;       MOVF, MOVB, CVTLF, INCL, DIVL3, conditional branches.
-;       Chapter 5 -- indexed addressing "label[Rn]" scaled by operand size.
-;       Chapter 6 -- .F_FLOATING literal-data directive, .ASCII.
+;       Chapter 9 -- ADDF2/3, SUBF3, MULF3, DIVF3, CMPF, CLRF, CVTLF,
+;                    DIVL3, MOVW, conditional branches.
+;       Chapter 5 -- indexed addressing label[Rn] scaled by operand size.
 ;   reference/VAX-VMS-731/rtl-lib.md
-;       LIB$PUT_OUTPUT -- one record per call, RMS implied CR.
-;   reference/samples/mbrt1.mar
-;       Prior Mandelbrot in this repo: pattern for F_floating locals
-;       and the escape-time loop shape (though it routes through
-;       OTS$POWCJ + MTH$SQRT, which we avoid).
+;       LIB$GET_INPUT, LIB$PUT_OUTPUT.
+;   reference/VAX-VMS-731/rtl-ots.md
+;       OTS$CVT_TU_L.
+;   reference/VAX-VMS-731/rms-reference.md
+;       $FAB/$RAB keyword args; $CREATE/$CONNECT/$PUT/$CLOSE.
+;       RAB$W_RSZ field offset (set at runtime so one FAB/RAB serves
+;       any WIDTH up to MAX_W).
+;   reference/macro-made-easy/part-09-using-rms-from-macro.md
+;       RMS fundamentals, $FABDEF/$RABDEF.
 ;
 ; Build (on OpenVMS):
 ;   $ MACRO MANDELBROT
 ;   $ LINK MANDELBROT
 ;   $ RUN MANDELBROT
+;   $ TYPE MANDELBROT.TXT
 ;--
 
-	COLS		= 132
-	ROWS		= 48
-	MAX_ITER	= 30		; must equal 3 * GRADIENT_LEN
+	MAX_W		= 512			; row buffer limit
+	MAX_H		= 4096			; sanity limit on rows
+	MAX_ITER	= 30			; must equal 3 * GRADIENT_LEN
 	GRADIENT_LEN	= 10
+	IN_MAX		= 80
 
 ;
 ; Symbol macro includes.
 ;
 	$DSCDEF				; DSC$K_DTYPE_T, DSC$K_CLASS_S
+	$SSDEF				; SS$_BADPARAM, SS$_NORMAL
+	$FABDEF				; FAB$* symbols used by $FAB macro
+	$RABDEF				; RAB$W_RSZ and friends
 
 ;
 ; Data.
 ;
 	.PSECT	MANDEL_DATA, NOEXE, WRT, LONG
 
-; View window edges as F_floating constants.
+; User-supplied grid dimensions (parsed from input).
+WIDTH:		.LONG	0
+HEIGHT:		.LONG	0
+
+; View window edges, F_floating.
 REAL_MIN:	.F_FLOATING	-2.5
 REAL_MAX:	.F_FLOATING	 1.0
 IMAG_MIN:	.F_FLOATING	-1.2
 IMAG_MAX:	.F_FLOATING	 1.2
+FOURF:		.F_FLOATING	 4.0		; escape-radius squared
 
-; 4.0 is the escape radius squared.
-FOURF:		.F_FLOATING	 4.0
-
-; Per-pixel step sizes, computed at runtime from the window + grid.
+; Per-pixel step sizes, derived at runtime from WIDTH / HEIGHT.
 DX:		.F_FLOATING	 0.0
 DY:		.F_FLOATING	 0.0
 
-; Row buffer -- one line of output, packed with gradient characters.
-ROW_BUF:	.BLKB	COLS
+; Input line buffer + descriptor + resultant-length word.
+IN_BUF:		.BLKB	IN_MAX
+IN_LEN:		.WORD	0
 
-; Descriptor over ROW_BUF for LIB$PUT_OUTPUT.
 	.ALIGN	LONG
-ROW_DESC:	.WORD	COLS			; length
-		.BYTE	DSC$K_DTYPE_T		; type: text
-		.BYTE	DSC$K_CLASS_S		; class: static
-		.ADDRESS ROW_BUF
+IN_DESC:	.WORD	IN_MAX
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS IN_BUF
 
-; Shade ramp. Index 0 = lightest (fast escape), index 9 = darkest (slow
-; escape). Points in the set use INSET_CHAR instead.
+; Prompt and error descriptors (all go to the terminal via LIB$PUT_OUTPUT
+; or LIB$GET_INPUT's built-in prompt support -- never to the file).
+INTRO_1:	.ASCID	/VAX MACRO-32 ASCII Mandelbrot renderer./
+INTRO_2:	.ASCID	/Output will be written to MANDELBROT.TXT in the current directory./
+DONE_MSG:	.ASCID	/Done. Output written to MANDELBROT.TXT./
+
+PROMPT_W:	.ASCID	/Width  (1-512):  /
+PROMPT_H:	.ASCID	/Height (1-4096): /
+ERR_W:		.ASCID	/Width out of range (must be 1..512)./
+ERR_H:		.ASCID	/Height out of range (must be 1..4096)./
+
+; Row buffer (sized to MAX_W). The RAB's RBF points here; RSZ is patched
+; to the actual WIDTH once the user has been prompted.
+ROW_BUF:	.BLKB	MAX_W
+
+; Shade ramp. 10 chars: lightest (fast escape) -> darkest (slow escape).
+; Points in the set use INSET_CHAR.
 GRADIENT:	.ASCII	/ .,:-=+*#%/
 INSET_CHAR	= ^A/@/
+
+; RMS control blocks -- must be longword aligned.
+	.ALIGN	LONG
+OUT_FAB:	$FAB	FNM=<SYS$DISK:[]MANDELBROT.TXT>,-
+			FAC=PUT,-
+			ORG=SEQ,-
+			RFM=VAR,-
+			RAT=CR,-
+			MRS=MAX_W
+
+	.ALIGN	LONG
+OUT_RAB:	$RAB	FAB=OUT_FAB,-
+			RAC=SEQ,-
+			RBF=ROW_BUF,-
+			RSZ=MAX_W
 
 ;
 ; Code.
@@ -108,35 +159,106 @@ INSET_CHAR	= ^A/@/
 ;
 ; MANDELBROT -- program entry point.
 ;
-;   R2  = current row (int)
-;   R3  = current column (int)
-;   R4  = iteration count (int)
-;   R5  = Zr       (F_floating, current real part of z)
-;   R6  = Zi       (F_floating, current imag part of z)
-;   R7  = Cr       (F_floating, real part of c for this column)
-;   R8  = Ci       (F_floating, imag part of c for this row)
-;   R9  = Zr*Zr    (F_floating)
-;   R10 = Zi*Zi    (F_floating)
-;   R11 = scratch  (F_floating; holds 2*Zr*Zi+Ci during update)
+;   Integer registers:
+;     R2 = current row
+;     R3 = current column
+;     R4 = iteration counter
+;   F_floating registers:
+;     R5 = Zr    R6 = Zi      (current z)
+;     R7 = Cr    R8 = Ci      (current c)
+;     R9 = Zr^2  R10 = Zi^2
+;     R11 = scratch / Zi_new buffer
 ;
 	.ENTRY	MANDELBROT, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
 
 ; -----------------------------------------------------------------------
-; Pre-compute the per-pixel step sizes:
-;   DX = (REAL_MAX - REAL_MIN) / COLS
-;   DY = (IMAG_MAX - IMAG_MIN) / ROWS
-; SUBF3 a,b,c   computes c = b - a.
-; DIVF3 divr,divd,quo  computes quo = divd / divr.
+; Banner. We don't check R0 -- if SYS$OUTPUT is broken everything else
+; will fail anyway.
+; -----------------------------------------------------------------------
+	PUSHAL	INTRO_1
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	PUSHAL	INTRO_2
+	CALLS	#1, G^LIB$PUT_OUTPUT
+
+; -----------------------------------------------------------------------
+; Phase 1: prompt for width, parse, validate.
+; -----------------------------------------------------------------------
+	PUSHAW	IN_LEN
+	PUSHAL	PROMPT_W
+	PUSHAL	IN_DESC
+	CALLS	#3, G^LIB$GET_INPUT
+	BLBS	R0, 10$
+	RET
+10$:
+	MOVW	IN_LEN, IN_DESC			; shrink to actual bytes
+	PUSHAL	WIDTH
+	PUSHAL	IN_DESC
+	CALLS	#2, G^OTS$CVT_TU_L
+	BLBS	R0, 20$
+	RET
+20$:
+	TSTL	WIDTH
+	BGTR	21$
+	BRW	WIDTH_ERR
+21$:	CMPL	WIDTH, #MAX_W
+	BLEQ	22$
+	BRW	WIDTH_ERR
+22$:
+
+; -----------------------------------------------------------------------
+; Phase 2: prompt for height, parse, validate.
+; -----------------------------------------------------------------------
+	MOVW	#IN_MAX, IN_DESC		; restore descriptor size
+	PUSHAW	IN_LEN
+	PUSHAL	PROMPT_H
+	PUSHAL	IN_DESC
+	CALLS	#3, G^LIB$GET_INPUT
+	BLBS	R0, 30$
+	RET
+30$:
+	MOVW	IN_LEN, IN_DESC
+	PUSHAL	HEIGHT
+	PUSHAL	IN_DESC
+	CALLS	#2, G^OTS$CVT_TU_L
+	BLBS	R0, 40$
+	RET
+40$:
+	TSTL	HEIGHT
+	BGTR	41$
+	BRW	HEIGHT_ERR
+41$:	CMPL	HEIGHT, #MAX_H
+	BLEQ	42$
+	BRW	HEIGHT_ERR
+42$:
+
+; -----------------------------------------------------------------------
+; Phase 3: create and open MANDELBROT.TXT, patch RSZ to actual WIDTH.
+; -----------------------------------------------------------------------
+	$CREATE	FAB=OUT_FAB
+	BLBS	R0, 50$
+	RET					; no file to clean up on failure
+50$:
+	$CONNECT RAB=OUT_RAB
+	BLBS	R0, 60$
+; $CONNECT failed after a successful $CREATE -- close + return R0.
+	PUSHL	R0
+	$CLOSE	FAB=OUT_FAB
+	POPL	R0
+	RET
+60$:
+; Patch RAB.RSZ with actual WIDTH (low word of WIDTH is the byte count).
+	MOVW	WIDTH, OUT_RAB+RAB$W_RSZ
+
+; -----------------------------------------------------------------------
+; Phase 4: compute DX, DY.
 ; -----------------------------------------------------------------------
 	SUBF3	REAL_MIN, REAL_MAX, R5		; R5 = 3.5
-	MOVL	#COLS, R6			; R6 = 132 (integer)
-	CVTLF	R6, R6				; R6 = 132.0 (float)
-	DIVF3	R6, R5, DX			; DX = 3.5 / 132.0
+	CVTLF	WIDTH, R6
+	DIVF3	R6, R5, DX			; DX = 3.5 / WIDTH
 
 	SUBF3	IMAG_MIN, IMAG_MAX, R5		; R5 = 2.4
-	MOVL	#ROWS, R6			; R6 = 48
-	CVTLF	R6, R6				; R6 = 48.0
-	DIVF3	R6, R5, DY			; DY = 2.4 / 48.0
+	CVTLF	HEIGHT, R6
+	DIVF3	R6, R5, DY			; DY = 2.4 / HEIGHT
 
 	CLRL	R2				; row = 0
 
@@ -145,9 +267,9 @@ INSET_CHAR	= ^A/@/
 ; -----------------------------------------------------------------------
 ROW_LOOP:
 ; Ci = IMAG_MIN + row * DY
-	CVTLF	R2, R8				; R8 = row (float)
-	MULF2	DY, R8				; R8 *= DY
-	ADDF2	IMAG_MIN, R8			; R8 += IMAG_MIN
+	CVTLF	R2, R8
+	MULF2	DY, R8
+	ADDF2	IMAG_MIN, R8
 
 	CLRL	R3				; col = 0
 
@@ -156,75 +278,96 @@ ROW_LOOP:
 ; -----------------------------------------------------------------------
 COL_LOOP:
 ; Cr = REAL_MIN + col * DX
-	CVTLF	R3, R7				; R7 = col (float)
-	MULF2	DX, R7				; R7 *= DX
-	ADDF2	REAL_MIN, R7			; R7 += REAL_MIN
+	CVTLF	R3, R7
+	MULF2	DX, R7
+	ADDF2	REAL_MIN, R7
 
-; Initialise orbit z = 0 + 0i, iteration counter.
-	CLRF	R5				; Zr = 0.0
-	CLRF	R6				; Zi = 0.0
+; Reset orbit.
+	CLRF	R5				; Zr = 0
+	CLRF	R6				; Zi = 0
 	CLRL	R4				; iter = 0
 
 ; -----------------------------------------------------------------------
-; Escape-time iteration. Body is always entered; the escape + max-iter
-; tests live at the top of the loop.
+; Escape-time iteration.
 ; -----------------------------------------------------------------------
 ITER_LOOP:
-	MULF3	R5, R5, R9			; R9  = Zr*Zr
-	MULF3	R6, R6, R10			; R10 = Zi*Zi
-
-; |z|^2 = Zr^2 + Zi^2; escape if > 4.
+	MULF3	R5, R5, R9			; R9  = Zr^2
+	MULF3	R6, R6, R10			; R10 = Zi^2
 	ADDF3	R9, R10, R11			; R11 = |z|^2
 	CMPF	R11, FOURF
-	BGTR	ESCAPED				; escaped -> pick gradient char
+	BGTR	ESCAPED
 
-; z_new = z*z + c:
-;   Zi_new = 2*Zr*Zi + Ci
-;   Zr_new = Zr^2 - Zi^2 + Cr
-; Order matters: compute Zi_new into R11 BEFORE overwriting R5 with Zr_new.
+; z_new = z*z + c -- Zi first (needs old Zr,Zi), then Zr.
 	MULF3	R5, R6, R11			; R11 = Zr*Zi
 	ADDF2	R11, R11			; R11 = 2*Zr*Zi
-	ADDF2	R8, R11				; R11 = 2*Zr*Zi + Ci  (= Zi_new)
+	ADDF2	R8, R11				; R11 = 2*Zr*Zi + Ci = Zi_new
 
-	SUBF3	R10, R9, R5			; R5  = Zr^2 - Zi^2
-	ADDF2	R7, R5				; R5  = Zr^2 - Zi^2 + Cr  (= Zr_new)
+	SUBF3	R10, R9, R5			; R5 = Zr^2 - Zi^2
+	ADDF2	R7, R5				; R5 = Zr^2 - Zi^2 + Cr = Zr_new
 
-	MOVF	R11, R6				; R6  = Zi_new
+	MOVF	R11, R6				; R6 = Zi_new
 
-	INCL	R4				; iter++
+	INCL	R4
 	CMPL	R4, #MAX_ITER
-	BLSS	ITER_LOOP			; loop while iter < MAX_ITER
+	BLSS	ITER_LOOP
 
-; Fell through -> point is in the Mandelbrot set.
+; Fell through -> point is in the set.
 	MOVB	#INSET_CHAR, ROW_BUF[R3]
 	BRB	NEXT_COL
 
-; Escape path: pick a gradient character from iter/3.
-; DIVL3 divr,divd,quo  => quo = divd / divr. So DIVL3 #3, R4, R1 gives
-; R1 = R4 / 3 = iter / 3. R1 is a standard scratch register, not in the
-; entry mask -- safe because we don't make a CALLS here.
+; Escape -> pick from shade ramp.
 ESCAPED:
-	DIVL3	#3, R4, R1			; R1 = iter / 3  (range 0..9)
+	DIVL3	#3, R4, R1			; R1 = iter / 3 in [0..9]
 	MOVB	GRADIENT[R1], ROW_BUF[R3]
 
 NEXT_COL:
 	INCL	R3
-	CMPL	R3, #COLS
-	BLSS	COL_LOOP			; loop while col < COLS
+	CMPL	R3, WIDTH
+	BLSS	COL_LOOP
 
-; End-of-row: emit the buffer as one record.
-	PUSHAL	ROW_DESC
-	CALLS	#1, G^LIB$PUT_OUTPUT
-; (we don't check R0 here; if stdout is broken we'd fail on every row)
+; End of row: write the buffer as one RMS record.
+	$PUT	RAB=OUT_RAB
+	BLBC	R0, PUT_ERR			; $PUT failed -> close + return
 
 	INCL	R2
-	CMPL	R2, #ROWS
-; Invert + BRW: the row-loop body (col + iter loops) exceeds byte-branch
-; range, so we branch the exit condition (byte-close) and use BRW for
-; the long back-edge.
+	CMPL	R2, HEIGHT
+; Invert + BRW: row body exceeds byte-branch range.
 	BGEQ	DONE
-	BRW	ROW_LOOP			; loop while row < ROWS
-DONE:
-	RET					; R0 = last LIB$PUT_OUTPUT status
+	BRW	ROW_LOOP
+
+; -----------------------------------------------------------------------
+; Normal exit: close the file, then tell the user where the output went.
+; If $CLOSE fails we skip the "Done" message and return its error status.
+; -----------------------------------------------------------------------
+DONE:	$CLOSE	FAB=OUT_FAB
+	BLBS	R0, 70$
+	RET
+70$:	PUSHAL	DONE_MSG
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	RET
+
+; -----------------------------------------------------------------------
+; $PUT failure inside the render loop -- preserve R0, best-effort close.
+; -----------------------------------------------------------------------
+PUT_ERR:
+	PUSHL	R0
+	$CLOSE	FAB=OUT_FAB
+	POPL	R0
+	RET
+
+; -----------------------------------------------------------------------
+; Input-validation error handlers (no file is open yet).
+; -----------------------------------------------------------------------
+WIDTH_ERR:
+	PUSHAL	ERR_W
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	MOVL	#SS$_BADPARAM, R0
+	RET
+
+HEIGHT_ERR:
+	PUSHAL	ERR_H
+	CALLS	#1, G^LIB$PUT_OUTPUT
+	MOVL	#SS$_BADPARAM, R0
+	RET
 
 	.END	MANDELBROT

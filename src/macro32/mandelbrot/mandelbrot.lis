@@ -1,0 +1,524 @@
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   1
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                     0000     1 	.TITLE	MANDELBROT	ASCII Mandelbrot (user W x H) written to MANDELBROT.TXT
+                                     0000     2 	.IDENT	/V1.2/
+                                     0000     3
+                                     0000     4 ;++
+                                     0000     5 ; MANDELBROT.MAR
+                                     0000     6 ;
+                                     0000     7 ;   Prompts the user for a width (columns) and height (rows) on
+                                     0000     8 ;   SYS$INPUT, then renders the Mandelbrot set as ASCII art at that
+                                     0000     9 ;   resolution into the file MANDELBROT.TXT in the current default
+                                     0000    10 ;   directory -- one record (one line) per row.
+                                     0000    11 ;
+                                     0000    12 ;   Width  is capped at MAX_W (512)  -- the static row buffer size.
+                                     0000    13 ;   Height is capped at MAX_H (4096) -- a sanity bound.
+                                     0000    14 ;
+                                     0000    15 ;   Prompts and any error messages still go to SYS$OUTPUT so the user
+                                     0000    16 ;   can interact; only the rendered image is written to the file.
+                                     0000    17 ;
+                                     0000    18 ;   On invalid input (non-digit, zero, or out-of-range) a short error
+                                     0000    19 ;   message is printed and the image exits with SS$_BADPARAM.
+                                     0000    20 ;
+                                     0000    21 ; Algorithm (unchanged):
+                                     0000    22 ;
+                                     0000    23 ;   For each pixel (col, row):
+                                     0000    24 ;       c = Cr + Ci*i      ; linear map from pixel coords to
+                                     0000    25 ;                           ; REAL_MIN..REAL_MAX / IMAG_MIN..IMAG_MAX
+                                     0000    26 ;       z = 0; iter = 0
+                                     0000    27 ;       while iter < MAX_ITER:
+                                     0000    28 ;           if |z|^2 > 4: break       ; escaped
+                                     0000    29 ;           z = z*z + c
+                                     0000    30 ;           iter += 1
+                                     0000    31 ;       plot GRADIENT[iter/3]  or INSET_CHAR if iter == MAX_ITER
+                                     0000    32 ;
+                                     0000    33 ;   Inline squaring:
+                                     0000    34 ;       Zr_new = Zr^2 - Zi^2 + Cr
+                                     0000    35 ;       Zi_new = 2*Zr*Zi   + Ci
+                                     0000    36 ;   Escape test compares squared magnitude (Zr^2 + Zi^2 > 4) -- no sqrt.
+                                     0000    37 ;
+                                     0000    38 ; Output file characteristics:
+                                     0000    39 ;   FNM = SYS$DISK:[]MANDELBROT.TXT   (current default directory)
+                                     0000    40 ;   FAC = PUT
+                                     0000    41 ;   ORG = SEQ
+                                     0000    42 ;   RFM = VAR        (variable-length records)
+                                     0000    43 ;   RAT = CR         (carriage-return carriage control -- one record = one line)
+                                     0000    44 ;   MRS = MAX_W      (max record size; actual RSZ patched at runtime)
+                                     0000    45 ;
+                                     0000    46 ; Error handling:
+                                     0000    47 ;   - LIB$GET_INPUT / OTS$CVT_TU_L failure -> RET with R0.
+                                     0000    48 ;   - WIDTH / HEIGHT out of bounds -> message + SS$_BADPARAM.
+                                     0000    49 ;   - $CREATE failure -> RET with R0 (no cleanup needed).
+                                     0000    50 ;   - $CONNECT / $PUT failure -> best-effort $CLOSE, return R0.
+                                     0000    51 ;
+                                     0000    52 ; References consulted:
+                                     0000    53 ;   reference/VAX-VMS-731/vax-macro-ref-2001.md
+                                     0000    54 ;       Chapter 9 -- ADDF2/3, SUBF3, MULF3, DIVF3, CMPF, CLRF, CVTLF,
+                                     0000    55 ;                    DIVL3, MOVW, conditional branches.
+                                     0000    56 ;       Chapter 5 -- indexed addressing label[Rn] scaled by operand size.
+                                     0000    57 ;   reference/VAX-VMS-731/rtl-lib.md
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   2
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                     0000    58 ;       LIB$GET_INPUT, LIB$PUT_OUTPUT.
+                                     0000    59 ;   reference/VAX-VMS-731/rtl-ots.md
+                                     0000    60 ;       OTS$CVT_TU_L.
+                                     0000    61 ;   reference/VAX-VMS-731/rms-reference.md
+                                     0000    62 ;       $FAB/$RAB keyword args; $CREATE/$CONNECT/$PUT/$CLOSE.
+                                     0000    63 ;       RAB$W_RSZ field offset (set at runtime so one FAB/RAB serves
+                                     0000    64 ;       any WIDTH up to MAX_W).
+                                     0000    65 ;   reference/macro-made-easy/part-09-using-rms-from-macro.md
+                                     0000    66 ;       RMS fundamentals, $FABDEF/$RABDEF.
+                                     0000    67 ;
+                                     0000    68 ; Build (on OpenVMS):
+                                     0000    69 ;   $ MACRO MANDELBROT
+                                     0000    70 ;   $ LINK MANDELBROT
+                                     0000    71 ;   $ RUN MANDELBROT
+                                     0000    72 ;   $ TYPE MANDELBROT.TXT
+                                     0000    73 ;--
+                                     0000    74
+                           00000200  0000    75 	MAX_W		= 512			; row buffer limit
+                           00001000  0000    76 	MAX_H		= 4096			; sanity limit on rows
+                           0000001E  0000    77 	MAX_ITER	= 30			; must equal 3 * GRADIENT_LEN
+                           0000000A  0000    78 	GRADIENT_LEN	= 10
+                           00000050  0000    79 	IN_MAX		= 80
+                                     0000    80
+                                     0000    81 ;
+                                     0000    82 ; Symbol macro includes.
+                                     0000    83 ;
+                                     0000    84 	$DSCDEF				; DSC$K_DTYPE_T, DSC$K_CLASS_S
+                                     0000    85 	$SSDEF				; SS$_BADPARAM, SS$_NORMAL
+                                     0000    86 	$FABDEF				; FAB$* symbols used by $FAB macro
+                                     0000    87 	$RABDEF				; RAB$W_RSZ and friends
+                                     0000    88
+                                     0000    89 ;
+                                     0000    90 ; Data.
+                                     0000    91 ;
+                                 00000000    92 	.PSECT	MANDEL_DATA, NOEXE, WRT, LONG
+                                     0000    93
+                                     0000    94 ; User-supplied grid dimensions (parsed from input).
+                           00000000  0000    95 WIDTH:		.LONG	0
+                           00000000  0004    96 HEIGHT:		.LONG	0
+                                     0008    97
+                                     0008    98 ; View window edges, F_floating.
+                           0000C120  0008    99 REAL_MIN:	.F_FLOATING	-2.5
+                           00004080  000C   100 REAL_MAX:	.F_FLOATING	 1.0
+                           999AC099  0010   101 IMAG_MIN:	.F_FLOATING	-1.2
+                           999A4099  0014   102 IMAG_MAX:	.F_FLOATING	 1.2
+                           00004180  0018   103 FOURF:		.F_FLOATING	 4.0		; escape-radius squared
+                                     001C   104
+                                     001C   105 ; Per-pixel step sizes, derived at runtime from WIDTH / HEIGHT.
+                           00000000  001C   106 DX:		.F_FLOATING	 0.0
+                           00000000  0020   107 DY:		.F_FLOATING	 0.0
+                                     0024   108
+                                     0024   109 ; Input line buffer + descriptor + resultant-length word.
+                           00000074  0024   110 IN_BUF:		.BLKB	IN_MAX
+                               0000  0074   111 IN_LEN:		.WORD	0
+                                     0076   112
+                                     0076   113 	.ALIGN	LONG
+                               0050  0078   114 IN_DESC:	.WORD	IN_MAX
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   3
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                 0E  007A   115 		.BYTE	DSC$K_DTYPE_T
+                                 01  007B   116 		.BYTE	DSC$K_CLASS_S
+                           00000024' 007C   117 		.ADDRESS IN_BUF
+                                     0080   118
+                                     0080   119 ; Prompt and error descriptors (all go to the terminal via LIB$PUT_OUTPUT
+                                     0080   120 ; or LIB$GET_INPUT's built-in prompt support -- never to the file).
+41 4D 20 58 41 56 00000088'010E0000' 0080   121 INTRO_1:	.ASCID	/VAX MACRO-32 ASCII Mandelbrot renderer./
+49 49 43 53 41 20 32 33 2D 4F 52 43  008E
+20 74 6F 72 62 6C 65 64 6E 61 4D 20  009A
+         2E 72 65 72 65 64 6E 65 72  00A6
+74 75 70 74 75 4F 000000B7'010E0000' 00AF   122 INTRO_2:	.ASCID	/Output will be written to MANDELBROT.TXT in the current directory./
+69 72 77 20 65 62 20 6C 6C 69 77 20  00BD
+44 4E 41 4D 20 6F 74 20 6E 65 74 74  00C9
+69 20 54 58 54 2E 54 4F 52 42 4C 45  00D5
+6E 65 72 72 75 63 20 65 68 74 20 6E  00E1
+2E 79 72 6F 74 63 65 72 69 64 20 74  00ED
+20 2E 65 6E 6F 44 00000101'010E0000' 00F9   123 DONE_MSG:	.ASCID	/Done. Output written to MANDELBROT.TXT./
+74 74 69 72 77 20 74 75 70 74 75 4F  0107
+4C 45 44 4E 41 4D 20 6F 74 20 6E 65  0113
+         2E 54 58 54 2E 54 4F 52 42  011F
+                                     0128   124
+20 68 74 64 69 57 00000130'010E0000' 0128   125 PROMPT_W:	.ASCID	/Width  (1-512):  /
+   20 20 3A 29 32 31 35 2D 31 28 20  0136
+74 68 67 69 65 48 00000149'010E0000' 0141   126 PROMPT_H:	.ASCID	/Height (1-4096): /
+   20 3A 29 36 39 30 34 2D 31 28 20  014F
+20 68 74 64 69 57 00000162'010E0000' 015A   127 ERR_W:		.ASCID	/Width out of range (must be 1..512)./
+65 67 6E 61 72 20 66 6F 20 74 75 6F  0168
+2E 31 20 65 62 20 74 73 75 6D 28 20  0174
+                  2E 29 32 31 35 2E  0180
+74 68 67 69 65 48 0000018E'010E0000' 0186   128 ERR_H:		.ASCID	/Height out of range (must be 1..4096)./
+67 6E 61 72 20 66 6F 20 74 75 6F 20  0194
+31 20 65 62 20 74 73 75 6D 28 20 65  01A0
+            2E 29 36 39 30 34 2E 2E  01AC
+                                     01B4   129
+                                     01B4   130 ; Row buffer (sized to MAX_W). The RAB's RBF points here; RSZ is patched
+                                     01B4   131 ; to the actual WIDTH once the user has been prompted.
+                           000003B4  01B4   132 ROW_BUF:	.BLKB	MAX_W
+                                     03B4   133
+                                     03B4   134 ; Shade ramp. 10 chars: lightest (fast escape) -> darkest (slow escape).
+                                     03B4   135 ; Points in the set use INSET_CHAR.
+      25 23 2A 2B 3D 2D 3A 2C 2E 20  03B4   136 GRADIENT:	.ASCII	/ .,:-=+*#%/
+                           00000040  03BE   137 INSET_CHAR	= ^A/@/
+                                     03BE   138
+                                     03BE   139 ; RMS control blocks -- must be longword aligned.
+                                     03BE   140 	.ALIGN	LONG
+                                     03C0   141 OUT_FAB:	$FAB	FNM=<SYS$DISK:[]MANDELBROT.TXT>,-
+                                     03C0   142 			FAC=PUT,-
+                                     03C0   143 			ORG=SEQ,-
+                                     03C0   144 			RFM=VAR,-
+                                     03C0   145 			RAT=CR,-
+                                     03C0   146 			MRS=MAX_W
+                                     0410   147
+                                     0410   148 	.ALIGN	LONG
+                                     0410   149 OUT_RAB:	$RAB	FAB=OUT_FAB,-
+                                     0410   150 			RAC=SEQ,-
+                                     0410   151 			RBF=ROW_BUF,-
+                                     0410   152 			RSZ=MAX_W
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   4
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                     0454   153
+                                     0454   154 ;
+                                     0454   155 ; Code.
+                                     0454   156 ;
+                                 00000000   157 	.PSECT	MANDEL_CODE, EXE, NOWRT, LONG
+                                     0000   158
+                                     0000   159 ;
+                                     0000   160 ; MANDELBROT -- program entry point.
+                                     0000   161 ;
+                                     0000   162 ;   Integer registers:
+                                     0000   163 ;     R2 = current row
+                                     0000   164 ;     R3 = current column
+                                     0000   165 ;     R4 = iteration counter
+                                     0000   166 ;   F_floating registers:
+                                     0000   167 ;     R5 = Zr    R6 = Zi      (current z)
+                                     0000   168 ;     R7 = Cr    R8 = Ci      (current c)
+                                     0000   169 ;     R9 = Zr^2  R10 = Zi^2
+                                     0000   170 ;     R11 = scratch / Zi_new buffer
+                                     0000   171 ;
+                               0FFC  0000   172 	.ENTRY	MANDELBROT, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+                                     0002   173
+                                     0002   174 ; -----------------------------------------------------------------------
+                                     0002   175 ; Banner. We don't check R0 -- if SYS$OUTPUT is broken everything else
+                                     0002   176 ; will fail anyway.
+                                     0002   177 ; -----------------------------------------------------------------------
+                   00000080'EF   DF  0002   178 	PUSHAL	INTRO_1
+              00000000'GF   01   FB  0008   179 	CALLS	#1, G^LIB$PUT_OUTPUT
+                   000000AF'EF   DF  000F   180 	PUSHAL	INTRO_2
+              00000000'GF   01   FB  0015   181 	CALLS	#1, G^LIB$PUT_OUTPUT
+                                     001C   182
+                                     001C   183 ; -----------------------------------------------------------------------
+                                     001C   184 ; Phase 1: prompt for width, parse, validate.
+                                     001C   185 ; -----------------------------------------------------------------------
+                   00000074'EF   3F  001C   186 	PUSHAW	IN_LEN
+                   00000128'EF   DF  0022   187 	PUSHAL	PROMPT_W
+                   00000078'EF   DF  0028   188 	PUSHAL	IN_DESC
+              00000000'GF   03   FB  002E   189 	CALLS	#3, G^LIB$GET_INPUT
+                         01 50   E8  0035   190 	BLBS	R0, 10$
+                                 04  0038   191 	RET
+                                     0039   192 10$:
+     00000078'EF   00000074'EF   B0  0039   193 	MOVW	IN_LEN, IN_DESC			; shrink to actual bytes
+                   00000000'EF   DF  0044   194 	PUSHAL	WIDTH
+                   00000078'EF   DF  004A   195 	PUSHAL	IN_DESC
+              00000000'GF   02   FB  0050   196 	CALLS	#2, G^OTS$CVT_TU_L
+                         01 50   E8  0057   197 	BLBS	R0, 20$
+                                 04  005A   198 	RET
+                                     005B   199 20$:
+                   00000000'EF   D5  005B   200 	TSTL	WIDTH
+                            03   14  0061   201 	BGTR	21$
+                          01BB   31  0063   202 	BRW	WIDTH_ERR
+     00000200 8F   00000000'EF   D1  0066   203 21$:	CMPL	WIDTH, #MAX_W
+                            03   15  0071   204 	BLEQ	22$
+                          01AB   31  0073   205 	BRW	WIDTH_ERR
+                                     0076   206 22$:
+                                     0076   207
+                                     0076   208 ; -----------------------------------------------------------------------
+                                     0076   209 ; Phase 2: prompt for height, parse, validate.
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   5
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                     0076   210 ; -----------------------------------------------------------------------
+         00000078'EF   0050 8F   B0  0076   211 	MOVW	#IN_MAX, IN_DESC		; restore descriptor size
+                   00000074'EF   3F  007F   212 	PUSHAW	IN_LEN
+                   00000141'EF   DF  0085   213 	PUSHAL	PROMPT_H
+                   00000078'EF   DF  008B   214 	PUSHAL	IN_DESC
+              00000000'GF   03   FB  0091   215 	CALLS	#3, G^LIB$GET_INPUT
+                         01 50   E8  0098   216 	BLBS	R0, 30$
+                                 04  009B   217 	RET
+                                     009C   218 30$:
+     00000078'EF   00000074'EF   B0  009C   219 	MOVW	IN_LEN, IN_DESC
+                   00000004'EF   DF  00A7   220 	PUSHAL	HEIGHT
+                   00000078'EF   DF  00AD   221 	PUSHAL	IN_DESC
+              00000000'GF   02   FB  00B3   222 	CALLS	#2, G^OTS$CVT_TU_L
+                         01 50   E8  00BA   223 	BLBS	R0, 40$
+                                 04  00BD   224 	RET
+                                     00BE   225 40$:
+                   00000004'EF   D5  00BE   226 	TSTL	HEIGHT
+                            03   14  00C4   227 	BGTR	41$
+                          0169   31  00C6   228 	BRW	HEIGHT_ERR
+     00001000 8F   00000004'EF   D1  00C9   229 41$:	CMPL	HEIGHT, #MAX_H
+                            03   15  00D4   230 	BLEQ	42$
+                          0159   31  00D6   231 	BRW	HEIGHT_ERR
+                                     00D9   232 42$:
+                                     00D9   233
+                                     00D9   234 ; -----------------------------------------------------------------------
+                                     00D9   235 ; Phase 3: create and open MANDELBROT.TXT, patch RSZ to actual WIDTH.
+                                     00D9   236 ; -----------------------------------------------------------------------
+                                     00D9   237 	$CREATE	FAB=OUT_FAB
+                         01 50   E8  00E6   238 	BLBS	R0, 50$
+                                 04  00E9   239 	RET					; no file to clean up on failure
+                                     00EA   240 50$:
+                                     00EA   241 	$CONNECT RAB=OUT_RAB
+                         13 50   E8  00F7   242 	BLBS	R0, 60$
+                                     00FA   243 ; $CONNECT failed after a successful $CREATE -- close + return R0.
+                            50   DD  00FA   244 	PUSHL	R0
+                                     00FC   245 	$CLOSE	FAB=OUT_FAB
+                            50 8ED0  0109   246 	POPL	R0
+                                 04  010C   247 	RET
+                                     010D   248 60$:
+                                     010D   249 ; Patch RAB.RSZ with actual WIDTH (low word of WIDTH is the byte count).
+     00000432'EF   00000000'EF   B0  010D   250 	MOVW	WIDTH, OUT_RAB+RAB$W_RSZ
+                                     0118   251
+                                     0118   252 ; -----------------------------------------------------------------------
+                                     0118   253 ; Phase 4: compute DX, DY.
+                                     0118   254 ; -----------------------------------------------------------------------
+55   0000000C'EF   00000008'EF   43  0118   255 	SUBF3	REAL_MIN, REAL_MAX, R5		; R5 = 3.5
+              56   00000000'EF   4E  0124   256 	CVTLF	WIDTH, R6
+         0000001C'EF   55   56   47  012B   257 	DIVF3	R6, R5, DX			; DX = 3.5 / WIDTH
+                                     0133   258
+55   00000014'EF   00000010'EF   43  0133   259 	SUBF3	IMAG_MIN, IMAG_MAX, R5		; R5 = 2.4
+              56   00000004'EF   4E  013F   260 	CVTLF	HEIGHT, R6
+         00000020'EF   55   56   47  0146   261 	DIVF3	R6, R5, DY			; DY = 2.4 / HEIGHT
+                                     014E   262
+                            52   D4  014E   263 	CLRL	R2				; row = 0
+                                     0150   264
+                                     0150   265 ; -----------------------------------------------------------------------
+                                     0150   266 ; Outer row loop.
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   6
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                                     0150   267 ; -----------------------------------------------------------------------
+                                     0150   268 ROW_LOOP:
+                                     0150   269 ; Ci = IMAG_MIN + row * DY
+                       58   52   4E  0150   270 	CVTLF	R2, R8
+              58   00000020'EF   44  0153   271 	MULF2	DY, R8
+              58   00000010'EF   40  015A   272 	ADDF2	IMAG_MIN, R8
+                                     0161   273
+                            53   D4  0161   274 	CLRL	R3				; col = 0
+                                     0163   275
+                                     0163   276 ; -----------------------------------------------------------------------
+                                     0163   277 ; Inner column loop.
+                                     0163   278 ; -----------------------------------------------------------------------
+                                     0163   279 COL_LOOP:
+                                     0163   280 ; Cr = REAL_MIN + col * DX
+                       57   53   4E  0163   281 	CVTLF	R3, R7
+              57   0000001C'EF   44  0166   282 	MULF2	DX, R7
+              57   00000008'EF   40  016D   283 	ADDF2	REAL_MIN, R7
+                                     0174   284
+                                     0174   285 ; Reset orbit.
+                            55   D4  0174   286 	CLRF	R5				; Zr = 0
+                            56   D4  0176   287 	CLRF	R6				; Zi = 0
+                            54   D4  0178   288 	CLRL	R4				; iter = 0
+                                     017A   289
+                                     017A   290 ; -----------------------------------------------------------------------
+                                     017A   291 ; Escape-time iteration.
+                                     017A   292 ; -----------------------------------------------------------------------
+                                     017A   293 ITER_LOOP:
+                  59   55   55   45  017A   294 	MULF3	R5, R5, R9			; R9  = Zr^2
+                  5A   56   56   45  017E   295 	MULF3	R6, R6, R10			; R10 = Zi^2
+                  5B   5A   59   41  0182   296 	ADDF3	R9, R10, R11			; R11 = |z|^2
+              00000018'EF   5B   51  0186   297 	CMPF	R11, FOURF
+                            26   14  018D   298 	BGTR	ESCAPED
+                                     018F   299
+                                     018F   300 ; z_new = z*z + c -- Zi first (needs old Zr,Zi), then Zr.
+                  5B   56   55   45  018F   301 	MULF3	R5, R6, R11			; R11 = Zr*Zi
+                       5B   5B   40  0193   302 	ADDF2	R11, R11			; R11 = 2*Zr*Zi
+                       5B   58   40  0196   303 	ADDF2	R8, R11				; R11 = 2*Zr*Zi + Ci = Zi_new
+                                     0199   304
+                  55   59   5A   43  0199   305 	SUBF3	R10, R9, R5			; R5 = Zr^2 - Zi^2
+                       55   57   40  019D   306 	ADDF2	R7, R5				; R5 = Zr^2 - Zi^2 + Cr = Zr_new
+                                     01A0   307
+                       56   5B   50  01A0   308 	MOVF	R11, R6				; R6 = Zi_new
+                                     01A3   309
+                            54   D6  01A3   310 	INCL	R4
+                       1E   54   D1  01A5   311 	CMPL	R4, #MAX_ITER
+                            D0   19  01A8   312 	BLSS	ITER_LOOP
+                                     01AA   313
+                                     01AA   314 ; Fell through -> point is in the set.
+         000001B4'EF43   40 8F   90  01AA   315 	MOVB	#INSET_CHAR, ROW_BUF[R3]
+                            11   11  01B3   316 	BRB	NEXT_COL
+                                     01B5   317
+                                     01B5   318 ; Escape -> pick from shade ramp.
+                                     01B5   319 ESCAPED:
+                  51   54   03   C7  01B5   320 	DIVL3	#3, R4, R1			; R1 = iter / 3 in [0..9]
+ 000001B4'EF43   000003B4'EF41   90  01B9   321 	MOVB	GRADIENT[R1], ROW_BUF[R3]
+                                     01C6   322
+                                     01C6   323 NEXT_COL:
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   7
+V1.2                                                                     22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+                            53   D6  01C6   324 	INCL	R3
+              00000000'EF   53   D1  01C8   325 	CMPL	R3, WIDTH
+                            92   19  01CF   326 	BLSS	COL_LOOP
+                                     01D1   327
+                                     01D1   328 ; End of row: write the buffer as one RMS record.
+                                     01D1   329 	$PUT	RAB=OUT_RAB
+                         2D 50   E9  01DE   330 	BLBC	R0, PUT_ERR			; $PUT failed -> close + return
+                                     01E1   331
+                            52   D6  01E1   332 	INCL	R2
+              00000004'EF   52   D1  01E3   333 	CMPL	R2, HEIGHT
+                                     01EA   334 ; Invert + BRW: row body exceeds byte-branch range.
+                            03   18  01EA   335 	BGEQ	DONE
+                          FF61   31  01EC   336 	BRW	ROW_LOOP
+                                     01EF   337
+                                     01EF   338 ; -----------------------------------------------------------------------
+                                     01EF   339 ; Normal exit: close the file, then tell the user where the output went.
+                                     01EF   340 ; If $CLOSE fails we skip the "Done" message and return its error status.
+                                     01EF   341 ; -----------------------------------------------------------------------
+                                     01EF   342 DONE:	$CLOSE	FAB=OUT_FAB
+                         01 50   E8  01FC   343 	BLBS	R0, 70$
+                                 04  01FF   344 	RET
+                   000000F9'EF   DF  0200   345 70$:	PUSHAL	DONE_MSG
+              00000000'GF   01   FB  0206   346 	CALLS	#1, G^LIB$PUT_OUTPUT
+                                 04  020D   347 	RET
+                                     020E   348
+                                     020E   349 ; -----------------------------------------------------------------------
+                                     020E   350 ; $PUT failure inside the render loop -- preserve R0, best-effort close.
+                                     020E   351 ; -----------------------------------------------------------------------
+                                     020E   352 PUT_ERR:
+                            50   DD  020E   353 	PUSHL	R0
+                                     0210   354 	$CLOSE	FAB=OUT_FAB
+                            50 8ED0  021D   355 	POPL	R0
+                                 04  0220   356 	RET
+                                     0221   357
+                                     0221   358 ; -----------------------------------------------------------------------
+                                     0221   359 ; Input-validation error handlers (no file is open yet).
+                                     0221   360 ; -----------------------------------------------------------------------
+                                     0221   361 WIDTH_ERR:
+                   0000015A'EF   DF  0221   362 	PUSHAL	ERR_W
+              00000000'GF   01   FB  0227   363 	CALLS	#1, G^LIB$PUT_OUTPUT
+                       50   14   D0  022E   364 	MOVL	#SS$_BADPARAM, R0
+                                 04  0231   365 	RET
+                                     0232   366
+                                     0232   367 HEIGHT_ERR:
+                   00000186'EF   DF  0232   368 	PUSHAL	ERR_H
+              00000000'GF   01   FB  0238   369 	CALLS	#1, G^LIB$PUT_OUTPUT
+                       50   14   D0  023F   370 	MOVL	#SS$_BADPARAM, R0
+                                 04  0242   371 	RET
+                                     0243   372
+                                     0243   373 	.END	MANDELBROT
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   8
+Symbol table                                                             22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+$$.TAB                         = 00000410 R     02        PROMPT_W                         00000128 R     02
+$$.TABEND                      = 00000454 R     02        PUT_ERR                          0000020E R     04
+$$.TMP                         = 00000000                 RAB$B_RAC                      = 0000001E
+$$.TMP1                        = 00000001                 RAB$C_BID                      = 00000001
+$$.TMP2                        = 000000CF                 RAB$C_BLN                      = 00000044
+$$.TMPX                        = 00000000 R     03        RAB$C_SEQ                      = 00000000
+$$.TMPX1                       = 00000019                 RAB$L_CTX                      = 00000018
+COL_LOOP                         00000163 R     04        RAB$L_ROP                      = 00000004
+DONE                             000001EF R     04        RAB$W_ROP_2                    = 0000001C
+DONE_MSG                         000000F9 R     02        RAB$W_RSZ                      = 00000022
+DSC$K_CLASS_S                  = 00000001                 REAL_MAX                         0000000C R     02
+DSC$K_DTYPE_T                  = 0000000E                 REAL_MIN                         00000008 R     02
+DX                               0000001C R     02        ROW_BUF                          000001B4 R     02
+DY                               00000020 R     02        ROW_LOOP                         00000150 R     04
+ERR_H                            00000186 R     02        SS$_BADPARAM                   = 00000014
+ERR_W                            0000015A R     02        SYS$CLOSE                        ********  GX   04
+ESCAPED                          000001B5 R     04        SYS$CONNECT                      ********  GX   04
+FAB$B_FNS                      = 00000034                 SYS$CREATE                       ********  GX   04
+FAB$C_BID                      = 00000003                 SYS$PUT                          ********  GX   04
+FAB$C_BLN                      = 00000050                 WIDTH                            00000000 R     02
+FAB$C_SEQ                      = 00000000                 WIDTH_ERR                        00000221 R     04
+FAB$C_VAR                      = 00000002
+FAB$L_ALQ                      = 00000010
+FAB$L_FNA                      = 0000002C
+FAB$L_FOP                      = 00000004
+FAB$V_CHAN_MODE                = 00000002
+FAB$V_CR                       = 00000001
+FAB$V_FILE_MODE                = 00000004
+FAB$V_LNM_MODE                 = 00000000
+FAB$V_PUT                      = 00000000
+FAB$W_GBC                      = 00000048
+FOURF                            00000018 R     02
+GRADIENT                         000003B4 R     02
+GRADIENT_LEN                   = 0000000A
+HEIGHT                           00000004 R     02
+HEIGHT_ERR                       00000232 R     04
+IMAG_MAX                         00000014 R     02
+IMAG_MIN                         00000010 R     02
+INSET_CHAR                     = 00000040
+INTRO_1                          00000080 R     02
+INTRO_2                          000000AF R     02
+IN_BUF                           00000024 R     02
+IN_DESC                          00000078 R     02
+IN_LEN                           00000074 R     02
+IN_MAX                         = 00000050
+ITER_LOOP                        0000017A R     04
+LIB$GET_INPUT                    ********   X   04
+LIB$PUT_OUTPUT                   ********   X   04
+MANDELBROT                       00000000 RG    04
+MAX_H                          = 00001000
+MAX_ITER                       = 0000001E
+MAX_W                          = 00000200
+NEXT_COL                         000001C6 R     04
+OTS$CVT_TU_L                     ********   X   04
+OUT_FAB                          000003C0 R     02
+OUT_RAB                          00000410 R     02
+PROMPT_H                         00000141 R     02
+MANDELBROT                      ASCII Mandelbrot (user W x H) written to 22-APR-2026 17:01:26  VAX MACRO V5.4-3            Page   9
+Psect synopsis                                                           22-APR-2026 17:01:24  [MSW.CLAUDE]MANDELBROT.MAR;6      (1)
+
+
+                                                +----------------+
+                                                ! Psect synopsis !
+                                                +----------------+
+
+PSECT name                      Allocation          PSECT No.  Attributes     
+----------                      ----------          ---------  ----------     
+.  ABS  .                       00000000  (    0.)  00 (  0.)  NOPIC   USR   CON   ABS   LCL NOSHR NOEXE NORD  NOWRT NOVEC BYTE  
+$ABS$                           00000000  (    0.)  01 (  1.)  NOPIC   USR   CON   ABS   LCL NOSHR   EXE   RD    WRT NOVEC BYTE  
+MANDEL_DATA                     00000454  ( 1108.)  02 (  2.)  NOPIC   USR   CON   REL   LCL NOSHR NOEXE   RD    WRT NOVEC LONG  
+$RMSNAM                         00000019  (   25.)  03 (  3.)  NOPIC   USR   CON   REL   LCL NOSHR   EXE   RD    WRT NOVEC BYTE  
+MANDEL_CODE                     00000243  (  579.)  04 (  4.)  NOPIC   USR   CON   REL   LCL NOSHR   EXE   RD  NOWRT NOVEC LONG  
+
+                                             +------------------------+
+                                             ! Performance indicators !
+                                             +------------------------+
+
+Phase                    Page faults    CPU Time       Elapsed Time   
+-----                    -----------    --------       ------------   
+Initialization                  219     00:00:00.03    00:00:00.03
+Command processing              899     00:00:00.06    00:00:00.12
+Pass 1                          684     00:00:01.10    00:00:01.10
+Symbol table sort                 0     00:00:00.12    00:00:00.12
+Pass 2                          100     00:00:00.11    00:00:00.14
+Symbol table output              12     00:00:00.01    00:00:00.01
+Psect synopsis output             6     00:00:00.00    00:00:00.00
+Cross-reference output            0     00:00:00.00    00:00:00.00
+Assembler run totals           1944     00:00:01.43    00:00:01.52
+
+The working set limit was 1500 pages.
+70800 bytes (139 pages) of virtual memory were used to buffer the intermediate code.
+There were 80 pages of symbol table space allocated to hold 1358 non-local and 11 local symbols.
+373 source lines were read in Pass 1, producing 23 object records in Pass 2.
+26 pages of virtual memory were used to define 19 macros.
+
+                                            +--------------------------+
+                                            ! Macro library statistics !
+                                            +--------------------------+
+
+Macro library name                           Macros defined      
+------------------                           --------------      
+SYS$COMMON:[SYSLIB]STARLET.MLB;1                       16        
+
+1578 GETS were required to define 16 macros.
+
+There were no errors, warnings or information messages.
+
+MACRO/LIST MANDELBROT
