@@ -61,7 +61,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . v
+- [Preface](#preface)
 
 
 **Part I** **STR$ Tutorial Section**
@@ -70,105 +70,105 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Run-Time Library String Manipulation (STR$) Facility**
 
 
-1.1 Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.1.1 64-Bit Addressing Support (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . 1–3
+- [1.1 Overview](#11-overview)
+- 1.1.1 64-Bit Addressing Support (Alpha Only)
 
 
 **2** **Introduction to String Manipulation (STR$) Routines**
 
 
-2.1 String Semantics in the Run-Time Library . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.1.1 Fixed-Length Strings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.1.2 Varying-Length Strings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2.1.3 Dynamic-Length Strings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.1.4 Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.2 Descriptor Classes and String Semantics . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-2.2.1 Conventions for Reading Input String Arguments . . . . . . . . . . . . . . . . 2–6
-2.2.2 Semantics for Writing Output String Arguments . . . . . . . . . . . . . . . . . 2–7
-2.3 Selecting String Manipulation Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.3.1 Efficiency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.3.2 Argument Passing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–10
-2.3.3 Error Handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–10
-2.4 Allocating Resources for Dynamic Strings . . . . . . . . . . . . . . . . . . . . . . . . . 2–11
-2.4.1 String Zone . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
+- [2.1 String Semantics in the Run-Time Library](#21-string-semantics-in-the-run-time-library)
+- 2.1.1 Fixed-Length Strings
+- 2.1.2 Varying-Length Strings
+- 2.1.3 Dynamic-Length Strings
+- 2.1.4 Examples
+- [2.2 Descriptor Classes and String Semantics](#22-descriptor-classes-and-string-semantics)
+- 2.2.1 Conventions for Reading Input String Arguments
+- 2.2.2 Semantics for Writing Output String Arguments
+- [2.3 Selecting String Manipulation Routines](#23-selecting-string-manipulation-routines)
+- 2.3.1 Efficiency
+- 2.3.2 Argument Passing
+- 2.3.3 Error Handling
+- [2.4 Allocating Resources for Dynamic Strings](#24-allocating-resources-for-dynamic-strings)
+- 2.4.1 String Zone
 
 
 **Part II** **STR$ Reference Section**
 
 
-STR$ADD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–3
+- [STR$ADD](#stradd-add-two-decimal-strings)
 
-STR$ANALYZE_SDESC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–7
+- [STR$ANALYZE_SDESC](#stranalyze_sdesc-analyze-string-descriptor)
 
-STR$ANALYZE_SDESC_64 (Alpha only) . . . . . . . . . . . . . . . . . . . . . . . . . . STR–9
+- [STR$ANALYZE_SDESC_64 (Alpha only)](#stranalyze_sdesc_64-alpha-only-analyze-string-descriptor)
 
-STR$APPEND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–11
+- [STR$APPEND](#strappend-append-string)
 
-STR$CASE_BLIND_COMPARE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–13
+- [STR$CASE_BLIND_COMPARE](#strcase_blind_compare-compare-strings-without-regard-to-case)
 
-STR$COMPARE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–15
+- [STR$COMPARE](#strcompare-compare-two-strings)
 
-STR$COMPARE_EQL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–17
+- [STR$COMPARE_EQL](#strcompare_eql-compare-two-strings-for-equality)
 
-STR$COMPARE_MULTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–19
+- [STR$COMPARE_MULTI](#strcompare_multi-compare-two-strings-for-equality-using-multinational-character-set)
 
-STR$CONCAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–22
+- [STR$CONCAT](#strconcat-concatenate-two-or-more-strings)
 
-STR$COPY_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–25
+- [STR$COPY_DX](#strcopy_dx-copy-a-source-string-passed-by-descriptor-to-a-destination-string)
 
-STR$COPY_R . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–27
+- [STR$COPY_R](#strcopy_r-copy-a-source-string-passed-by-reference-to-destination-string)
 
-STR$COPY_R_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–29
+- [STR$COPY_R_64 (Alpha Only)](#strcopy_r_64-alpha-only-copy-a-source-string-passed-by-reference-to-destination-string)
 
-STR$DIVIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–31
+- [STR$DIVIDE](#strdivide-divide-two-decimal-strings)
 
-STR$DUPL_CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–35
+- [STR$DUPL_CHAR](#strdupl_char-duplicate-character-n-times)
 
 
 iii
 
 
-STR$ELEMENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–37
+- [STR$ELEMENT](#strelement-extract-delimited-element-substring)
 
-STR$FIND_FIRST_IN_SET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–39
+- [STR$FIND_FIRST_IN_SET](#strfind_first_in_set-find-first-character-in-a-set-of-characters)
 
-STR$FIND_FIRST_NOT_IN_SET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–41
+- [STR$FIND_FIRST_NOT_IN_SET](#strfind_first_not_in_set-find-first-character-that-does-not-occur-in-set)
 
-STR$FIND_FIRST_SUBSTRING . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–44
+- [STR$FIND_FIRST_SUBSTRING](#strfind_first_substring-find-first-substring-in-input-string)
 
-STR$FREE1_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–47
+- [STR$FREE1_DX](#strfree1_dx-free-one-dynamic-string)
 
-STR$GET1_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–49
+- [STR$GET1_DX](#strget1_dx-allocate-one-dynamic-string)
 
-STR$GET1_DX_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–51
+- [STR$GET1_DX_64 (Alpha Only)](#strget1_dx_64-alpha-only-allocate-one-dynamic-string)
 
-STR$LEFT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–53
+- [STR$LEFT](#strleft-extract-a-substring-of-a-string)
 
-STR$LEN_EXTR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–56
+- [STR$LEN_EXTR](#strlen_extr-extract-a-substring-of-a-string)
 
-STR$MATCH_WILD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–59
+- [STR$MATCH_WILD](#strmatch_wild-match-wildcard-specification)
 
-STR$MUL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–62
+- [STR$MUL](#strmul-multiply-two-decimal-strings)
 
-STR$POSITION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–66
+- [STR$POSITION](#strposition-return-relative-position-of-substring)
 
-STR$POS_EXTR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–69
+- [STR$POS_EXTR](#strpos_extr-extract-a-substring-of-a-string)
 
-STR$PREFIX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–71
+- [STR$PREFIX](#strprefix-prefix-a-string)
 
-STR$RECIP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–73
+- [STR$RECIP](#strrecip-reciprocal-of-a-decimal-string)
 
-STR$REPLACE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–77
+- [STR$REPLACE](#strreplace-replace-a-substring)
 
-STR$RIGHT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–80
+- [STR$RIGHT](#strright-extract-a-substring-of-a-string)
 
-STR$ROUND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–83
+- [STR$ROUND](#strround-round-or-truncate-a-decimal-string)
 
-STR$TRANSLATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–86
+- [STR$TRANSLATE](#strtranslate-translate-matched-characters)
 
-STR$TRIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–89
+- [STR$TRIM](#strtrim-trim-trailing-blanks-and-tabs)
 
-STR$UPCASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . STR–91
+- [STR$UPCASE](#strupcase-convert-string-to-all-uppercase-characters)
 
 
 **Index**
@@ -177,23 +177,23 @@ STR$UPCASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 **Tables**
 
 
-1–1 STR$ Mathematical Operation Routines . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1–2 STR$ Compare Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1–3 STR$ Extract and Replace Routines . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1–4 STR$ Append and Concatenate Routines . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1–5 STR$ Copy Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 STR$ Mathematical Operation Routines
+- 1–2 STR$ Compare Routines
+- 1–3 STR$ Extract and Replace Routines
+- 1–4 STR$ Append and Concatenate Routines
+- 1–5 STR$ Copy Routines
 
-1–6 STR$ Search Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
+- 1–6 STR$ Search Routines
 
-1–7 STR$ Allocate and Deallocate Routines . . . . . . . . . . . . . . . . . . . . . . . . 1–3
+- 1–7 STR$ Allocate and Deallocate Routines
 
-1–8 STR$ Miscellaneous Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
+- 1–8 STR$ Miscellaneous Routines
 
-2–1 String Passing Techniques Used by the Run-Time Library . . . . . . . . . 2–6
-2–2 How Run-Time Library Routines Read Strings . . . . . . . . . . . . . . . . . . 2–6
-2–3 Output String Semantics and Descriptor Classes . . . . . . . . . . . . . . . . 2–8
-2–4 Severe Errors, by Facility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–11
-2–5 String Zone Attributes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
+- 2–1 String Passing Techniques Used by the Run-Time Library
+- 2–2 How Run-Time Library Routines Read Strings
+- 2–3 Output String Semantics and Descriptor Classes
+- 2–4 Severe Errors, by Facility
+- 2–5 String Zone Attributes
 
 
 iv

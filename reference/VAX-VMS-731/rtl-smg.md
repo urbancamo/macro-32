@@ -65,7 +65,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xi
+- [Preface](#preface)
 
 
 **Part I** **SMG$ Tutorial Section**
@@ -74,130 +74,130 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Overview of the Screen Management Facility (SMG$)**
 
 
-1.1 Pasteboards . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
-1.2 Virtual Displays . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
-1.3 Viewports . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–6
-1.4 Virtual Keyboards . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–7
+- [1.1 Pasteboards](#11-pasteboards)
+- [1.2 Virtual Displays](#12-virtual-displays)
+- [1.3 Viewports](#13-viewports)
+- [1.4 Virtual Keyboards](#14-virtual-keyboards)
 
 
 **2** **Screen Management Output Operations**
 
 
-2.1 Composition Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.1.1 Paste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.1.2 Unpaste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2.1.3 Repaste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.1.4 Move Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.1.5 Delete and Pop Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-2.1.6 Occlusion Check Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.2 Output Through Virtual Displays . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.2.1 Cursor Position . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.2.2 Deletion Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.2.3 Erasure Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.2.4 Insertion Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.2.5 Writing Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.2.5.1 Character-Oriented Output . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.2.5.2 Line-Oriented Output . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.2.6 Changing the Rendition of a Virtual Display . . . . . . . . . . . . . . . . . . . . 2–9
-2.2.7 Drawing and Removing Drawn Lines and Characters . . . . . . . . . . . . . 2–11
-2.2.8 Displaying External Text . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.2.9 Reading from a Virtual Display . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.2.10 Viewports . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.2.10.1 Creating a Viewport . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.2.10.2 Deleting a Viewport . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.2.10.3 Pasting and Unpasting a Viewport . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2.10.4 Scrolling and Moving a Viewport . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2.10.5 Changing Viewport Characteristics . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2.11 Menus . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2.11.1 Creating a Menu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2.2.11.2 Deleting a Menu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2.2.11.3 Selecting from a Menu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2.2.11.3.1 Default Mode . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
+- [2.1 Composition Operations](#21-composition-operations)
+- 2.1.1 Paste Operation
+- 2.1.2 Unpaste Operation
+- 2.1.3 Repaste Operation
+- 2.1.4 Move Operation
+- 2.1.5 Delete and Pop Operations
+- 2.1.6 Occlusion Check Operation
+- [2.2 Output Through Virtual Displays](#22-output-through-virtual-displays)
+- 2.2.1 Cursor Position
+- 2.2.2 Deletion Operations
+- 2.2.3 Erasure Operations
+- 2.2.4 Insertion Operations
+- 2.2.5 Writing Operations
+- 2.2.5.1 Character-Oriented Output
+- 2.2.5.2 Line-Oriented Output
+- 2.2.6 Changing the Rendition of a Virtual Display
+- 2.2.7 Drawing and Removing Drawn Lines and Characters
+- 2.2.8 Displaying External Text
+- 2.2.9 Reading from a Virtual Display
+- 2.2.10 Viewports
+- 2.2.10.1 Creating a Viewport
+- 2.2.10.2 Deleting a Viewport
+- 2.2.10.3 Pasting and Unpasting a Viewport
+- 2.2.10.4 Scrolling and Moving a Viewport
+- 2.2.10.5 Changing Viewport Characteristics
+- 2.2.11 Menus
+- 2.2.11.1 Creating a Menu
+- 2.2.11.2 Deleting a Menu
+- 2.2.11.3 Selecting from a Menu
+- 2.2.11.3.1 Default Mode
 
-2.2.11.3.2 RETURN_IMMED Mode . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
+- 2.2.11.3.2 RETURN_IMMED Mode
 
 
 iii
 
 
-2.2.11.3.3 REMOVE_ITEM Mode . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.12 Saving a Virtual Display . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.13 Changing Terminal Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.14 Hardcopy and File Output Operations . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.14.1 Snapshots . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.14.2 Printing a Pasteboard . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.2.14.3 Pasteboard Output by Means of a User-Supplied Routine . . . . . . . 2–16
-2.3 Operational Controls . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.3.1 Minimal Update . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.3.2 Buffering . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.3.3 Tabs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.4 Batching Output Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
-2.4.1 Display Update Batching . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
-2.4.2 Pasteboard Update Batching . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
+- 2.2.11.3.3 REMOVE_ITEM Mode
+- 2.2.12 Saving a Virtual Display
+- 2.2.13 Changing Terminal Characteristics
+- 2.2.14 Hardcopy and File Output Operations
+- 2.2.14.1 Snapshots
+- 2.2.14.2 Printing a Pasteboard
+- 2.2.14.3 Pasteboard Output by Means of a User-Supplied Routine
+- [2.3 Operational Controls](#23-operational-controls)
+- 2.3.1 Minimal Update
+- 2.3.2 Buffering
+- 2.3.3 Tabs
+- [2.4 Batching Output Operations](#24-batching-output-operations)
+- 2.4.1 Display Update Batching
+- 2.4.2 Pasteboard Update Batching
 
 
 **3** **Screen Management Input Operations**
 
 
-3.1 Obtaining Data from Virtual Keyboards . . . . . . . . . . . . . . . . . . . . . . . . . . 3–1
-3.2 Obtaining Data from a Mouse or Tablet . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–2
-3.3 Setting and Retrieving Virtual Keyboard Characteristics . . . . . . . . . . . . . 3–2
-3.4 Line Composition Using Keypad Keys . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–2
-3.5 States . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
+- [3.1 Obtaining Data from Virtual Keyboards](#31-obtaining-data-from-virtual-keyboards)
+- [3.2 Obtaining Data from a Mouse or Tablet](#32-obtaining-data-from-a-mouse-or-tablet)
+- [3.3 Setting and Retrieving Virtual Keyboard Characteristics](#33-setting-and-retrieving-virtual-keyboard-characteristics)
+- [3.4 Line Composition Using Keypad Keys](#34-line-composition-using-keypad-keys)
+- [3.5 States](#35-states)
 
-3.6 Terminators . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
-3.6.1 Single-Character Terminators . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.6.2 Character Sequence Terminators . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.6.3 Termination by a Condition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–6
-3.6.4 Key Name and Terminator Code Translation . . . . . . . . . . . . . . . . . . . . 3–6
-3.6.5 Symbolic Definitions of Terminator Values . . . . . . . . . . . . . . . . . . . . . . 3–7
-3.7 Line Recall and the Recall Buffer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–7
-3.8 Interaction of Input and Output . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–7
+- [3.6 Terminators](#36-terminators)
+- 3.6.1 Single-Character Terminators
+- 3.6.2 Character Sequence Terminators
+- 3.6.3 Termination by a Condition
+- 3.6.4 Key Name and Terminator Code Translation
+- 3.6.5 Symbolic Definitions of Terminator Values
+- [3.7 Line Recall and the Recall Buffer](#37-line-recall-and-the-recall-buffer)
+- [3.8 Interaction of Input and Output](#38-interaction-of-input-and-output)
 
 
 **4** **Advanced Screen Management Features**
 
 
-4.1 Asynchronous Events . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.1.1 Broadcast Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.1.2 Unsolicited Input . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.1.3 Out-of-Band ASTs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.2 Subprocesses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.2.1 Creating a Subprocess . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.2.2 Deleting a Subprocess . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.2.3 Executing Commands in a Subprocess . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.3 Moving the Cursor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.4 Exit Handler . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
+- [4.1 Asynchronous Events](#41-asynchronous-events)
+- 4.1.1 Broadcast Messages
+- 4.1.2 Unsolicited Input
+- 4.1.3 Out-of-Band ASTs
+- [4.2 Subprocesses](#42-subprocesses)
+- 4.2.1 Creating a Subprocess
+- 4.2.2 Deleting a Subprocess
+- 4.2.3 Executing Commands in a Subprocess
+- [4.3 Moving the Cursor](#43-moving-the-cursor)
+- [4.4 Exit Handler](#44-exit-handler)
 
 
 **5** **Support for Third-Party Terminals**
 
 
-5.1 TERMTABLE Interface Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–1
-5.2 Capability Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
-5.2.1 Boolean Capability Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.2.2 Numeric Capability Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.2.3 String Capability Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
-5.2.4 Argument Substitution . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–14
-5.2.5 Arithmetic Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–15
-5.3 Creating an OpenVMS Terminal Capabilities File . . . . . . . . . . . . . . . . . . . 5–16
+- [5.1 TERMTABLE Interface Routines](#51-termtable-interface-routines)
+- [5.2 Capability Fields](#52-capability-fields)
+- 5.2.1 Boolean Capability Fields
+- 5.2.2 Numeric Capability Fields
+- 5.2.3 String Capability Fields
+- 5.2.4 Argument Substitution
+- 5.2.5 Arithmetic Operations
+- [5.3 Creating an OpenVMS Terminal Capabilities File](#53-creating-an-openvms-terminal-capabilities-file)
 
 
 iv
 
 
-5.4 Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–16
-5.5 Creating TERMTABLE.EXE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–20
-5.6 Capability Fields Used by Screen Management . . . . . . . . . . . . . . . . . . . . . 5–21
-5.7 Input Support for Foreign Terminals . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–22
-5.8 Support for SET and SHOW TERMINAL Commands . . . . . . . . . . . . . . . . 5–23
+- [5.4 Examples](#54-examples)
+- [5.5 Creating TERMTABLE.EXE](#55-creating-termtableexe)
+- [5.6 Capability Fields Used by Screen Management](#56-capability-fields-used-by-screen-management)
+- [5.7 Input Support for Foreign Terminals](#57-input-support-for-foreign-terminals)
+- [5.8 Support for SET and SHOW TERMINAL Commands](#58-support-for-set-and-show-terminal-commands)
 
 
 **6** **Using Screen Management Routines to Develop New Programs**
 
 
-6.1 Calling Screen Management Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–1
-6.2 Calling Routines That Do Not Use the Screen Management Facility . . . . . 6–3
+- [6.1 Calling Screen Management Routines](#61-calling-screen-management-routines)
+- [6.2 Calling Routines That Do Not Use the Screen Management Facility](#62-calling-routines-that-do-not-use-the-screen-management-facility)
 
 
 **7** **Examples of Calling SMG$ Routines**
@@ -206,256 +206,256 @@ iv
 **Part II** **SMG$ Reference Section**
 
 
-SMG$ADD_KEY_DEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–3
+- [SMG$ADD_KEY_DEF](#smgadd_key_def-add-key-definition)
 
-SMG$BEGIN_DISPLAY_UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–6
+- [SMG$BEGIN_DISPLAY_UPDATE](#smgbegin_display_update-begin-batching-of-display-updates)
 
-SMG$BEGIN_PASTEBOARD_UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–7
+- [SMG$BEGIN_PASTEBOARD_UPDATE](#smgbegin_pasteboard_update-begin-batching-of-pasteboard-updates)
 
-SMG$CANCEL_INPUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–8
+- [SMG$CANCEL_INPUT](#smgcancel_input-cancel-input-request)
 
-SMG$CHANGE_PBD_CHARACTERISTICS . . . . . . . . . . . . . . . . . . . . . . . SMG–9
+- [SMG$CHANGE_PBD_CHARACTERISTICS](#smgchange_pbd_characteristics-change-pasteboard-characteristics)
 
-SMG$CHANGE_RENDITION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–12
+- [SMG$CHANGE_RENDITION](#smgchange_rendition-change-default-rendition)
 
-SMG$CHANGE_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–15
+- [SMG$CHANGE_VIEWPORT](#smgchange_viewport-change-the-viewport-associated-with-a-virtual-display)
 
-SMG$CHANGE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–21
+- [SMG$CHANGE_VIRTUAL_DISPLAY](#smgchange_virtual_display-change-virtual-display)
 
-SMG$CHECK_FOR_OCCLUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–24
+- [SMG$CHECK_FOR_OCCLUSION](#smgcheck_for_occlusion-check-for-occlusion)
 
-SMG$CONTROL_MODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–28
+- [SMG$CONTROL_MODE](#smgcontrol_mode-control-mode)
 
-SMG$COPY_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–32
+- [SMG$COPY_VIRTUAL_DISPLAY](#smgcopy_virtual_display-copy-a-virtual-display)
 
-SMG$CREATE_KEY_TABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–38
+- [SMG$CREATE_KEY_TABLE](#smgcreate_key_table-create-key-table)
 
-SMG$CREATE_MENU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–39
+- [SMG$CREATE_MENU](#smgcreate_menu-fill-the-virtual-display-with-a-menu)
 
-SMG$CREATE_PASTEBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–43
+- [SMG$CREATE_PASTEBOARD](#smgcreate_pasteboard-create-a-pasteboard)
 
-SMG$CREATE_SUBPROCESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–47
+- [SMG$CREATE_SUBPROCESS](#smgcreate_subprocess-create-and-initialize-a-subprocess)
 
-SMG$CREATE_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–52
+- [SMG$CREATE_VIEWPORT](#smgcreate_viewport-create-a-virtual-viewport)
 
-SMG$CREATE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–56
+- [SMG$CREATE_VIRTUAL_DISPLAY](#smgcreate_virtual_display-create-a-virtual-display)
 
-SMG$CREATE_VIRTUAL_KEYBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–61
+- [SMG$CREATE_VIRTUAL_KEYBOARD](#smgcreate_virtual_keyboard-create-a-virtual-keyboard)
 
-SMG$CURSOR_COLUMN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–65
+- [SMG$CURSOR_COLUMN](#smgcursor_column-return-cursor-column-position)
 
-SMG$CURSOR_ROW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–66
+- [SMG$CURSOR_ROW](#smgcursor_row-return-cursor-row-position)
 
-SMG$DEFINE_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–67
+- [SMG$DEFINE_KEY](#smgdefine_key-perform-a-definekey-command)
 
-SMG$DELETE_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–69
+- [SMG$DELETE_CHARS](#smgdelete_chars-delete-characters)
 
-SMG$DELETE_KEY_DEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–74
+- [SMG$DELETE_KEY_DEF](#smgdelete_key_def-delete-key-definition)
 
-SMG$DELETE_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–76
+- [SMG$DELETE_LINE](#smgdelete_line-delete-line)
 
-SMG$DELETE_MENU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–80
+- [SMG$DELETE_MENU](#smgdelete_menu-end-access-to-a-menu-in-the-virtual-display)
 
-SMG$DELETE_PASTEBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–81
+- [SMG$DELETE_PASTEBOARD](#smgdelete_pasteboard-delete-pasteboard)
 
-SMG$DELETE_SUBPROCESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–83
+- [SMG$DELETE_SUBPROCESS](#smgdelete_subprocess-terminate-a-subprocess)
 
-SMG$DELETE_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–84
+- [SMG$DELETE_VIEWPORT](#smgdelete_viewport-delete-a-viewport)
 
-SMG$DELETE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–85
+- [SMG$DELETE_VIRTUAL_DISPLAY](#smgdelete_virtual_display-delete-virtual-display)
 
-SMG$DELETE_VIRTUAL_KEYBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–86
+- [SMG$DELETE_VIRTUAL_KEYBOARD](#smgdelete_virtual_keyboard-delete-virtual-keyboard)
 
-SMG$DEL_TERM_TABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–87
+- [SMG$DEL_TERM_TABLE](#smgdel_term_table-delete-terminal-table)
 
-SMG$DISABLE_BROADCAST_TRAPPING . . . . . . . . . . . . . . . . . . . . . . . SMG–88
+- [SMG$DISABLE_BROADCAST_TRAPPING](#smgdisable_broadcast_trapping-disable-broadcast-trapping)
 
-SMG$DISABLE_UNSOLICITED_INPUT . . . . . . . . . . . . . . . . . . . . . . . . . SMG–98
+- [SMG$DISABLE_UNSOLICITED_INPUT](#smgdisable_unsolicited_input-disable-unsolicited-input)
 
 
 v
 
 
-SMG$DRAW_CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–100
+- [SMG$DRAW_CHAR](#smgdraw_char-draw-a-character-in-a-virtual-display)
 
-SMG$DRAW_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–104
+- [SMG$DRAW_LINE](#smgdraw_line-draw-a-line)
 
-SMG$DRAW_RECTANGLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–109
+- [SMG$DRAW_RECTANGLE](#smgdraw_rectangle-draw-a-rectangle)
 
-SMG$ENABLE_UNSOLICITED_INPUT . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–114
+- [SMG$ENABLE_UNSOLICITED_INPUT](#smgenable_unsolicited_input-enable-unsolicited-input)
 
-SMG$END_DISPLAY_UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–117
+- [SMG$END_DISPLAY_UPDATE](#smgend_display_update-end-display-update)
 
-SMG$END_PASTEBOARD_UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–118
+- [SMG$END_PASTEBOARD_UPDATE](#smgend_pasteboard_update-end-pasteboard-update)
 
-SMG$ERASE_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–119
+- [SMG$ERASE_CHARS](#smgerase_chars-erase-characters)
 
-SMG$ERASE_COLUMN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–123
+- [SMG$ERASE_COLUMN](#smgerase_column-erase-column-from-display)
 
-SMG$ERASE_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–125
+- [SMG$ERASE_DISPLAY](#smgerase_display-erase-virtual-display)
 
-SMG$ERASE_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–130
+- [SMG$ERASE_LINE](#smgerase_line-erase-line)
 
-SMG$ERASE_PASTEBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–134
+- [SMG$ERASE_PASTEBOARD](#smgerase_pasteboard-erase-pasteboard)
 
-SMG$EXECUTE_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–136
+- [SMG$EXECUTE_COMMAND](#smgexecute_command-execute-command-in-a-subprocess)
 
-SMG$FIND_CURSOR_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–138
+- [SMG$FIND_CURSOR_DISPLAY](#smgfind_cursor_display-find-display-that-contains-the-cursor)
 
-SMG$FLUSH_BUFFER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–140
+- [SMG$FLUSH_BUFFER](#smgflush_buffer-flush-buffer)
 
-SMG$FLUSH_DISPLAY_UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–141
+- [SMG$FLUSH_DISPLAY_UPDATE](#smgflush_display_update-flush-display-update)
 
-SMG$GET_BROADCAST_MESSAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–142
+- [SMG$GET_BROADCAST_MESSAGE](#smgget_broadcast_message-get-broadcast-message)
 
-SMG$GET_CHAR_AT_PHYSICAL_CURSOR . . . . . . . . . . . . . . . . . . . . . . SMG–144
+- [SMG$GET_CHAR_AT_PHYSICAL_CURSOR](#smgget_char_at_physical_cursor-return-character-at-cursor)
 
-SMG$GET_DISPLAY_ATTR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–146
+- [SMG$GET_DISPLAY_ATTR](#smgget_display_attr-get-display-attributes)
 
-SMG$GET_KEYBOARD_ATTRIBUTES . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–149
+- [SMG$GET_KEYBOARD_ATTRIBUTES](#smgget_keyboard_attributes-get-keyboard-attributes)
 
-SMG$GET_KEY_DEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–152
+- [SMG$GET_KEY_DEF](#smgget_key_def-get-key-definition)
 
-SMG$GET_NUMERIC_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–155
+- [SMG$GET_NUMERIC_DATA](#smgget_numeric_data-get-numeric-terminal-data)
 
-SMG$GET_PASTEBOARD_ATTRIBUTES . . . . . . . . . . . . . . . . . . . . . . . . SMG–157
+- [SMG$GET_PASTEBOARD_ATTRIBUTES](#smgget_pasteboard_attributes-get-pasteboard-attributes)
 
-SMG$GET_PASTING_INFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–160
+- [SMG$GET_PASTING_INFO](#smgget_pasting_info-return-pasting-information)
 
-SMG$GET_TERM_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–162
+- [SMG$GET_TERM_DATA](#smgget_term_data-get-terminal-data)
 
-SMG$GET_VIEWPORT_CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–164
+- [SMG$GET_VIEWPORT_CHAR](#smgget_viewport_char-get-characteristics-of-display-viewport)
 
-SMG$HOME_CURSOR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–168
+- [SMG$HOME_CURSOR](#smghome_cursor-home-cursor)
 
-SMG$INIT_TERM_TABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–170
+- [SMG$INIT_TERM_TABLE](#smginit_term_table-initialize-terminal-table)
 
-SMG$INIT_TERM_TABLE_BY_TYPE . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–172
+- [SMG$INIT_TERM_TABLE_BY_TYPE](#smginit_term_table_by_type-initialize-termtable-by-openvms-terminal-type)
 
-SMG$INSERT_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–174
+- [SMG$INSERT_CHARS](#smginsert_chars-insert-characters)
 
-SMG$INSERT_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–180
+- [SMG$INSERT_LINE](#smginsert_line-insert-line)
 
-SMG$INVALIDATE_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–186
+- [SMG$INVALIDATE_DISPLAY](#smginvalidate_display-mark-a-display-as-invalid)
 
-SMG$KEYCODE_TO_NAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–187
+- [SMG$KEYCODE_TO_NAME](#smgkeycode_to_name-translate-a-key-code-into-a-key-name)
 
-SMG$LABEL_BORDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–189
+- [SMG$LABEL_BORDER](#smglabel_border-label-a-virtual-display-border)
 
-SMG$LIST_KEY_DEFS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–195
+- [SMG$LIST_KEY_DEFS](#smglist_key_defs-list-key-definitions)
 
-SMG$LIST_PASTEBOARD_ORDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–198
+- [SMG$LIST_PASTEBOARD_ORDER](#smglist_pasteboard_order-return-pasting-information)
 
-SMG$LIST_PASTING_ORDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–200
+- [SMG$LIST_PASTING_ORDER](#smglist_pasting_order-return-virtual-display-pasting-information)
 
-SMG$LOAD_KEY_DEFS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–202
+- [SMG$LOAD_KEY_DEFS](#smgload_key_defs-load-key-definitions)
 
-SMG$LOAD_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–204
+- [SMG$LOAD_VIRTUAL_DISPLAY](#smgload_virtual_display-load-a-virtual-display-from-a-file)
 
-SMG$MOVE_TEXT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–206
+- [SMG$MOVE_TEXT](#smgmove_text-move-text-from-one-virtual-display-to-another)
 
-SMG$MOVE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–209
+- [SMG$MOVE_VIRTUAL_DISPLAY](#smgmove_virtual_display-move-virtual-display)
 
-SMG$NAME_TO_KEYCODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–212
+- [SMG$NAME_TO_KEYCODE](#smgname_to_keycode-translate-a-key-name-into-a-key-code)
 
-SMG$PASTE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–214
+- [SMG$PASTE_VIRTUAL_DISPLAY](#smgpaste_virtual_display-paste-virtual-display)
 
-SMG$POP_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–216
+- [SMG$POP_VIRTUAL_DISPLAY](#smgpop_virtual_display-delete-a-series-of-virtual-displays)
 
-SMG$PRINT_PASTEBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–218
+- [SMG$PRINT_PASTEBOARD](#smgprint_pasteboard-print-pasteboard-using-a-print-queue)
 
-SMG$PUT_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–220
+- [SMG$PUT_CHARS](#smgput_chars-write-characters-to-a-virtual-display)
 
-SMG$PUT_CHARS_HIGHWIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–225
+- [SMG$PUT_CHARS_HIGHWIDE](#smgput_chars_highwide-write-double-height-double-width-characters)
 
-SMG$PUT_CHARS_MULTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–228
+- [SMG$PUT_CHARS_MULTI](#smgput_chars_multi-put-text-with-multiple-renditions-to-display)
 
 
 
 vi
 
 
-SMG$PUT_CHARS_WIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–231
+- [SMG$PUT_CHARS_WIDE](#smgput_chars_wide-write-double-width-characters)
 
-SMG$PUT_HELP_TEXT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–234
+- [SMG$PUT_HELP_TEXT](#smgput_help_text-output-help-text-to-the-display)
 
-SMG$PUT_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–237
+- [SMG$PUT_LINE](#smgput_line-write-line-to-virtual-display)
 
-SMG$PUT_LINE_HIGHWIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–243
+- [SMG$PUT_LINE_HIGHWIDE](#smgput_line_highwide-write-double-height-and-double-width-line)
 
-SMG$PUT_LINE_MULTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–246
+- [SMG$PUT_LINE_MULTI](#smgput_line_multi-write-line-with-multiple-renditions-to-display)
 
-SMG$PUT_LINE_WIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–251
+- [SMG$PUT_LINE_WIDE](#smgput_line_wide-write-double-width-line)
 
-SMG$PUT_PASTEBOARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–256
+- [SMG$PUT_PASTEBOARD](#smgput_pasteboard-output-pasteboard-using-routine)
 
-SMG$PUT_STATUS_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–258
+- [SMG$PUT_STATUS_LINE](#smgput_status_line-output-line-of-text-to-hardware-status-line)
 
-SMG$READ_COMPOSED_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–260
+- [SMG$READ_COMPOSED_LINE](#smgread_composed_line-read-composed-line)
 
-SMG$READ_FROM_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–265
+- [SMG$READ_FROM_DISPLAY](#smgread_from_display-read-text-from-display)
 
-SMG$READ_KEYSTROKE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–270
+- [SMG$READ_KEYSTROKE](#smgread_keystroke-read-a-single-character)
 
-SMG$READ_LOCATOR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–278
+- [SMG$READ_LOCATOR](#smgread_locator-read-locator-information)
 
-SMG$READ_STRING . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–282
+- [SMG$READ_STRING](#smgread_string-read-string)
 
-SMG$READ_VERIFY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–293
+- [SMG$READ_VERIFY](#smgread_verify-read-and-verify-a-string)
 
-SMG$REMOVE_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–300
+- [SMG$REMOVE_LINE](#smgremove_line-remove-a-line-from-a-virtual-display)
 
-SMG$REPAINT_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–302
+- [SMG$REPAINT_LINE](#smgrepaint_line-repaint-one-or-more-lines-on-the-current-pasteboard)
 
-SMG$REPAINT_SCREEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–304
+- [SMG$REPAINT_SCREEN](#smgrepaint_screen-repaint-current-pasteboard)
 
-SMG$REPASTE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–308
+- [SMG$REPASTE_VIRTUAL_DISPLAY](#smgrepaste_virtual_display-repaste-virtual-display)
 
-SMG$REPLACE_INPUT_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–314
+- [SMG$REPLACE_INPUT_LINE](#smgreplace_input_line-replace-input-line)
 
-SMG$RESTORE_PHYSICAL_SCREEN . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–317
+- [SMG$RESTORE_PHYSICAL_SCREEN](#smgrestore_physical_screen-restore-physical-pasteboard)
 
-SMG$RETURN_CURSOR_POS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–319
+- [SMG$RETURN_CURSOR_POS](#smgreturn_cursor_pos-return-cursor-position)
 
-SMG$RETURN_INPUT_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–321
+- [SMG$RETURN_INPUT_LINE](#smgreturn_input_line-return-input-line)
 
-SMG$RING_BELL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–324
+- [SMG$RING_BELL](#smgring_bell-ring-the-terminal-bell-or-buzzer)
 
-SMG$SAVE_PHYSICAL_SCREEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–325
+- [SMG$SAVE_PHYSICAL_SCREEN](#smgsave_physical_screen-save-physical-screen)
 
-SMG$SAVE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–327
+- [SMG$SAVE_VIRTUAL_DISPLAY](#smgsave_virtual_display-save-the-virtual-display-to-a-file)
 
-SMG$SCROLL_DISPLAY_AREA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–329
+- [SMG$SCROLL_DISPLAY_AREA](#smgscroll_display_area-scroll-display-area)
 
-SMG$SCROLL_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–332
+- [SMG$SCROLL_VIEWPORT](#smgscroll_viewport-scroll-a-display-under-a-viewport)
 
-SMG$SELECT_FROM_MENU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–339
+- [SMG$SELECT_FROM_MENU](#smgselect_from_menu-make-a-selection-from-the-menu)
 
-SMG$SET_BROADCAST_TRAPPING . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–355
+- [SMG$SET_BROADCAST_TRAPPING](#smgset_broadcast_trapping-enable-broadcast-trapping)
 
-SMG$SET_CURSOR_ABS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–357
+- [SMG$SET_CURSOR_ABS](#smgset_cursor_abs-set-absolute-cursor-position)
 
-SMG$SET_CURSOR_MODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–359
+- [SMG$SET_CURSOR_MODE](#smgset_cursor_mode-set-the-cursor-mode)
 
-SMG$SET_CURSOR_REL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–361
+- [SMG$SET_CURSOR_REL](#smgset_cursor_rel-move-cursor-relative-to-current-position)
 
-SMG$SET_DEFAULT_STATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–363
+- [SMG$SET_DEFAULT_STATE](#smgset_default_state-set-default-state)
 
-SMG$SET_DISPLAY_SCROLL_REGION . . . . . . . . . . . . . . . . . . . . . . . . . SMG–365
+- [SMG$SET_DISPLAY_SCROLL_REGION](#smgset_display_scroll_region-create-display-scrolling-region)
 
-SMG$SET_KEYPAD_MODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–367
+- [SMG$SET_KEYPAD_MODE](#smgset_keypad_mode-set-keypad-mode)
 
-SMG$SET_OUT_OF_BAND_ASTS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–369
+- [SMG$SET_OUT_OF_BAND_ASTS](#smgset_out_of_band_asts-set-out-of-band-asts)
 
-SMG$SET_PHYSICAL_CURSOR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–373
+- [SMG$SET_PHYSICAL_CURSOR](#smgset_physical_cursor-set-cursor-on-physical-screen)
 
-SMG$SET_TERM_CHARACTERISTICS . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–375
+- [SMG$SET_TERM_CHARACTERISTICS](#smgset_term_characteristics-change-terminal-characteristics)
 
-SMG$SNAPSHOT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–379
+- [SMG$SNAPSHOT](#smgsnapshot-write-snapshot)
 
-SMG$SNAPSHOT_TO_PRINTER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–381
+- [SMG$SNAPSHOT_TO_PRINTER](#smgsnapshot_to_printer-write-snapshot-to-printer)
 
-SMG$UNPASTE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–383
+- [SMG$UNPASTE_VIRTUAL_DISPLAY](#smgunpaste_virtual_display-remove-virtual-display)
 
 
 vii
@@ -467,154 +467,154 @@ vii
 **Examples**
 
 
-7–1 Using SMG$ Routines in Compaq Ada . . . . . . . . . . . . . . . . . . . . . . . . 7–1
-7–2 Using SMG$ Routines in Compaq BASIC . . . . . . . . . . . . . . . . . . . . . . 7–4
-7–3 Using SMG$ Routines in VAX BLISS-32 . . . . . . . . . . . . . . . . . . . . . . . 7–6
-7–4 Using SMG$ Routines in Compaq COBOL . . . . . . . . . . . . . . . . . . . . . 7–9
-7–5 Using SMG$ Routines in Compaq Fortran . . . . . . . . . . . . . . . . . . . . . . 7–10
-7–6 Using SMG$ Routines in VAX MACRO . . . . . . . . . . . . . . . . . . . . . . . . 7–12
-7–7 Using SMG$ Routines in Compaq Pascal . . . . . . . . . . . . . . . . . . . . . . . 7–14
-7–8 Using SMG$ Routines in VAX PL/I . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–16
+- 7–1 Using SMG$ Routines in Compaq Ada
+- 7–2 Using SMG$ Routines in Compaq BASIC
+- 7–3 Using SMG$ Routines in VAX BLISS-32
+- 7–4 Using SMG$ Routines in Compaq COBOL
+- 7–5 Using SMG$ Routines in Compaq Fortran
+- 7–6 Using SMG$ Routines in VAX MACRO
+- 7–7 Using SMG$ Routines in Compaq Pascal
+- 7–8 Using SMG$ Routines in VAX PL/I
 
 
 **Figures**
 
 
-1–1 Pasteboard Coordinate System . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
-2–1 Paste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2–2 Unpaste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2–3 Repaste Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2–4 Move Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-2–5 Pop Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
+- 1–1 Pasteboard Coordinate System
+- 2–1 Paste Operation
+- 2–2 Unpaste Operation
+- 2–3 Repaste Operation
+- 2–4 Move Operation
+- 2–5 Pop Operation
 
-2–6 Occlusion Check . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
+- 2–6 Occlusion Check
 
-2–7 Lines Drawn Without SMG$DRAW_LINE . . . . . . . . . . . . . . . . . . . . . . 2–11
+- 2–7 Lines Drawn Without SMG$DRAW_LINE
 
-2–8 Lines Drawn With SMG$DRAW_LINE . . . . . . . . . . . . . . . . . . . . . . . . 2–11
+- 2–8 Lines Drawn With SMG$DRAW_LINE
 
-SMG–1 Output Generated After Virtual Displays Are Pasted . . . . . . . . . . . . . SMG–18
-SMG–2 Output Generated After the Viewport Is Created . . . . . . . . . . . . . . . . SMG–19
-SMG–3 Output Generated After Calling SMG$CHANGE_VIEWPORT . . . . . . SMG–20
+- SMG–1 Output Generated After Virtual Displays Are Pasted
+- SMG–2 Output Generated After the Viewport Is Created
+- SMG–3 Output Generated After Calling SMG$CHANGE_VIEWPORT
 SMG–4 Output Generated by Fortran Program Calling
-SMG$CHECK_FOR_OCCLUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–27
+- [SMG$CHECK_FOR_OCCLUSION](#smgcheck_for_occlusion-check-for-occlusion)
 
 SMG–5 First Virtual Display Generated by
-SMG$COPY_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–35
+- [SMG$COPY_VIRTUAL_DISPLAY](#smgcopy_virtual_display-copy-a-virtual-display)
 
 SMG–6 Second Virtual Display Generated by
-SMG$COPY_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–36
+- [SMG$COPY_VIRTUAL_DISPLAY](#smgcopy_virtual_display-copy-a-virtual-display)
 
 SMG–7 Output Generated After the Call to
-SMG$COPY_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–37
+- [SMG$COPY_VIRTUAL_DISPLAY](#smgcopy_virtual_display-copy-a-virtual-display)
 
-SMG–8 Output Generated by Creating a Viewport . . . . . . . . . . . . . . . . . . . . . . SMG–55
+- SMG–8 Output Generated by Creating a Viewport
 SMG–9 Output of Fortran Program Calling
-SMG$CREATE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–60
+- [SMG$CREATE_VIRTUAL_DISPLAY](#smgcreate_virtual_display-create-a-virtual-display)
 
-SMG–10 Output Generated Before the Call to SMG$DELETE_CHARS . . . . . . SMG–72
-SMG–11 Output Generated After the Call to SMG$DELETE_CHARS . . . . . . . SMG–73
+- SMG–10 Output Generated Before the Call to SMG$DELETE_CHARS
+- SMG–11 Output Generated After the Call to SMG$DELETE_CHARS
 SMG–12 Output Generated by Fortran Program Before the Call to
-SMG$DELETE_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–78
+- [SMG$DELETE_LINE](#smgdelete_line-delete-line)
 
-SMG–13 Output Generated After the Call to SMG$DELETE_LINE . . . . . . . . . SMG–79
-SMG–14 Output Generated Before Any Input or Messages Are Trapped . . . . . . SMG–95
-SMG–15 Output Generated After a Broadcast Message Is Trapped . . . . . . . . . . SMG–96
-SMG–16 Output Generated After a Call to LIB$SPAWN . . . . . . . . . . . . . . . . . . SMG–97
+- SMG–13 Output Generated After the Call to SMG$DELETE_LINE
+- SMG–14 Output Generated Before Any Input or Messages Are Trapped
+- SMG–15 Output Generated After a Broadcast Message Is Trapped
+- SMG–16 Output Generated After a Call to LIB$SPAWN
 SMG–17 Output Generated by Fortran Program Calling
-SMG$DRAW_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–108
+- [SMG$DRAW_LINE](#smgdraw_line-draw-a-line)
 
 
 viii
 
 
 SMG–18 Output Generated by Fortran Program Calling
-SMG$DRAW_RECTANGLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–113
+- [SMG$DRAW_RECTANGLE](#smgdraw_rectangle-draw-a-rectangle)
 
-SMG–19 AST Routine Arguments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–115
-SMG–20 Output Before the Call to SMG$ERASE_CHARS . . . . . . . . . . . . . . . . SMG–121
-SMG–21 Output After the Call to SMG$ERASE_CHARS . . . . . . . . . . . . . . . . . SMG–122
+- SMG–19 AST Routine Arguments
+- SMG–20 Output Before the Call to SMG$ERASE_CHARS
+- SMG–21 Output After the Call to SMG$ERASE_CHARS
 SMG–22 Initial Output of Fortran Program Calling
-SMG$ERASE_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–128
+- [SMG$ERASE_DISPLAY](#smgerase_display-erase-virtual-display)
 
-SMG–23 Output Displayed After the Call to SMG$ERASE_DISPLAY . . . . . . . . SMG–129
+- SMG–23 Output Displayed After the Call to SMG$ERASE_DISPLAY
 SMG–24 Initial Output Generated by Fortran Program Calling
-SMG$ERASE_LINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–132
+- [SMG$ERASE_LINE](#smgerase_line-erase-line)
 
-SMG–25 Output Generated After the Call to SMG$ERASE_LINE . . . . . . . . . . SMG–133
-SMG–26 Output Generated by SMG$GET_VIEWPORT_CHAR . . . . . . . . . . . . . SMG–167
+- SMG–25 Output Generated After the Call to SMG$ERASE_LINE
+- SMG–26 Output Generated by SMG$GET_VIEWPORT_CHAR
 SMG–27 Output Generated by Fortran Program Before the Call to
-SMG$INSERT_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–178
+- [SMG$INSERT_CHARS](#smginsert_chars-insert-characters)
 
 SMG–28 Output Generated by Fortran Program After the Call to
-SMG$INSERT_CHARS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–179
+- [SMG$INSERT_CHARS](#smginsert_chars-insert-characters)
 
-SMG–29 Output Generated Before the Call to SMG$INSERT_LINE . . . . . . . . . SMG–184
-SMG–30 Output Generated After the Call to SMG$INSERT_LINE . . . . . . . . . . SMG–185
-SMG–31 Output Generated by Program Calling SMG$LABEL_BORDER . . . . . SMG–194
-SMG–32 Arguments for Moving Text . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–208
-SMG–33 Output of Fortran Program Calling SMG$PUT_CHARS . . . . . . . . . . . SMG–224
-SMG–34 Output Generated by Fortran Program Calling SMG$PUT_LINE . . . . SMG–241
+- SMG–29 Output Generated Before the Call to SMG$INSERT_LINE
+- SMG–30 Output Generated After the Call to SMG$INSERT_LINE
+- SMG–31 Output Generated by Program Calling SMG$LABEL_BORDER
+- SMG–32 Arguments for Moving Text
+- SMG–33 Output of Fortran Program Calling SMG$PUT_CHARS
+- SMG–34 Output Generated by Fortran Program Calling SMG$PUT_LINE
 SMG–35 Output Generated by Fortran Program Calling
-SMG$PUT_LINE_WIDE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–255
+- [SMG$PUT_LINE_WIDE](#smgput_line_wide-write-double-width-line)
 
 SMG–36 Output Generated by Fortran Program Calling
-SMG$READ_FROM_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–269
+- [SMG$READ_FROM_DISPLAY](#smgread_from_display-read-text-from-display)
 
 SMG–37 Output Generated by Fortran Program Calling
-SMG$READ_KEYSTROKE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–275
+- [SMG$READ_KEYSTROKE](#smgread_keystroke-read-a-single-character)
 
-SMG–38 Output Generated Before the Call to SMG$READ_STRING . . . . . . . . SMG–291
-SMG–39 Output Generated After the Call to SMG$READ_STRING . . . . . . . . . SMG–292
+- SMG–38 Output Generated Before the Call to SMG$READ_STRING
+- SMG–39 Output Generated After the Call to SMG$READ_STRING
 SMG–40 Output Generated by Fortran Program Calling
-SMG$REPAINT_SCREEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–306
+- [SMG$REPAINT_SCREEN](#smgrepaint_screen-repaint-current-pasteboard)
 
 SMG–41 Output Generated by Fortran Program Calling
-SMG$REPAINT_SCREEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–307
+- [SMG$REPAINT_SCREEN](#smgrepaint_screen-repaint-current-pasteboard)
 
-SMG–42 Output Before the Call to SMG$MOVE_VIRTUAL_DISPLAY . . . . . . . SMG–311
+- SMG–42 Output Before the Call to SMG$MOVE_VIRTUAL_DISPLAY
 SMG–43 Output Displayed After the Call to
-SMG$MOVE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–312
+- [SMG$MOVE_VIRTUAL_DISPLAY](#smgmove_virtual_display-move-virtual-display)
 
 SMG–44 Output Displayed After the Call to
-SMG$REPASTE_VIRTUAL_DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . SMG–313
+- [SMG$REPASTE_VIRTUAL_DISPLAY](#smgrepaste_virtual_display-repaste-virtual-display)
 
-SMG–45 Output Generated by Pasting the Virtual Display . . . . . . . . . . . . . . . . SMG–335
+- SMG–45 Output Generated by Pasting the Virtual Display
 SMG–46 Output Generated After First Call to SMG$SCROLL_VIEWPORT . . . SMG–336
 SMG–47 Output Generated After the Second Call to
-SMG$SCROLL_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–337
+- [SMG$SCROLL_VIEWPORT](#smgscroll_viewport-scroll-a-display-under-a-viewport)
 
 SMG–48 Output Generated After the Last Call to
-SMG$SCROLL_VIEWPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMG–338
+- [SMG$SCROLL_VIEWPORT](#smgscroll_viewport-scroll-a-display-under-a-viewport)
 
-SMG–49 Output Generated Before a Menu Selection Is Made . . . . . . . . . . . . . . SMG–346
-SMG–50 Output Generated After the User Selects an Item . . . . . . . . . . . . . . . . SMG–347
-SMG–51 Output Generated Before the User Selects a Menu Item . . . . . . . . . . . SMG–349
-SMG–52 Output Generated After Two Selections . . . . . . . . . . . . . . . . . . . . . . . . SMG–350
+- SMG–49 Output Generated Before a Menu Selection Is Made
+- SMG–50 Output Generated After the User Selects an Item
+- SMG–51 Output Generated Before the User Selects a Menu Item
+- SMG–52 Output Generated After Two Selections
 
 
 ix
 
 
-SMG–53 Output Generated After EXIT Is Selected . . . . . . . . . . . . . . . . . . . . . . SMG–351
-SMG–54 Output Generated Before a Menu Item Is Selected . . . . . . . . . . . . . . . SMG–352
-SMG–55 Output Generated After Three Menu Selections . . . . . . . . . . . . . . . . . SMG–353
-SMG–56 Output Generated After Program Completion . . . . . . . . . . . . . . . . . . . SMG–354
+- SMG–53 Output Generated After EXIT Is Selected
+- SMG–54 Output Generated Before a Menu Item Is Selected
+- SMG–55 Output Generated After Three Menu Selections
+- SMG–56 Output Generated After Program Completion
 
 
 **Tables**
 
 
-1–1 Routines That Support Third-Party Terminals . . . . . . . . . . . . . . . . . . . 1–1
-1–2 Input Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1–3 Output Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 Routines That Support Third-Party Terminals
+- 1–2 Input Routines
+- 1–3 Output Routines
 
-3–1 Terminator Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
+- 3–1 Terminator Values
 
-5–1 Boolean Capabilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5–2 Numeric Capabilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5–3 String Capabilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–7
-5–4 String_2 Capabilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–12
+- 5–1 Boolean Capabilities
+- 5–2 Numeric Capabilities
+- 5–3 String Capabilities
+- 5–4 String_2 Capabilities
 
 
 x

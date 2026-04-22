@@ -65,7 +65,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xi
+- [Preface](#preface)
 
 
 **Part I** **LIB$ Overview Section**
@@ -74,436 +74,436 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Overview of the LIB$ Facility**
 
 
-1.1 Run-Time Library LIB$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.1.1 64-Bit Addressing Support (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1.1.2 The LIB$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1.2 Translated Version of LIB$ Facility (Alpha Only) . . . . . . . . . . . . . . . . . . . 1–8
-1.3 Run-Time Library CVT$ Facility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
+- [1.1 Run-Time Library LIB$ Routines](#11-run-time-library-lib-routines)
+- 1.1.1 64-Bit Addressing Support (Alpha Only)
+- 1.1.2 The LIB$ Routines
+- [1.2 Translated Version of LIB$ Facility (Alpha Only)](#12-translated-version-of-lib-facility-alpha-only)
+- [1.3 Run-Time Library CVT$ Facility](#13-run-time-library-cvt-facility)
 
 
 **Part II** **LIB$ Reference Section**
 
 
-LIB$ADAWI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–3
+- [LIB$ADAWI](#libadawi-add-aligned-word-with-interlock)
 
-LIB$ADDX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–5
+- [LIB$ADDX](#libaddx-add-two-multiple-precision-binary-numbers)
 
-LIB$ADD_TIMES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–8
+- [LIB$ADD_TIMES](#libadd_times-add-two-quadword-times)
 
-LIB$ANALYZE_SDESC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–10
+- [LIB$ANALYZE_SDESC](#libanalyze_sdesc-analyze-string-descriptor)
 
-LIB$ANALYZE_SDESC_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . lib–12
+- [LIB$ANALYZE_SDESC_64 (Alpha Only)](#libanalyze_sdesc_64-alpha-only-analyze-string-descriptor)
 
-LIB$ASN_WTH_MBX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–14
+- [LIB$ASN_WTH_MBX](#libasn_wth_mbx-assign-channel-with-mailbox)
 
-LIB$AST_IN_PROG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–17
+- [LIB$AST_IN_PROG](#libast_in_prog-ast-in-progress)
 
-LIB$ATTACH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–19
+- [LIB$ATTACH](#libattach-attach-terminal-to-process)
 
-LIB$BBCCI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–21
+- [LIB$BBCCI](#libbbcci-test-and-clear-bit-with-interlock)
 
-LIB$BBSSI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–23
+- [LIB$BBSSI](#libbbssi-test-and-set-bit-with-interlock)
 
-LIB$BUILD_NODESPEC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–25
+- [LIB$BUILD_NODESPEC](#libbuild_nodespec-build-a-node-name-specification)
 
-LIB$CALLG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–28
+- [LIB$CALLG](#libcallg-call-routine-with-general-argument-list)
 
-LIB$CALLG_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–29
+- [LIB$CALLG_64 (Alpha Only)](#libcallg_64-alpha-only-call-routine-with-general-argument-list)
 
-LIB$CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–30
+- [LIB$CHAR](#libchar-transform-byte-to-first-character-of-string)
 
-LIB$COMPARE_NODENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–32
+- [LIB$COMPARE_NODENAME](#libcompare_nodename-compare-two-node-names)
 
-LIB$COMPRESS_NODENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–34
+- [LIB$COMPRESS_NODENAME](#libcompress_nodename-compress-a-node-name-to-its-short-form-equivalence)
 
-LIB$CONVERT_DATE_STRING . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–37
+- [LIB$CONVERT_DATE_STRING](#libconvert_date_string-convert-date-string-to-quadword)
 
-LIB$CRC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–41
+- [LIB$CRC](#libcrc-calculate-a-cyclic-redundancy-check-crc)
 
-LIB$CRC_TABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–43
+- [LIB$CRC_TABLE](#libcrc_table-construct-a-cyclic-redundancy-check-crc-table)
 
-LIB$CREATE_DIR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–46
+- [LIB$CREATE_DIR](#libcreate_dir-create-a-directory)
 
-LIB$CREATE_USER_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–50
+- [LIB$CREATE_USER_VM_ZONE](#libcreate_user_vm_zone-create-user-defined-storage-zone)
 
-LIB$CREATE_USER_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . lib–54
+- [LIB$CREATE_USER_VM_ZONE_64 (Alpha Only)](#libcreate_user_vm_zone_64-alpha-only-create-user-defined-storage-zone)
 
-LIB$CREATE_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–57
+- [LIB$CREATE_VM_ZONE](#libcreate_vm_zone-create-a-new-zone)
 
-LIB$CREATE_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . lib–63
+- [LIB$CREATE_VM_ZONE_64 (Alpha Only)](#libcreate_vm_zone_64-alpha-only-create-a-new-zone)
 
-LIB$CRF_INS_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–69
+- [LIB$CRF_INS_KEY](#libcrf_ins_key-insert-key-in-cross-reference-table)
 
-LIB$CRF_INS_REF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–71
+- [LIB$CRF_INS_REF](#libcrf_ins_ref-insert-reference-to-a-key-in-the-cross-reference-table)
 
 
 iii
 
 
-LIB$CRF_OUTPUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–74
+- [LIB$CRF_OUTPUT](#libcrf_output-output-cross-reference-table-information)
 
-LIB$CURRENCY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–78
+- [LIB$CURRENCY](#libcurrency-get-system-currency-symbol)
 
-LIB$CVTF_FROM_INTERNAL_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–80
+- [LIB$CVTF_FROM_INTERNAL_TIME](#libcvtf_from_internal_time-convert-internal-time-to-external-time-f-floating-point-value)
 
-LIB$CVTF_TO_INTERNAL_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–82
+- [LIB$CVTF_TO_INTERNAL_TIME](#libcvtf_to_internal_time-convert-external-time-to-internal-time-f-floating-point-value)
 
-LIB$CVT_DX_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–84
+- [LIB$CVT_DX_DX](#libcvt_dx_dx-general-data-type-conversion-routine)
 
-LIB$CVT_FROM_INTERNAL_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–90
+- [LIB$CVT_FROM_INTERNAL_TIME](#libcvt_from_internal_time-convert-internal-time-to-external-time)
 
-LIB$CVT_TO_INTERNAL_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–93
+- [LIB$CVT_TO_INTERNAL_TIME](#libcvt_to_internal_time-convert-external-time-to-internal-time)
 
-LIB$CVT_VECTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–95
+- [LIB$CVT_VECTIM](#libcvt_vectim-convert-7-word-vector-to-internal-time)
 
-LIB$CVT_xTB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–97
+- [LIB$CVT_xTB](#libcvt_xtb-convert-numeric-text-to-binary)
 
-LIB$CVT_xTB_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–99
+- [LIB$CVT_xTB_64 (Alpha Only)](#libcvt_xtb_64-alpha-only-convert-numeric-text-to-binary)
 
-LIB$DATE_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–101
+- [LIB$DATE_TIME](#libdate_time-date-and-time-returned-as-a-string)
 
-LIB$DAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–103
+- [LIB$DAY](#libday-day-number-returned-as-a-longword-integer)
 
-LIB$DAY_OF_WEEK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–105
+- [LIB$DAY_OF_WEEK](#libday_of_week-show-numeric-day-of-week)
 
-LIB$DECODE_FAULT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–107
+- [LIB$DECODE_FAULT](#libdecode_fault-decode-instruction-stream-during-fault)
 
-LIB$DEC_OVER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–126
+- [LIB$DEC_OVER](#libdec_over-enable-or-disable-decimal-overflow-detection)
 
-LIB$DELETE_FILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–128
+- [LIB$DELETE_FILE](#libdelete_file-delete-one-or-more-files)
 
-LIB$DELETE_LOGICAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–137
+- [LIB$DELETE_LOGICAL](#libdelete_logical-delete-logical-name)
 
-LIB$DELETE_SYMBOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–139
+- [LIB$DELETE_SYMBOL](#libdelete_symbol-delete-cli-symbol)
 
-LIB$DELETE_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–141
+- [LIB$DELETE_VM_ZONE](#libdelete_vm_zone-delete-virtual-memory-zone)
 
-LIB$DELETE_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . lib–143
+- [LIB$DELETE_VM_ZONE_64 (Alpha Only)](#libdelete_vm_zone_64-alpha-only-delete-virtual-memory-zone)
 
-LIB$DIGIT_SEP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–145
+- [LIB$DIGIT_SEP](#libdigit_sep-get-digit-separator-symbol)
 
-LIB$DISABLE_CTRL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–147
+- [LIB$DISABLE_CTRL](#libdisable_ctrl-disable-cli-interception-of-control-characters)
 
-LIB$DO_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–149
+- [LIB$DO_COMMAND](#libdo_command-execute-command)
 
-LIB$EDIV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–151
+- [LIB$EDIV](#libediv-extended-precision-divide)
 
-LIB$EMODD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–153
+- [LIB$EMODD](#libemodd-extended-multiply-and-integerize-routine-for-d-floating-point-values)
 
-LIB$EMODF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–155
+- [LIB$EMODF](#libemodf-extended-multiply-and-integerize-routine-for-f-floating-point-values)
 
-LIB$EMODG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–157
+- [LIB$EMODG](#libemodg-extended-multiply-and-integerize-routine-for-g-floating-point-values)
 
-LIB$EMODH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–159
+- [LIB$EMODH](#libemodh-extended-multiply-and-integerize-routine-for-h-floating-point-values)
 
-LIB$EMUL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–161
+- [LIB$EMUL](#libemul-extended-precision-multiply)
 
-LIB$ENABLE_CTRL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–163
+- [LIB$ENABLE_CTRL](#libenable_ctrl-enable-cli-interception-of-control-characters)
 
-LIB$ESTABLISH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–165
+- [LIB$ESTABLISH](#libestablish-establish-a-condition-handler)
 
-LIB$EXPAND_NODENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–167
+- [LIB$EXPAND_NODENAME](#libexpand_nodename-expand-a-node-name-to-its-full-name-equivalent)
 
-LIB$EXTV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–170
+- [LIB$EXTV](#libextv-extract-a-field-and-sign-extend)
 
-LIB$EXTZV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–173
+- [LIB$EXTZV](#libextzv-extract-a-zero-extended-field)
 
-LIB$FFx . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–175
+- [LIB$FFx](#libffx-find-first-clear-or-set-bit)
 
-LIB$FID_TO_NAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–177
+- [LIB$FID_TO_NAME](#libfid_to_name-convert-device-and-file-id-to-file-specification)
 
-LIB$FILE_SCAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–180
+- [LIB$FILE_SCAN](#libfile_scan-file-scan)
 
-LIB$FILE_SCAN_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–182
+- [LIB$FILE_SCAN_END](#libfile_scan_end-end-of-file-scan)
 
-LIB$FIND_FILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–184
+- [LIB$FIND_FILE](#libfind_file-find-file)
 
-LIB$FIND_FILE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–188
+- [LIB$FIND_FILE_END](#libfind_file_end-end-of-find-file)
 
-LIB$FIND_IMAGE_SYMBOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–189
+- [LIB$FIND_IMAGE_SYMBOL](#libfind_image_symbol-find-universal-symbol-in-shareable-image-file)
 
-LIB$FIND_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–193
+- [LIB$FIND_VM_ZONE](#libfind_vm_zone-return-the-next-valid-zone-identifier)
 
-LIB$FIND_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–195
+- [LIB$FIND_VM_ZONE_64 (Alpha Only)](#libfind_vm_zone_64-alpha-only-return-the-next-valid-zone-identifier)
 
-LIB$FIT_NODENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–197
+- [LIB$FIT_NODENAME](#libfit_nodename-fit-a-node-name-into-an-output-field)
 
-LIB$FIXUP_FLT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–200
+- [LIB$FIXUP_FLT](#libfixup_flt-fix-floating-reserved-operand)
 
-LIB$FLT_UNDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–202
+- [LIB$FLT_UNDER](#libflt_under-floating-point-underflow-detection)
 
-LIB$FORMAT_DATE_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–204
+- [LIB$FORMAT_DATE_TIME](#libformat_date_time-format-date-andor-time)
 
 
 
 iv
 
 
-LIB$FORMAT_SOGW_PROT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–207
+- [LIB$FORMAT_SOGW_PROT](#libformat_sogw_prot-format-protection-mask)
 
-LIB$FREE_DATE_TIME_CONTEXT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–209
+- [LIB$FREE_DATE_TIME_CONTEXT](#libfree_date_time_context-free-the-context-area-used-when-formatting-dates-and-times-for-input-or-output)
 
-LIB$FREE_EF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–210
+- [LIB$FREE_EF](#libfree_ef-free-event-flag)
 
-LIB$FREE_LUN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–211
+- [LIB$FREE_LUN](#libfree_lun-free-logical-unit-number)
 
-LIB$FREE_TIMER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–212
+- [LIB$FREE_TIMER](#libfree_timer-free-timer-storage)
 
-LIB$FREE_VM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–213
+- [LIB$FREE_VM](#libfree_vm-free-virtual-memory-from-program-region)
 
-LIB$FREE_VM_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–216
+- [LIB$FREE_VM_64 (Alpha Only)](#libfree_vm_64-alpha-only-free-virtual-memory-from-program-region)
 
-LIB$FREE_VM_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–219
+- [LIB$FREE_VM_PAGE](#libfree_vm_page-free-virtual-memory-page)
 
-LIB$FREE_VM_PAGE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . lib–221
+- [LIB$FREE_VM_PAGE_64 (Alpha Only)](#libfree_vm_page_64-alpha-only-free-virtual-memory-page)
 
-LIB$GETDVI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–223
+- [LIB$GETDVI](#libgetdvi-get-devicevolume-information)
 
-LIB$GETJPI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–228
+- [LIB$GETJPI](#libgetjpi-get-jobprocess-information)
 
-LIB$GETQUI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–233
+- [LIB$GETQUI](#libgetqui-get-queue-information)
 
-LIB$GETSYI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–238
+- [LIB$GETSYI](#libgetsyi-get-systemwide-information)
 
-LIB$GET_ACCNAM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–242
+- [LIB$GET_ACCNAM](#libget_accnam-get-access-name-table-for-protected-object-class-by-name)
 
-LIB$GET_ACCNAM_BY_CONTEXT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–244
+- [LIB$GET_ACCNAM_BY_CONTEXT](#libget_accnam_by_context-get-access-name-table-for-protected-object-class-by-context)
 
-LIB$GET_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–246
+- [LIB$GET_COMMAND](#libget_command-get-line-from-syscommand)
 
-LIB$GET_COMMON . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–249
+- [LIB$GET_COMMON](#libget_common-get-string-from-common)
 
-LIB$GET_CURR_INVO_CONTEXT (Alpha Only) . . . . . . . . . . . . . . . . . . . lib–251
+- [LIB$GET_CURR_INVO_CONTEXT (Alpha Only)](#libget_curr_invo_context-alpha-only-get-current-invocation-context)
 
-LIB$GET_DATE_FORMAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–252
+- [LIB$GET_DATE_FORMAT](#libget_date_format-get-the-users-date-input-format)
 
-LIB$GET_EF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–254
+- [LIB$GET_EF](#libget_ef-get-event-flag)
 
-LIB$GET_FOREIGN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–256
+- [LIB$GET_FOREIGN](#libget_foreign-get-foreign-command-line)
 
-LIB$GET_FULLNAME_OFFSET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–259
+- [LIB$GET_FULLNAME_OFFSET](#libget_fullname_offset-get-the-offset-to-the-starting-position-of-the-most-significant-part-of-a-full-name)
 
-LIB$GET_HOSTNAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–261
+- [LIB$GET_HOSTNAME](#libget_hostname-get-host-node-name)
 
-LIB$GET_INPUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–264
+- [LIB$GET_INPUT](#libget_input-get-line-from-sysinput)
 
-LIB$GET_INVO_CONTEXT (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . lib–267
-LIB$GET_INVO_HANDLE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . lib–268
+- [LIB$GET_INVO_CONTEXT (Alpha Only)](#libget_invo_context-alpha-only-get-invocation-context)
+- [LIB$GET_INVO_HANDLE (Alpha Only)](#libget_invo_handle-alpha-only-get-invocation-handle)
 
-LIB$GET_LOGICAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–269
+- [LIB$GET_LOGICAL](#libget_logical-get-logical-name)
 
-LIB$GET_LUN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–272
+- [LIB$GET_LUN](#libget_lun-get-logical-unit-number)
 
-LIB$GET_MAXIMUM_DATE_LENGTH . . . . . . . . . . . . . . . . . . . . . . . . . . lib–274
+- [LIB$GET_MAXIMUM_DATE_LENGTH](#libget_maximum_date_length-retrieve-the-maximum-length-of-a-datetime-string)
 
-LIB$GET_PREV_INVO_CONTEXT (Alpha Only) . . . . . . . . . . . . . . . . . . . lib–276
-LIB$GET_PREV_INVO_HANDLE (Alpha Only) . . . . . . . . . . . . . . . . . . . . lib–277
+- [LIB$GET_PREV_INVO_CONTEXT (Alpha Only)](#libget_prev_invo_context-alpha-only-get-previous-invocation-context)
+- [LIB$GET_PREV_INVO_HANDLE (Alpha Only)](#libget_prev_invo_handle-alpha-only-get-previous-invocation-handle)
 
-LIB$GET_SYMBOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–278
+- [LIB$GET_SYMBOL](#libget_symbol-get-value-of-cli-symbol)
 
-LIB$GET_USERS_LANGUAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–281
+- [LIB$GET_USERS_LANGUAGE](#libget_users_language-return-the-users-language)
 
-LIB$GET_VM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–282
+- [LIB$GET_VM](#libget_vm-allocate-virtual-memory)
 
-LIB$GET_VM_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–284
+- [LIB$GET_VM_64 (Alpha Only)](#libget_vm_64-alpha-only-allocate-virtual-memory)
 
-LIB$GET_VM_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–286
+- [LIB$GET_VM_PAGE](#libget_vm_page-get-virtual-memory-page)
 
-LIB$GET_VM_PAGE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–288
+- [LIB$GET_VM_PAGE_64 (Alpha Only)](#libget_vm_page_64-alpha-only-get-virtual-memory-page)
 
-LIB$ICHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–290
+- [LIB$ICHAR](#libichar-convert-first-character-of-string-to-integer)
 
-LIB$INDEX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–292
+- [LIB$INDEX](#libindex-index-to-relative-position-of-substring)
 
-LIB$INIT_DATE_TIME_CONTEXT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–294
+- [LIB$INIT_DATE_TIME_CONTEXT](#libinit_date_time_context-initialize-the-context-area-used-in-formatting-dates-and-times-for-input-or-output)
 
-LIB$INIT_TIMER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–298
+- [LIB$INIT_TIMER](#libinit_timer-initialize-times-and-counts)
 
-LIB$INSERT_TREE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–300
+- [LIB$INSERT_TREE](#libinsert_tree-insert-entry-in-a-balanced-binary-tree)
 
-LIB$INSERT_TREE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–309
-LIB$INSQHI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–318
+- [LIB$INSERT_TREE_64 (Alpha Only)](#libinsert_tree_64-alpha-only-insert-entry-in-a-balanced-binary-tree)
+- [LIB$INSQHI](#libinsqhi-insert-entry-at-head-of-queue)
 
-LIB$INSQHIQ (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–321
-LIB$INSQTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–324
+- [LIB$INSQHIQ (Alpha Only)](#libinsqhiq-alpha-only-insert-entry-at-head-of-queue)
+- [LIB$INSQTI](#libinsqti-insert-entry-at-tail-of-queue)
 
-LIB$INSQTIQ (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–327
+- [LIB$INSQTIQ (Alpha Only)](#libinsqtiq-alpha-only-insert-entry-at-tail-of-queue)
 
 
 v
 
 
-LIB$INSV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–330
+- [LIB$INSV](#libinsv-insert-a-variable-bit-field)
 
-LIB$INT_OVER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–332
+- [LIB$INT_OVER](#libint_over-integer-overflow-detection)
 
-LIB$LEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–334
+- [LIB$LEN](#liblen-length-of-string-returned-as-longword-value)
 
-LIB$LOCC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–335
+- [LIB$LOCC](#liblocc-locate-a-character)
 
-LIB$LOOKUP_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–338
+- [LIB$LOOKUP_KEY](#liblookup_key-look-up-keyword-in-table)
 
-LIB$LOOKUP_TREE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–342
+- [LIB$LOOKUP_TREE](#liblookup_tree-look-up-an-entry-in-a-balanced-binary-tree)
 
-LIB$LOOKUP_TREE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–344
+- [LIB$LOOKUP_TREE_64 (Alpha Only)](#liblookup_tree_64-alpha-only-look-up-an-entry-in-a-balanced-binary-tree)
 
-LIB$LP_LINES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–346
+- [LIB$LP_LINES](#liblp_lines-lines-on-each-printer-page)
 
-LIB$MATCHC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–348
+- [LIB$MATCHC](#libmatchc-match-characters-return-relative-position)
 
-LIB$MATCH_COND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–350
+- [LIB$MATCH_COND](#libmatch_cond-match-condition-values)
 
-LIB$MOVC3 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–353
+- [LIB$MOVC3](#libmovc3-move-characters)
 
-LIB$MOVC5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–355
+- [LIB$MOVC5](#libmovc5-move-characters-with-fill)
 
-LIB$MOVTC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–357
+- [LIB$MOVTC](#libmovtc-move-translated-characters)
 
-LIB$MOVTUC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–374
+- [LIB$MOVTUC](#libmovtuc-move-translated-until-character)
 
-LIB$MULTF_DELTA_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–377
+- [LIB$MULTF_DELTA_TIME](#libmultf_delta_time-multiply-delta-time-by-an-f-floating-scalar)
 
-LIB$MULT_DELTA_TIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–378
+- [LIB$MULT_DELTA_TIME](#libmult_delta_time-multiply-delta-time-by-scalar)
 
-LIB$PARSE_ACCESS_CODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–379
+- [LIB$PARSE_ACCESS_CODE](#libparse_access_code-parse-access-encoded-name-string)
 
-LIB$PARSE_SOGW_PROT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–382
+- [LIB$PARSE_SOGW_PROT](#libparse_sogw_prot-parse-protection-string)
 
-LIB$PAUSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–385
+- [LIB$PAUSE](#libpause-pause-program-execution)
 
-LIB$POLYD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–386
+- [LIB$POLYD](#libpolyd-evaluate-polynomials)
 
-LIB$POLYF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–388
+- [LIB$POLYF](#libpolyf-evaluate-polynomials)
 
-LIB$POLYG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–391
+- [LIB$POLYG](#libpolyg-evaluate-polynomials)
 
-LIB$POLYH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–393
+- [LIB$POLYH](#libpolyh-evaluate-polynomials)
 
-LIB$PUT_COMMON . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–395
+- [LIB$PUT_COMMON](#libput_common-put-string-to-common)
 
-LIB$PUT_INVO_REGISTERS (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . lib–397
+- [LIB$PUT_INVO_REGISTERS (Alpha Only)](#libput_invo_registers-alpha-only-put-invocation-registers)
 
-LIB$PUT_OUTPUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–399
+- [LIB$PUT_OUTPUT](#libput_output-put-line-to-sysoutput)
 
-LIB$RADIX_POINT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–401
+- [LIB$RADIX_POINT](#libradix_point-radix-point-symbol)
 
-LIB$REMQHI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–403
+- [LIB$REMQHI](#libremqhi-remove-entry-from-head-of-queue)
 
-LIB$REMQHIQ (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–406
-LIB$REMQTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–409
+- [LIB$REMQHIQ (Alpha Only)](#libremqhiq-alpha-only-remove-entry-from-head-of-queue)
+- [LIB$REMQTI](#libremqti-remove-entry-from-tail-of-queue)
 
-LIB$REMQTIQ (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–412
+- [LIB$REMQTIQ (Alpha Only)](#libremqtiq-alpha-only-remove-entry-from-tail-of-queue)
 
-LIB$RENAME_FILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–415
+- [LIB$RENAME_FILE](#librename_file-rename-one-or-more-files)
 
-LIB$RESERVE_EF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–424
+- [LIB$RESERVE_EF](#libreserve_ef-reserve-event-flag)
 
-LIB$RESET_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–426
+- [LIB$RESET_VM_ZONE](#libreset_vm_zone-reset-virtual-memory-zone)
 
-LIB$RESET_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . lib–428
+- [LIB$RESET_VM_ZONE_64 (Alpha Only)](#libreset_vm_zone_64-alpha-only-reset-virtual-memory-zone)
 
-LIB$REVERT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–430
+- [LIB$REVERT](#librevert-revert-to-the-handler-of-the-routine-activator)
 
-LIB$RUN_PROGRAM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–431
+- [LIB$RUN_PROGRAM](#librun_program-run-new-program)
 
-LIB$SCANC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–433
+- [LIB$SCANC](#libscanc-scan-for-characters-and-return-relative-position)
 
-LIB$SCOPY_DXDX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–435
+- [LIB$SCOPY_DXDX](#libscopy_dxdx-copy-source-string-passed-by-descriptor-to-destination)
 
-LIB$SCOPY_R_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–437
+- [LIB$SCOPY_R_DX](#libscopy_r_dx-copy-source-string-passed-by-reference-to-destination-string)
 
-LIB$SCOPY_R_DX_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–439
+- [LIB$SCOPY_R_DX_64 (Alpha Only)](#libscopy_r_dx_64-alpha-only-copy-source-string-passed-by-reference-to-destination-string)
 
-LIB$SET_LOGICAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–441
+- [LIB$SET_LOGICAL](#libset_logical-set-logical-name)
 
-LIB$SET_SYMBOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–444
+- [LIB$SET_SYMBOL](#libset_symbol-set-value-of-cli-symbol)
 
-LIB$SFREE1_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–447
+- [LIB$SFREE1_DD](#libsfree1_dd-free-one-dynamic-string)
 
-LIB$SFREEN_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–448
+- [LIB$SFREEN_DD](#libsfreen_dd-free-one-or-more-dynamic-strings)
 
-LIB$SGET1_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–450
+- [LIB$SGET1_DD](#libsget1_dd-get-one-dynamic-string)
 
-LIB$SGET1_DD_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–452
+- [LIB$SGET1_DD_64 (Alpha Only)](#libsget1_dd_64-alpha-only-get-one-dynamic-string)
 
 
 
 vi
 
 
-LIB$SHOW_TIMER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–454
+- [LIB$SHOW_TIMER](#libshow_timer-show-accumulated-times-and-counts)
 
-LIB$SHOW_VM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–458
+- [LIB$SHOW_VM](#libshow_vm-show-virtual-memory-statistics)
 
-LIB$SHOW_VM_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–461
+- [LIB$SHOW_VM_64 (Alpha Only)](#libshow_vm_64-alpha-only-show-virtual-memory-statistics)
 
-LIB$SHOW_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–464
+- [LIB$SHOW_VM_ZONE](#libshow_vm_zone-return-information-about-a-zone)
 
-LIB$SHOW_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . lib–470
+- [LIB$SHOW_VM_ZONE_64 (Alpha Only)](#libshow_vm_zone_64-alpha-only-return-information-about-a-zone)
 
-LIB$SIGNAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–476
+- [LIB$SIGNAL](#libsignal-signal-exception-condition)
 
-LIB$SIG_TO_RET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–481
+- [LIB$SIG_TO_RET](#libsig_to_ret-signal-converted-to-a-return-status)
 
-LIB$SIG_TO_STOP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–483
+- [LIB$SIG_TO_STOP](#libsig_to_stop-convert-a-signaled-condition-to-a-signaled-stop)
 
-LIB$SIM_TRAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–485
+- [LIB$SIM_TRAP](#libsim_trap-simulate-floating-trap)
 
-LIB$SKPC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–487
+- [LIB$SKPC](#libskpc-skip-equal-characters)
 
-LIB$SPANC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–489
+- [LIB$SPANC](#libspanc-skip-selected-characters)
 
-LIB$SPAWN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–493
+- [LIB$SPAWN](#libspawn-spawn-subprocess)
 
-LIB$STAT_TIMER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–499
+- [LIB$STAT_TIMER](#libstat_timer-statistics-return-accumulated-times-and-counts)
 
-LIB$STAT_VM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–503
+- [LIB$STAT_VM](#libstat_vm-return-virtual-memory-statistics)
 
-LIB$STAT_VM_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–505
+- [LIB$STAT_VM_64 (Alpha Only)](#libstat_vm_64-alpha-only-return-virtual-memory-statistics)
 
-LIB$STOP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–507
+- [LIB$STOP](#libstop-stop-execution-and-signal-the-condition)
 
-LIB$SUBX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–509
+- [LIB$SUBX](#libsubx-multiple-precision-binary-subtraction)
 
-LIB$SUB_TIMES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–511
+- [LIB$SUB_TIMES](#libsub_times-subtract-two-quadword-times)
 
-LIB$SYS_ASCTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–513
+- [LIB$SYS_ASCTIM](#libsys_asctim-invoke-asctim-to-convert-binary-time-to-ascii-string)
 
-LIB$SYS_FAO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–515
+- [LIB$SYS_FAO](#libsys_fao-invoke-fao-system-service-to-format-output)
 
-LIB$SYS_FAOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–517
+- [LIB$SYS_FAOL](#libsys_faol-invoke-faol-system-service-to-format-output)
 
-LIB$SYS_FAOL_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–519
+- [LIB$SYS_FAOL_64 (Alpha Only)](#libsys_faol_64-alpha-only-invoke-faol_64-system-service-to-format-output)
 
-LIB$SYS_GETMSG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–521
+- [LIB$SYS_GETMSG](#libsys_getmsg-invoke-getmsg-system-service-to-get-message-text)
 
-LIB$TPARSE/LIB$TABLE_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–524
+- [LIB$TPARSE/LIB$TABLE_PARSE](#libtparselibtable_parse-table-driven-finite-state-parser)
 
-LIB$TRAVERSE_TREE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–584
+- [LIB$TRAVERSE_TREE](#libtraverse_tree-traverse-a-balanced-binary-tree)
 
-LIB$TRAVERSE_TREE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . lib–586
+- [LIB$TRAVERSE_TREE_64 (Alpha Only)](#libtraverse_tree_64-alpha-only-traverse-a-balanced-binary-tree)
 
-LIB$TRA_ASC_EBC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–588
+- [LIB$TRA_ASC_EBC](#libtra_asc_ebc-translate-ascii-to-ebcdic)
 
-LIB$TRA_EBC_ASC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–592
+- [LIB$TRA_EBC_ASC](#libtra_ebc_asc-translate-ebcdic-to-ascii)
 
-LIB$TRIM_FILESPEC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–595
+- [LIB$TRIM_FILESPEC](#libtrim_filespec-fit-long-file-specification-into-fixed-field)
 
-LIB$TRIM_FULLNAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–598
+- [LIB$TRIM_FULLNAME](#libtrim_fullname-trim-a-full-name-to-fit-into-a-desired-output-field)
 
-LIB$VERIFY_VM_ZONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–601
+- [LIB$VERIFY_VM_ZONE](#libverify_vm_zone-verify-a-zone)
 
-LIB$VERIFY_VM_ZONE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . lib–602
+- [LIB$VERIFY_VM_ZONE_64 (Alpha Only)](#libverify_vm_zone_64-alpha-only-verify-a-zone)
 
-LIB$WAIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–603
+- [LIB$WAIT](#libwait-wait-a-specified-period-of-time)
 
 
 **Part III** **CVT$ Reference Section**
 
 
-CVT$CONVERT_FLOAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . cvt–3
+- [CVT$CONVERT_FLOAT](#cvtconvert_float-convert-floating-point-data-type)
 
-CVT$FTOF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . cvt–9
+- [CVT$FTOF](#cvtftof-convert-floating-point-data-type)
 
 
 **Index**
@@ -515,93 +515,93 @@ vii
 **Figures**
 
 
-lib–1 Structure of a Protection Mask . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–47
+- lib–1 Structure of a Protection Mask
 
-lib–2 Summary of Symbol Names and Values . . . . . . . . . . . . . . . . . . . . . . . . lib–76
+- lib–2 Summary of Symbol Names and Values
 lib–3 Summary of Symbol Names, Values, and Names of Referring
-Modules . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–76
+- Modules
 
-lib–4 Summary Indicating Defining Modules . . . . . . . . . . . . . . . . . . . . . . . . lib–77
-lib–5 Keyword Table . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–339
+- lib–4 Summary Indicating Defining Modules
+- lib–5 Keyword Table
 
-lib–6 LIB$AB_ASC_EBC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–359
+- lib–6 LIB$AB_ASC_EBC
 
-lib–7 LIB$AB_ASC_EBC_REV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–360
+- lib–7 LIB$AB_ASC_EBC_REV
 
-lib–8 LIB$AB_EBC_ASC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–361
+- lib–8 LIB$AB_EBC_ASC
 
-lib–9 LIB$AB_EBC_ASC_REV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–362
+- lib–9 LIB$AB_EBC_ASC_REV
 
-lib–10 LIB$AB_CVTPT_O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–363
+- lib–10 LIB$AB_CVTPT_O
 
-lib–11 LIB$AB_CVTPT_U . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–364
+- lib–11 LIB$AB_CVTPT_U
 
-lib–12 LIB$AB_CVTTP_O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–365
+- lib–12 LIB$AB_CVTTP_O
 
-lib–13 LIB$AB_CVTTP_U . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–366
+- lib–13 LIB$AB_CVTTP_U
 
-lib–14 LIB$AB_CVT_O_U . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–367
+- lib–14 LIB$AB_CVT_O_U
 
-lib–15 LIB$AB_CVT_U_O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–368
+- lib–15 LIB$AB_CVT_U_O
 
-lib–16 LIB$AB_CVTPT_Z . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–369
+- lib–16 LIB$AB_CVTPT_Z
 
-lib–17 LIB$AB_CVTTP_Z . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–370
+- lib–17 LIB$AB_CVTTP_Z
 
-lib–18 LIB$AB_UPCASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–371
+- lib–18 LIB$AB_UPCASE
 
-lib–19 LIB$AB_LOWERCASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–372
+- lib–19 LIB$AB_LOWERCASE
 
-lib–20 LIB$T[ABLE_]PARSE 32-Bit Argument Block . . . . . . . . . . . . . . . . . . . lib–538
-lib–21 LIB$T[ABLE_]PARSE 64-Bit Argument Block (Alpha Only) . . . . . . . . lib–539
-lib–22 Transition Diagram for a Hypothetical Utility . . . . . . . . . . . . . . . . . . . lib–544
-lib–23 Tabular Diagram of a Hypothetical Utility . . . . . . . . . . . . . . . . . . . . . lib–545
+- lib–20 LIB$T[ABLE_]PARSE 32-Bit Argument Block
+- lib–21 LIB$T[ABLE_]PARSE 64-Bit Argument Block (Alpha Only)
+- lib–22 Transition Diagram for a Hypothetical Utility
+- lib–23 Tabular Diagram of a Hypothetical Utility
 
-lib–24 LIB$AB_ASC_EBC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–589
+- lib–24 LIB$AB_ASC_EBC
 
-lib–25 LIB$AB_EBC_ASC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–593
+- lib–25 LIB$AB_EBC_ASC
 
 
 **Tables**
 
 
-1–1 LIB$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 LIB$ Routines
 
-1–2 Translated LIB$ Routines (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . 1–8
+- 1–2 Translated LIB$ Routines (Alpha Only)
 
-1–3 CVT$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
+- 1–3 CVT$ Routines
 
 lib–1 OpenVMS Descriptor Class and Data Type Combinations Accepted by
-LIB$CVT_DX_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–86
+- [LIB$CVT_DX_DX](#libcvt_dx_dx-general-data-type-conversion-routine)
 
-lib–2 LIB$CVT_DX_DX Destination NBDS Formats . . . . . . . . . . . . . . . . . . lib–88
+- lib–2 LIB$CVT_DX_DX Destination NBDS Formats
 
 lib–3 Symbols for Fields and Values for Operand Access and Data Types
-Using LIB$DECODE_FAULT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–112
-lib–4 Formats Used for LIB$GETDVI Strings . . . . . . . . . . . . . . . . . . . . . . . lib–226
+- Using LIB$DECODE_FAULT
+- lib–4 Formats Used for LIB$GETDVI Strings
 
-lib–5 Item Code Formats for LIB$GETJPI . . . . . . . . . . . . . . . . . . . . . . . . . . lib–230
+- lib–5 Item Code Formats for LIB$GETJPI
 
-lib–6 Item Code Formats for LIB$GETQUI . . . . . . . . . . . . . . . . . . . . . . . . . lib–236
+- lib–6 Item Code Formats for LIB$GETQUI
 
-lib–7 LIB$SHOW_VM_ZONE Error and Warning Messages . . . . . . . . . . . . lib–466
-lib–8 LIB$SHOW_VM_ZONE_64 Error and Warning Messages . . . . . . . . . . lib–472
-lib–9 The Alphabet of LIB$T[ABLE_]PARSE . . . . . . . . . . . . . . . . . . . . . . . . lib–528
-lib–10 LIB$T[ABLE_]PARSE Argument Block Fields . . . . . . . . . . . . . . . . . . . lib–540
-lib–11 Keyword Abbreviation Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–554
+- lib–7 LIB$SHOW_VM_ZONE Error and Warning Messages
+- lib–8 LIB$SHOW_VM_ZONE_64 Error and Warning Messages
+- lib–9 The Alphabet of LIB$T[ABLE_]PARSE
+- lib–10 LIB$T[ABLE_]PARSE Argument Block Fields
+- lib–11 Keyword Abbreviation Flags
 
 
 viii
 
 
 lib–12 Binary Representation of a LIB$T[ABLE_]PARSE State
-Transition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–560
+- Transition
 
 lib–13 ASCII Graphics Not Translated to EBCDIC Equivalent by
-LIB$TRA_ASC_EBC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–589
+- [LIB$TRA_ASC_EBC](#libtra_asc_ebc-translate-ascii-to-ebcdic)
 
 lib–14 EBCDIC Graphics Not Translated to ASCII Equivalent by
-LIB$TRA_EBC_ASC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . lib–593
+- [LIB$TRA_EBC_ASC](#libtra_ebc_asc-translate-ebcdic-to-ascii)
 
 
 ix

@@ -63,7 +63,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xv
+- [Preface](#preface)
 
 
 **Part I** **OpenVMS RMS—General Information**
@@ -72,43 +72,43 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Introduction to RMS**
 
 
-1.1 RMS Functions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.2 Passing Arguments to RMS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2.1 Record Management Services and Control Blocks . . . . . . . . . . . . . . . . 1–3
-1.2.2 Control Blocks for File Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
+- [1.1 RMS Functions](#11-rms-functions)
+- [1.2 Passing Arguments to RMS](#12-passing-arguments-to-rms)
+- 1.2.1 Record Management Services and Control Blocks
+- 1.2.2 Control Blocks for File Services
 
-1.2.3 Control Blocks for Record Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
-1.2.4 Dual Purpose of Control Blocks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
+- 1.2.3 Control Blocks for Record Services
+- 1.2.4 Dual Purpose of Control Blocks
 
 
 **2** **RMS Program Interface**
 
 
-2.1 RMS Run-Time Environment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.2 Conventions for Naming Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2.3 RMS Calling Sequence . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-2.4 Service Completion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.4.1 Illformed Calls to RMS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.4.2 Setting Synchronous or Asynchronous Option . . . . . . . . . . . . . . . . . . . 2–5
-2.4.3 Synchronous Completion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.4.4 Asynchronous Completion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.4.5 Status Code Testing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.4.6 Types of Errors . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.5 Allowable Program Execution Modes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.6 Access-Mode Protected Memory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.7 Reserved Event Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.8 DEC Multinational Character Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–10
+- [2.1 RMS Run-Time Environment](#21-rms-run-time-environment)
+- [2.2 Conventions for Naming Fields](#22-conventions-for-naming-fields)
+- [2.3 RMS Calling Sequence](#23-rms-calling-sequence)
+- [2.4 Service Completion](#24-service-completion)
+- 2.4.1 Illformed Calls to RMS
+- 2.4.2 Setting Synchronous or Asynchronous Option
+- 2.4.3 Synchronous Completion
+- 2.4.4 Asynchronous Completion
+- 2.4.5 Status Code Testing
+- 2.4.6 Types of Errors
+- [2.5 Allowable Program Execution Modes](#25-allowable-program-execution-modes)
+- [2.6 Access-Mode Protected Memory](#26-access-mode-protected-memory)
+- [2.7 Reserved Event Flags](#27-reserved-event-flags)
+- [2.8 DEC Multinational Character Set](#28-dec-multinational-character-set)
 
 
 **3** **Implementing RMS from C Programs**
 
 
-3.1 Creating, Accessing, and Deaccessing a File . . . . . . . . . . . . . . . . . . . . . . . 3–1
-3.1.1 Example of Copying Records from One File to Another File . . . . . . . . 3–2
-3.2 Program to Illustrate Record Operations . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
-3.3 Program to Show Index Root Levels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–8
-3.4 Program to Illustrate Using NAML Blocks (Alpha Only) . . . . . . . . . . . . . 3–9
-3.5 Program to Illustrate Using the RAB64 Structure . . . . . . . . . . . . . . . . . . . 3–12
+- [3.1 Creating, Accessing, and Deaccessing a File](#31-creating-accessing-and-deaccessing-a-file)
+- 3.1.1 Example of Copying Records from One File to Another File
+- [3.2 Program to Illustrate Record Operations](#32-program-to-illustrate-record-operations)
+- [3.3 Program to Show Index Root Levels](#33-program-to-show-index-root-levels)
+- [3.4 Program to Illustrate Using NAML Blocks (Alpha Only)](#34-program-to-illustrate-using-naml-blocks-alpha-only)
+- [3.5 Program to Illustrate Using the RAB64 Structure](#35-program-to-illustrate-using-the-rab64-structure)
 
 
 iii
@@ -120,179 +120,179 @@ iii
 **4** **File Access Block (FAB)**
 
 
-4.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.2 FAB$B_ACMODES Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.3 FAB$L_ALQ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.4 FAB$B_BID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.5 FAB$B_BKS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.6 FAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–4
-4.7 FAB$W_BLS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–5
-4.8 FAB$V_CHAN_MODE Subfield . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–5
-4.8.1 Override Value . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–5
+- [4.1 Summary of Fields](#41-summary-of-fields)
+- [4.2 FAB$B_ACMODES Field](#42-fabb_acmodes-field)
+- [4.3 FAB$L_ALQ Field](#43-fabl_alq-field)
+- [4.4 FAB$B_BID Field](#44-fabb_bid-field)
+- [4.5 FAB$B_BKS Field](#45-fabb_bks-field)
+- [4.6 FAB$B_BLN Field](#46-fabb_bln-field)
+- [4.7 FAB$W_BLS Field](#47-fabw_bls-field)
+- [4.8 FAB$V_CHAN_MODE Subfield](#48-fabv_chan_mode-subfield)
+- 4.8.1 Override Value
 
-4.8.2 Channel Access Mode Function . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
-4.9 FAB$L_CTX Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
-4.10 FAB$W_DEQ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
-4.11 FAB$L_DEV Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–7
-4.12 FAB$L_DNA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–9
-4.13 FAB$B_DNS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–9
-4.14 FAB$B_FAC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–9
-4.15 FAB$L_FNA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–11
-4.16 FAB$B_FNS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–12
-4.17 FAB$L_FOP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–12
-4.18 FAB$B_FSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–19
-4.19 FAB$W_GBC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–19
-4.20 FAB$W_IFI Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–21
-4.21 FAB$B_JOURNAL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–21
-4.22 FAB$V_LNM_MODE Subfield . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–22
-4.23 FAB$L_MRN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–22
-4.24 FAB$W_MRS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–22
-4.25 FAB$L_NAM Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–24
-4.26 FAB$B_ORG Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–24
-4.27 FAB$B_RAT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–25
-4.28 FAB$B_RFM Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–27
-4.29 FAB$B_RTV Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–28
-4.30 FAB$L_SDC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–28
-4.31 FAB$B_SHR Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–28
-4.32 FAB$L_STS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–31
-4.33 FAB$L_STV Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–31
-4.34 FAB$L_XAB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–31
+- 4.8.2 Channel Access Mode Function
+- [4.9 FAB$L_CTX Field](#49-fabl_ctx-field)
+- [4.10 FAB$W_DEQ Field](#410-fabw_deq-field)
+- [4.11 FAB$L_DEV Field](#411-fabl_dev-field)
+- [4.12 FAB$L_DNA Field](#412-fabl_dna-field)
+- [4.13 FAB$B_DNS Field](#413-fabb_dns-field)
+- [4.14 FAB$B_FAC Field](#414-fabb_fac-field)
+- [4.15 FAB$L_FNA Field](#415-fabl_fna-field)
+- [4.16 FAB$B_FNS Field](#416-fabb_fns-field)
+- [4.17 FAB$L_FOP Field](#417-fabl_fop-field)
+- [4.18 FAB$B_FSZ Field](#418-fabb_fsz-field)
+- [4.19 FAB$W_GBC Field](#419-fabw_gbc-field)
+- [4.20 FAB$W_IFI Field](#420-fabw_ifi-field)
+- [4.21 FAB$B_JOURNAL Field](#421-fabb_journal-field)
+- [4.22 FAB$V_LNM_MODE Subfield](#422-fabv_lnm_mode-subfield)
+- [4.23 FAB$L_MRN Field](#423-fabl_mrn-field)
+- [4.24 FAB$W_MRS Field](#424-fabw_mrs-field)
+- [4.25 FAB$L_NAM Field](#425-fabl_nam-field)
+- [4.26 FAB$B_ORG Field](#426-fabb_org-field)
+- [4.27 FAB$B_RAT Field](#427-fabb_rat-field)
+- [4.28 FAB$B_RFM Field](#428-fabb_rfm-field)
+- [4.29 FAB$B_RTV Field](#429-fabb_rtv-field)
+- [4.30 FAB$L_SDC Field](#430-fabl_sdc-field)
+- [4.31 FAB$B_SHR Field](#431-fabb_shr-field)
+- [4.32 FAB$L_STS Field](#432-fabl_sts-field)
+- [4.33 FAB$L_STV Field](#433-fabl_stv-field)
+- [4.34 FAB$L_XAB Field](#434-fabl_xab-field)
 
 
 **5** **Name Block (NAM)**
 
 
-5.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–1
-5.2 File Specification Component Descriptors . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
-5.3 NAM$B_BID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.4 NAM$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.5 NAM$B_DEV and NAM$L_DEV Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.6 NAM$W_DID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.7 NAM$B_DIR and NAM$L_DIR Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.8 NAM$T_DVI Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.9 NAM$L_ESA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.10 NAM$B_ESL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.11 NAM$B_ESS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
+- [5.1 Summary of Fields](#51-summary-of-fields)
+- [5.2 File Specification Component Descriptors](#52-file-specification-component-descriptors)
+- [5.3 NAM$B_BID Field](#53-namb_bid-field)
+- [5.4 NAM$B_BLN Field](#54-namb_bln-field)
+- [5.5 NAM$B_DEV and NAM$L_DEV Fields](#55-namb_dev-and-naml_dev-fields)
+- [5.6 NAM$W_DID Field](#56-namw_did-field)
+- [5.7 NAM$B_DIR and NAM$L_DIR Fields](#57-namb_dir-and-naml_dir-fields)
+- [5.8 NAM$T_DVI Field](#58-namt_dvi-field)
+- [5.9 NAM$L_ESA Field](#59-naml_esa-field)
+- [5.10 NAM$B_ESL Field](#510-namb_esl-field)
+- [5.11 NAM$B_ESS Field](#511-namb_ess-field)
 
 
 iv
 
 
-5.12 NAM$W_FID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.13 NAM$W_FIRST_WILD_DIR Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.14 NAM$L_FNB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
-5.15 NAM$W_LONG_DIR_LEVELS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–7
-5.16 NAM$B_NAME and NAM$L_NAME Fields . . . . . . . . . . . . . . . . . . . . . . . 5–7
-5.17 NAM$B_NMC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.18 NAM$B_NODE and NAM$L_NODE Fields . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.19 NAM$B_NOP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.20 NAM$L_RLF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–9
-5.21 NAM$L_RSA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.22 NAM$B_RSL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.23 NAM$B_RSS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.24 NAM$B_TYPE and NAM$L_TYPE Fields . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.25 NAM$B_VER and NAM$L_VER Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.26 NAM$L_WCC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–11
+- [5.12 NAM$W_FID Field](#512-namw_fid-field)
+- [5.13 NAM$W_FIRST_WILD_DIR Field](#513-namw_first_wild_dir-field)
+- [5.14 NAM$L_FNB Field](#514-naml_fnb-field)
+- [5.15 NAM$W_LONG_DIR_LEVELS Field](#515-namw_long_dir_levels-field)
+- [5.16 NAM$B_NAME and NAM$L_NAME Fields](#516-namb_name-and-naml_name-fields)
+- [5.17 NAM$B_NMC](#517-namb_nmc)
+- [5.18 NAM$B_NODE and NAM$L_NODE Fields](#518-namb_node-and-naml_node-fields)
+- [5.19 NAM$B_NOP Field](#519-namb_nop-field)
+- [5.20 NAM$L_RLF Field](#520-naml_rlf-field)
+- [5.21 NAM$L_RSA Field](#521-naml_rsa-field)
+- [5.22 NAM$B_RSL Field](#522-namb_rsl-field)
+- [5.23 NAM$B_RSS Field](#523-namb_rss-field)
+- [5.24 NAM$B_TYPE and NAM$L_TYPE Fields](#524-namb_type-and-naml_type-fields)
+- [5.25 NAM$B_VER and NAM$L_VER Fields](#525-namb_ver-and-naml_ver-fields)
+- [5.26 NAM$L_WCC Field](#526-naml_wcc-field)
 
 
 **6** **Long Name Block (NAML)**
 
 
-6.1 Using the NAM and NAML Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–1
-6.2 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–2
-6.3 Validating the NAML Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.4 NAML$B_BID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.5 NAML$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.6 NAML$L_FILESYS_NAME Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.7 NAML$L_FILESYS_NAME_ALLOC Field . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.8 NAML$L_FILESYS_NAME_SIZE Field . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–6
-6.9 NAML$L_INPUT_FLAGS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–6
+- [6.1 Using the NAM and NAML Block](#61-using-the-nam-and-naml-block)
+- [6.2 Summary of Fields](#62-summary-of-fields)
+- [6.3 Validating the NAML Block](#63-validating-the-naml-block)
+- [6.4 NAML$B_BID Field](#64-namlb_bid-field)
+- [6.5 NAML$B_BLN Field](#65-namlb_bln-field)
+- [6.6 NAML$L_FILESYS_NAME Field](#66-namll_filesys_name-field)
+- [6.7 NAML$L_FILESYS_NAME_ALLOC Field](#67-namll_filesys_name_alloc-field)
+- [6.8 NAML$L_FILESYS_NAME_SIZE Field](#68-namll_filesys_name_size-field)
+- [6.9 NAML$L_INPUT_FLAGS Field](#69-namll_input_flags-field)
 6.10 NAML$L_LONG_DEFNAME and NAML$L_LONG_DEFNAME_SIZE
-Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–6
-6.11 NAML$L_LONG_DEV and NAML$L_LONG_DEV_SIZE Fields . . . . . . . . 6–7
-6.12 NAML$L_LONG_DIR and NAML$L_LONG_DIR_SIZE Fields . . . . . . . . . 6–7
-6.13 NAML$L_LONG_EXPAND Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–7
-6.14 NAML$L_LONG_EXPAND_ALLOC Field . . . . . . . . . . . . . . . . . . . . . . . . . 6–7
-6.15 NAML$L_LONG_EXPAND_SIZE Field . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–8
+- Fields
+- [6.11 NAML$L_LONG_DEV and NAML$L_LONG_DEV_SIZE Fields](#611-namll_long_dev-and-namll_long_dev_size-fields)
+- [6.12 NAML$L_LONG_DIR and NAML$L_LONG_DIR_SIZE Fields](#612-namll_long_dir-and-namll_long_dir_size-fields)
+- [6.13 NAML$L_LONG_EXPAND Field](#613-namll_long_expand-field)
+- [6.14 NAML$L_LONG_EXPAND_ALLOC Field](#614-namll_long_expand_alloc-field)
+- [6.15 NAML$L_LONG_EXPAND_SIZE Field](#615-namll_long_expand_size-field)
 6.16 NAML$L_LONG_FILENAME and NAML$L_LONG_FILENAME_SIZE
-Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–8
-6.17 NAML$L_LONG_NAME and NAML$L_LONG_NAME_SIZE Fields . . . . . 6–8
-6.18 NAML$L_LONG_NODE and NAML$L_LONG_NODE_SIZE Fields . . . . . 6–8
-6.19 NAML$L_LONG_RESULT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–9
-6.20 NAML$L_LONG_RESULT_ALLOC Field . . . . . . . . . . . . . . . . . . . . . . . . . 6–9
-6.21 NAML$L_LONG_RESULT_SIZE Field . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–9
-6.22 NAML$L_LONG_TYPE and NAML$L_LONG_TYPE_SIZE Fields . . . . . . 6–9
-6.23 NAML$L_LONG_VER and NAML$L_LONG_VER_SIZE Fields . . . . . . . . 6–9
-6.24 NAML$L_OUTPUT_FLAGS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–10
-6.25 NAML$Q_USER_CONTEXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–10
+- Fields
+- [6.17 NAML$L_LONG_NAME and NAML$L_LONG_NAME_SIZE Fields](#617-namll_long_name-and-namll_long_name_size-fields)
+- [6.18 NAML$L_LONG_NODE and NAML$L_LONG_NODE_SIZE Fields](#618-namll_long_node-and-namll_long_node_size-fields)
+- [6.19 NAML$L_LONG_RESULT Field](#619-namll_long_result-field)
+- [6.20 NAML$L_LONG_RESULT_ALLOC Field](#620-namll_long_result_alloc-field)
+- [6.21 NAML$L_LONG_RESULT_SIZE Field](#621-namll_long_result_size-field)
+- [6.22 NAML$L_LONG_TYPE and NAML$L_LONG_TYPE_SIZE Fields](#622-namll_long_type-and-namll_long_type_size-fields)
+- [6.23 NAML$L_LONG_VER and NAML$L_LONG_VER_SIZE Fields](#623-namll_long_ver-and-namll_long_ver_size-fields)
+- [6.24 NAML$L_OUTPUT_FLAGS Field](#624-namll_output_flags-field)
+- [6.25 NAML$Q_USER_CONTEXT Field](#625-namlq_user_context-field)
 
 
 **7** **Record Access Block (RAB)**
 
 
-7.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–1
-7.2 RAB$B_BID Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–2
-7.3 RAB$L_BKT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–2
-7.4 RAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
-7.5 RAB$L_CTX Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
-7.6 RAB$L_FAB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
+- [7.1 Summary of Fields](#71-summary-of-fields)
+- [7.2 RAB$B_BID Field](#72-rabb_bid-field)
+- [7.3 RAB$L_BKT Field](#73-rabl_bkt-field)
+- [7.4 RAB$B_BLN Field](#74-rabb_bln-field)
+- [7.5 RAB$L_CTX Field](#75-rabl_ctx-field)
+- [7.6 RAB$L_FAB Field](#76-rabl_fab-field)
 
 
 v
 
 
-7.7 RAB$W_ISI Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
-7.8 RAB$L_KBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
-7.9 RAB$B_KRF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–4
-7.10 RAB$B_KSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–4
-7.11 RAB$B_MBC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–7
-7.12 RAB$B_MBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–7
-7.13 RAB$L_PBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–8
-7.14 RAB$B_PSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–8
-7.15 RAB$B_RAC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–8
-7.16 RAB$L_RBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–9
-7.17 RAB$W_RFA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–10
-7.18 RAB$L_RHB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–10
-7.19 RAB$L_ROP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–10
-7.20 RAB$W_ROP_2 Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–21
-7.21 RAB$W_RSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–22
-7.22 RAB$L_STS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–23
-7.23 RAB$L_STV Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–23
-7.24 RAB$B_TMO Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–23
-7.25 RAB$L_UBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–24
-7.26 RAB$W_USZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–24
-7.27 RAB$L_XAB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–24
+- [7.7 RAB$W_ISI Field](#77-rabw_isi-field)
+- [7.8 RAB$L_KBF Field](#78-rabl_kbf-field)
+- [7.9 RAB$B_KRF Field](#79-rabb_krf-field)
+- [7.10 RAB$B_KSZ Field](#710-rabb_ksz-field)
+- [7.11 RAB$B_MBC Field](#711-rabb_mbc-field)
+- [7.12 RAB$B_MBF Field](#712-rabb_mbf-field)
+- [7.13 RAB$L_PBF Field](#713-rabl_pbf-field)
+- [7.14 RAB$B_PSZ Field](#714-rabb_psz-field)
+- [7.15 RAB$B_RAC Field](#715-rabb_rac-field)
+- [7.16 RAB$L_RBF Field](#716-rabl_rbf-field)
+- [7.17 RAB$W_RFA Field](#717-rabw_rfa-field)
+- [7.18 RAB$L_RHB Field](#718-rabl_rhb-field)
+- [7.19 RAB$L_ROP Field](#719-rabl_rop-field)
+- [7.20 RAB$W_ROP_2 Field](#720-rabw_rop_2-field)
+- [7.21 RAB$W_RSZ Field](#721-rabw_rsz-field)
+- [7.22 RAB$L_STS Field](#722-rabl_sts-field)
+- [7.23 RAB$L_STV Field](#723-rabl_stv-field)
+- [7.24 RAB$B_TMO Field](#724-rabb_tmo-field)
+- [7.25 RAB$L_UBF Field](#725-rabl_ubf-field)
+- [7.26 RAB$W_USZ Field](#726-rabw_usz-field)
+- [7.27 RAB$L_XAB Field](#727-rabl_xab-field)
 
 
 **8** **64-Bit Record Access Block (RAB64)**
 
 
-8.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–1
-8.2 RAB64$Q_CTX Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–3
-8.3 RAB64$PQ_KBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–3
-8.4 RAB64$PQ_RBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–3
-8.5 RAB64$PQ_RHB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
-8.6 RAB64$Q_RSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
-8.7 RAB64$PQ_UBF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
-8.8 RAB64$Q_USZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
+- [8.1 Summary of Fields](#81-summary-of-fields)
+- [8.2 RAB64$Q_CTX Field](#82-rab64q_ctx-field)
+- [8.3 RAB64$PQ_KBF Field](#83-rab64pq_kbf-field)
+- [8.4 RAB64$PQ_RBF Field](#84-rab64pq_rbf-field)
+- [8.5 RAB64$PQ_RHB Field](#85-rab64pq_rhb-field)
+- [8.6 RAB64$Q_RSZ Field](#86-rab64q_rsz-field)
+- [8.7 RAB64$PQ_UBF Field](#87-rab64pq_ubf-field)
+- [8.8 RAB64$Q_USZ Field](#88-rab64q_usz-field)
 
 
 **9** **Allocation Control XAB (XABALL)**
 
 
-9.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–1
-9.2 XAB$B_AID Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–2
-9.3 XAB$B_ALN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–2
-9.4 XAB$L_ALQ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–3
-9.5 XAB$B_AOP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–3
-9.6 XAB$B_BKZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–4
-9.7 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.8 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.9 XAB$W_DEQ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.10 XAB$L_LOC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.11 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
-9.12 XAB$W_RFI Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
-9.13 XAB$W_VOL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
+- [9.1 Summary of Fields](#91-summary-of-fields)
+- [9.2 XAB$B_AID Fields](#92-xabb_aid-fields)
+- [9.3 XAB$B_ALN Field](#93-xabb_aln-field)
+- [9.4 XAB$L_ALQ Field](#94-xabl_alq-field)
+- [9.5 XAB$B_AOP Field](#95-xabb_aop-field)
+- [9.6 XAB$B_BKZ Field](#96-xabb_bkz-field)
+- [9.7 XAB$B_BLN Field](#97-xabb_bln-field)
+- [9.8 XAB$B_COD Field](#98-xabb_cod-field)
+- [9.9 XAB$W_DEQ Field](#99-xabw_deq-field)
+- [9.10 XAB$L_LOC Field](#910-xabl_loc-field)
+- [9.11 XAB$L_NXT Field](#911-xabl_nxt-field)
+- [9.12 XAB$W_RFI Field](#912-xabw_rfi-field)
+- [9.13 XAB$W_VOL Field](#913-xabw_vol-field)
 
 
 vi
@@ -301,71 +301,71 @@ vi
 **10** **Date and Time XAB (XABDAT)**
 
 
-10.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–1
-10.2 XAB$Q_BDT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.3 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.4 XAB$Q_CDT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.5 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.6 XAB$Q_EDT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.7 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–2
-10.8 XAB$Q_RDT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–3
-10.9 XAB$W_RVN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–3
-10.10 XAB$Q_RCD Field (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–3
-10.11 XAB$Q_EFF Field (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–3
-10.12 POSIX–Compliant Access Dates (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . 10–3
-10.12.1 XAB$Q_ACC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–4
-10.12.2 XAB$Q_ATT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–4
-10.12.3 XAB$Q_MOD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–4
+- [10.1 Summary of Fields](#101-summary-of-fields)
+- [10.2 XAB$Q_BDT Field](#102-xabq_bdt-field)
+- [10.3 XAB$B_BLN Field](#103-xabb_bln-field)
+- [10.4 XAB$Q_CDT Field](#104-xabq_cdt-field)
+- [10.5 XAB$B_COD Field](#105-xabb_cod-field)
+- [10.6 XAB$Q_EDT Field](#106-xabq_edt-field)
+- [10.7 XAB$L_NXT Field](#107-xabl_nxt-field)
+- [10.8 XAB$Q_RDT Field](#108-xabq_rdt-field)
+- [10.9 XAB$W_RVN Field](#109-xabw_rvn-field)
+- [10.10 XAB$Q_RCD Field (VAX Only)](#1010-xabq_rcd-field-vax-only)
+- [10.11 XAB$Q_EFF Field (VAX Only)](#1011-xabq_eff-field-vax-only)
+- [10.12 POSIX–Compliant Access Dates (Alpha Only)](#1012-posixcompliant-access-dates-alpha-only)
+- 10.12.1 XAB$Q_ACC Field
+- 10.12.2 XAB$Q_ATT Field
+- 10.12.3 XAB$Q_MOD Field
 
 
 **11** **File Header Characteristic XAB (XABFHC)**
 
 
-11.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–1
-11.2 XAB$B_ATR Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–2
-11.3 XAB$B_BKZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–2
-11.4 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–3
-11.5 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–3
-11.6 XAB$W_DXQ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–3
-11.7 XAB$L_EBK Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–3
-11.8 XAB$W_FFB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–3
-11.9 XAB$W_GBC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–4
-11.10 XAB$L_HBK Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–4
-11.11 XAB$B_HSZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–4
-11.12 XAB$W_LRL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–4
-11.13 XAB$W_MRZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–4
-11.14 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–5
-11.15 XAB$B_RFO Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–5
-11.16 XAB$L_SBN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–5
-11.17 XAB$W_VERLIMIT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–5
+- [11.1 Summary of Fields](#111-summary-of-fields)
+- [11.2 XAB$B_ATR Field](#112-xabb_atr-field)
+- [11.3 XAB$B_BKZ Field](#113-xabb_bkz-field)
+- [11.4 XAB$B_BLN Field](#114-xabb_bln-field)
+- [11.5 XAB$B_COD Field](#115-xabb_cod-field)
+- [11.6 XAB$W_DXQ Field](#116-xabw_dxq-field)
+- [11.7 XAB$L_EBK Field](#117-xabl_ebk-field)
+- [11.8 XAB$W_FFB Field](#118-xabw_ffb-field)
+- [11.9 XAB$W_GBC Field](#119-xabw_gbc-field)
+- [11.10 XAB$L_HBK Field](#1110-xabl_hbk-field)
+- [11.11 XAB$B_HSZ Field](#1111-xabb_hsz-field)
+- [11.12 XAB$W_LRL Field](#1112-xabw_lrl-field)
+- [11.13 XAB$W_MRZ Field](#1113-xabw_mrz-field)
+- [11.14 XAB$L_NXT Field](#1114-xabl_nxt-field)
+- [11.15 XAB$B_RFO Field](#1115-xabb_rfo-field)
+- [11.16 XAB$L_SBN Field](#1116-xabl_sbn-field)
+- [11.17 XAB$W_VERLIMIT Field](#1117-xabw_verlimit-field)
 
 
 **12** **Item List XAB (XABITM)**
 
 
-12.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.1.1 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.1.2 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.1.3 XAB$L_ITEMLIST Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.1.4 XAB$B_MODE Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.1.5 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
-12.2 Network File Access Items (XAB$_NET_... and XAB$_CAP_...) . . . . . . . . 12–3
-12.3 File User Characteristics Items (XAB$_UCHAR_...) . . . . . . . . . . . . . . . . . 12–9
-12.4 RMS Performance Monitoring (XAB$_STAT_ENABLE) . . . . . . . . . . . . . . . 12–10
-12.5 Compound Document Support (XAB$_..._SEMANTICS) . . . . . . . . . . . . . . 12–11
+- [12.1 Summary of Fields](#121-summary-of-fields)
+- 12.1.1 XAB$B_BLN Field
+- 12.1.2 XAB$B_COD Field
+- 12.1.3 XAB$L_ITEMLIST Field
+- 12.1.4 XAB$B_MODE Field
+- 12.1.5 XAB$L_NXT Field
+- [12.2 Network File Access Items (XAB$_NET_... and XAB$_CAP_...)](#122-network-file-access-items-xab_net_-and-xab_cap_)
+- [12.3 File User Characteristics Items (XAB$_UCHAR_...)](#123-file-user-characteristics-items-xab_uchar_)
+- [12.4 RMS Performance Monitoring (XAB$_STAT_ENABLE)](#124-rms-performance-monitoring-xab_stat_enable)
+- [12.5 Compound Document Support (XAB$_..._SEMANTICS)](#125-compound-document-support-xab__semantics)
 12.6 Specifying the Number of Local Buffers
-(XAB$_MULTIBUFFER_COUNT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–12
-12.7 Expiration Date and Time Suppression . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–12
-12.7.1 XAB$_NORECORD XABITM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–12
-12.7.2 Application . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–13
+- (XAB$_MULTIBUFFER_COUNT)
+- [12.7 Expiration Date and Time Suppression](#127-expiration-date-and-time-suppression)
+- 12.7.1 XAB$_NORECORD XABITM
+- 12.7.2 Application
 
 
 vii
 
 
-12.8 File Length Hint (XAB$_FILE_LENGTH_HINT) . . . . . . . . . . . . . . . . . . . . 12–13
-12.9 Extended File Cache (XAB$_CACHE_OPTIONS) (Alpha Only) . . . . . . . . . 12–14
-12.10 POSIX-Compliant Access Dates (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . 12–16
+- [12.8 File Length Hint (XAB$_FILE_LENGTH_HINT)](#128-file-length-hint-xab_file_length_hint)
+- [12.9 Extended File Cache (XAB$_CACHE_OPTIONS) (Alpha Only)](#129-extended-file-cache-xab_cache_options-alpha-only)
+- [12.10 POSIX-Compliant Access Dates (Alpha Only)](#1210-posix-compliant-access-dates-alpha-only)
 
 
 **13** **Journaling XAB (XABJNL)**
@@ -374,54 +374,54 @@ vii
 **14** **Key Definition XAB (XABKEY)**
 
 
-14.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–1
-14.2 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–2
-14.3 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–2
-14.4 XAB$L_COLNAM Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–2
-14.5 XAB$L_COLSIZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–3
-14.6 XAB$L_COLTBL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–3
-14.7 XAB$B_DAN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–3
-14.8 XAB$B_DBS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–4
-14.9 XAB$W_DFL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–4
-14.10 XAB$B_DTP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–4
-14.11 XAB$L_DVB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–7
-14.12 XAB$B_FLG Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–7
-14.13 XAB$B_IAN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–9
-14.14 XAB$B_IBS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–10
-14.15 XAB$W_IFL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–10
-14.16 XAB$L_KNM Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–11
-14.17 XAB$B_LAN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–11
-14.18 XAB$B_LVL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–11
-14.19 XAB$W_MRL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–11
-14.20 XAB$B_NSG Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–12
-14.21 XAB$B_NUL Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–12
-14.22 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–12
-14.23 XAB$W_POS0 Through XAB$W_POS7 Field . . . . . . . . . . . . . . . . . . . . . . . 14–12
-14.24 XAB$B_PROLOG Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–13
-14.25 XAB$B_REF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–13
-14.26 XAB$L_RVB Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–14
-14.27 XAB$B_SIZ0 Through XAB$B_SIZ7 Field . . . . . . . . . . . . . . . . . . . . . . . . . 14–14
-14.28 XAB$B_TKS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–14
+- [14.1 Summary of Fields](#141-summary-of-fields)
+- [14.2 XAB$B_BLN Field](#142-xabb_bln-field)
+- [14.3 XAB$B_COD Field](#143-xabb_cod-field)
+- [14.4 XAB$L_COLNAM Field](#144-xabl_colnam-field)
+- [14.5 XAB$L_COLSIZ Field](#145-xabl_colsiz-field)
+- [14.6 XAB$L_COLTBL Field](#146-xabl_coltbl-field)
+- [14.7 XAB$B_DAN Field](#147-xabb_dan-field)
+- [14.8 XAB$B_DBS Field](#148-xabb_dbs-field)
+- [14.9 XAB$W_DFL Field](#149-xabw_dfl-field)
+- [14.10 XAB$B_DTP Field](#1410-xabb_dtp-field)
+- [14.11 XAB$L_DVB Field](#1411-xabl_dvb-field)
+- [14.12 XAB$B_FLG Field](#1412-xabb_flg-field)
+- [14.13 XAB$B_IAN Field](#1413-xabb_ian-field)
+- [14.14 XAB$B_IBS Field](#1414-xabb_ibs-field)
+- [14.15 XAB$W_IFL Field](#1415-xabw_ifl-field)
+- [14.16 XAB$L_KNM Field](#1416-xabl_knm-field)
+- [14.17 XAB$B_LAN Field](#1417-xabb_lan-field)
+- [14.18 XAB$B_LVL Field](#1418-xabb_lvl-field)
+- [14.19 XAB$W_MRL Field](#1419-xabw_mrl-field)
+- [14.20 XAB$B_NSG Field](#1420-xabb_nsg-field)
+- [14.21 XAB$B_NUL Field](#1421-xabb_nul-field)
+- [14.22 XAB$L_NXT Field](#1422-xabl_nxt-field)
+- [14.23 XAB$W_POS0 Through XAB$W_POS7 Field](#1423-xabw_pos0-through-xabw_pos7-field)
+- [14.24 XAB$B_PROLOG Field](#1424-xabb_prolog-field)
+- [14.25 XAB$B_REF Field](#1425-xabb_ref-field)
+- [14.26 XAB$L_RVB Field](#1426-xabl_rvb-field)
+- [14.27 XAB$B_SIZ0 Through XAB$B_SIZ7 Field](#1427-xabb_siz0-through-xabb_siz7-field)
+- [14.28 XAB$B_TKS Field](#1428-xabb_tks-field)
 
 
 **15** **Protection XAB (XABPRO)**
 
 
-15.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–1
-15.2 XAB$L_ACLBUF Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–2
-15.3 XAB$L_ACLCTX Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–2
-15.4 XAB$W_ACLLEN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–3
-15.5 XAB$W_ACLSIZ Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–3
-15.6 XAB$L_ACLSTS Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–3
-15.7 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–4
-15.8 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–4
-15.9 XAB$W_GRP Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–4
-15.10 XAB$W_MBM Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–4
-15.11 XAB$B_MTACC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–4
-15.12 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–5
-15.13 XAB$W_PRO Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–5
-15.14 XAB$B_PROT_OPT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–7
-15.15 XAB$L_UIC Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–7
+- [15.1 Summary of Fields](#151-summary-of-fields)
+- [15.2 XAB$L_ACLBUF Field](#152-xabl_aclbuf-field)
+- [15.3 XAB$L_ACLCTX Field](#153-xabl_aclctx-field)
+- [15.4 XAB$W_ACLLEN Field](#154-xabw_acllen-field)
+- [15.5 XAB$W_ACLSIZ Field](#155-xabw_aclsiz-field)
+- [15.6 XAB$L_ACLSTS Field](#156-xabl_aclsts-field)
+- [15.7 XAB$B_BLN Field](#157-xabb_bln-field)
+- [15.8 XAB$B_COD Field](#158-xabb_cod-field)
+- [15.9 XAB$W_GRP Field](#159-xabw_grp-field)
+- [15.10 XAB$W_MBM Field](#1510-xabw_mbm-field)
+- [15.11 XAB$B_MTACC Field](#1511-xabb_mtacc-field)
+- [15.12 XAB$L_NXT Field](#1512-xabl_nxt-field)
+- [15.13 XAB$W_PRO Field](#1513-xabw_pro-field)
+- [15.14 XAB$B_PROT_OPT Field](#1514-xabb_prot_opt-field)
+- [15.15 XAB$L_UIC Field](#1515-xabl_uic-field)
 
 
 viii
@@ -430,12 +430,12 @@ viii
 **16** **Revision Date and Time XAB (XABRDT)**
 
 
-16.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–1
-16.2 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–2
-16.3 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–2
-16.4 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–3
-16.5 XAB$Q_RDT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–3
-16.6 XAB$W_RVN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–3
+- [16.1 Summary of Fields](#161-summary-of-fields)
+- [16.2 XAB$B_BLN Field](#162-xabb_bln-field)
+- [16.3 XAB$B_COD Field](#163-xabb_cod-field)
+- [16.4 XAB$L_NXT Field](#164-xabl_nxt-field)
+- [16.5 XAB$Q_RDT Field](#165-xabq_rdt-field)
+- [16.6 XAB$W_RVN Field](#166-xabw_rvn-field)
 
 
 **17** **Recovery Unit XAB (XABRU)**
@@ -444,126 +444,126 @@ viii
 **18** **Summary XAB (XABSUM)**
 
 
-18.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–1
-18.2 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–1
-18.3 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–1
-18.4 XAB$B_NOA Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–2
-18.5 XAB$B_NOK Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–2
-18.6 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–2
-18.7 XAB$W_PVN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–2
+- [18.1 Summary of Fields](#181-summary-of-fields)
+- [18.2 XAB$B_BLN Field](#182-xabb_bln-field)
+- [18.3 XAB$B_COD Field](#183-xabb_cod-field)
+- [18.4 XAB$B_NOA Field](#184-xabb_noa-field)
+- [18.5 XAB$B_NOK Field](#185-xabb_nok-field)
+- [18.6 XAB$L_NXT Field](#186-xabl_nxt-field)
+- [18.7 XAB$W_PVN Field](#187-xabw_pvn-field)
 
 
 **19** **Terminal XAB (XABTRM)**
 
 
-19.1 Summary of Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–1
-19.2 XAB$B_BLN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–2
-19.3 XAB$B_COD Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–2
-19.4 XAB$L_ITMLST Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–2
-19.5 XAB$W_ITMLST_LEN Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–2
-19.6 XAB$L_NXT Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–2
+- [19.1 Summary of Fields](#191-summary-of-fields)
+- [19.2 XAB$B_BLN Field](#192-xabb_bln-field)
+- [19.3 XAB$B_COD Field](#193-xabb_cod-field)
+- [19.4 XAB$L_ITMLST Field](#194-xabl_itmlst-field)
+- [19.5 XAB$W_ITMLST_LEN Field](#195-xabw_itmlst_len-field)
+- [19.6 XAB$L_NXT Field](#196-xabl_nxt-field)
 
 
 **Part III** **OpenVMS RMS Services**
 
 
-$CLOSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–3
-$CONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–6
-$CREATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–10
-$DELETE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–26
-$DISCONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–28
-$DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–30
-$ENTER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–35
-$ERASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–39
-$EXTEND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–46
-$FIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–49
-$FLUSH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–56
-$FREE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–59
-$GET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–61
-$NXTVOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–72
-$OPEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–75
-$PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–88
-$PUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–96
-$READ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–103
-$RELEASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–107
+- [$CLOSE](#close)
+- [$CONNECT](#connect)
+- [$CREATE](#create)
+- [$DELETE](#delete)
+- [$DISCONNECT](#disconnect)
+- [$DISPLAY](#display)
+- [$ENTER](#enter)
+- [$ERASE](#erase)
+- [$EXTEND](#extend)
+- [$FIND](#find)
+- [$FLUSH](#flush)
+- [$FREE](#free)
+- [$GET](#get)
+- [$NXTVOL](#nxtvol)
+- [$OPEN](#open)
+- [$PARSE](#parse)
+- [$PUT](#put)
+- [$READ](#read)
+- [$RELEASE](#release)
 
 
 ix
 
 
-$REMOVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–109
-$RENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–114
-$REWIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–121
-$SEARCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–123
-$SPACE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–130
-$TRUNCATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–132
-$UPDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–135
-$WAIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–140
-$WRITE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–142
+- [$REMOVE](#remove)
+- [$RENAME](#rename)
+- [$REWIND](#rewind)
+- [$SEARCH](#search)
+- [$SPACE](#space)
+- [$TRUNCATE](#truncate)
+- [$UPDATE](#update)
+- [$WAIT](#wait)
+- [$WRITE](#write)
 
 
 **A** **RMS Control Block Macros**
 
 
-$FAB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–2
-$FAB_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–4
-$NAM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–5
-$NAM_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–6
-$NAML . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–8
-$NAML_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–9
-$RAB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–11
-$RAB_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–12
-$RAB64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–14
-$RAB64_STORE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–16
-$XABALL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–18
-$XABALL_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–19
-$XABDAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–20
-$XABDAT_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–21
-$XABFHC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–22
-$XABFHC_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–23
-$XABITM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–24
-$XABKEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–25
-$XABKEY_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–27
-$XABPRO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–28
-$XABPRO_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–30
-$XABRDT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–31
-$XABRDT_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–32
-$XABSUM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–33
-$XABSUM_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–34
-$XABTRM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–35
-$XABTRM_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–36
+- [$FAB](#fab)
+- [$FAB_STORE](#fab_store)
+- [$NAM](#nam)
+- [$NAM_STORE](#nam_store)
+- [$NAML](#naml)
+- [$NAML_STORE](#naml_store)
+- [$RAB](#rab)
+- [$RAB_STORE](#rab_store)
+- [$RAB64 (Alpha Only)](#rab64-alpha-only)
+- [$RAB64_STORE (Alpha Only)](#rab64_store-alpha-only)
+- [$XABALL](#xaball)
+- [$XABALL_STORE](#xaball_store)
+- [$XABDAT](#xabdat)
+- [$XABDAT_STORE](#xabdat_store)
+- [$XABFHC](#xabfhc)
+- [$XABFHC_STORE](#xabfhc_store)
+- [$XABITM](#xabitm)
+- [$XABKEY](#xabkey)
+- [$XABKEY_STORE](#xabkey_store)
+- [$XABPRO](#xabpro)
+- [$XABPRO_STORE](#xabpro_store)
+- [$XABRDT](#xabrdt)
+- [$XABRDT_STORE](#xabrdt_store)
+- [$XABSUM](#xabsum)
+- [$XABSUM_STORE](#xabsum_store)
+- [$XABTRM](#xabtrm)
+- [$XABTRM_STORE](#xabtrm_store)
 
 
 **B** **VAX MACRO Programming Information and Examples**
 
 
-B.1 RMS Macros . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–1
-B.1.1 Conventions for Naming RMS Macros . . . . . . . . . . . . . . . . . . . . . . . . . B–2
-B.1.2 Applicable VAX MACRO Syntax Rules . . . . . . . . . . . . . . . . . . . . . . . . B–5
-B.2 Using the RMS Macros . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–6
-B.2.1 Control Block Initialization Macros . . . . . . . . . . . . . . . . . . . . . . . . . . . B–6
-B.2.2 Control Block Symbol Definition Macros . . . . . . . . . . . . . . . . . . . . . . . B–7
-B.2.3 Control Block Store Macros . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–7
+- [B.1 RMS Macros](#b1-rms-macros)
+- B.1.1 Conventions for Naming RMS Macros
+- B.1.2 Applicable VAX MACRO Syntax Rules
+- [B.2 Using the RMS Macros](#b2-using-the-rms-macros)
+- B.2.1 Control Block Initialization Macros
+- B.2.2 Control Block Symbol Definition Macros
+- B.2.3 Control Block Store Macros
 
 
 x
 
 
-B.2.4 Service Macros . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–9
-B.3 VAX MACRO Example Programs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–12
-B.3.1 Creating, Accessing, and Deaccessing a File . . . . . . . . . . . . . . . . . . . . B–12
-B.3.2 Example of Opening and Creating Files . . . . . . . . . . . . . . . . . . . . . . . . B–12
-B.3.3 Example of Creating a Multiple-Key Indexed File . . . . . . . . . . . . . . . . B–16
-B.3.4 Processing File Specifications . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–20
-B.3.5 Connecting and Disconnecting Record Streams . . . . . . . . . . . . . . . . . . B–23
-B.3.6 Other File-Processing Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–25
-B.3.7 Retrieving and Inserting Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–27
-B.3.8 Deleting Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–30
-B.3.9 Updating Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–31
-B.3.10 Using Block I/O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–33
-B.3.11 Mixed Block and Record I/O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–34
+- B.2.4 Service Macros
+- [B.3 VAX MACRO Example Programs](#b3-vax-macro-example-programs)
+- B.3.1 Creating, Accessing, and Deaccessing a File
+- B.3.2 Example of Opening and Creating Files
+- B.3.3 Example of Creating a Multiple-Key Indexed File
+- B.3.4 Processing File Specifications
+- B.3.5 Connecting and Disconnecting Record Streams
+- B.3.6 Other File-Processing Operations
+- B.3.7 Retrieving and Inserting Records
+- B.3.8 Deleting Records
+- B.3.9 Updating Records
+- B.3.10 Using Block I/O
+- B.3.11 Mixed Block and Record I/O
 
-B.3.12 Next Block Pointer (NBP) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–35
+- B.3.12 Next Block Pointer (NBP)
 
 
 **Index**
@@ -572,39 +572,39 @@ B.3.12 Next Block Pointer (NBP) . . . . . . . . . . . . . . . . . . . . . . . . 
 **Examples**
 
 
-3–1 Use of the Create, Open, and Close Services . . . . . . . . . . . . . . . . . . . . 3–2
-3–2 Record Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
-3–3 Displaying the Index Root for a File . . . . . . . . . . . . . . . . . . . . . . . . . . 3–8
-3–4 Using NAML Blocks for Extended File Specifications . . . . . . . . . . . . . 3–10
-3–5 Using the RAB64 Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-12–1 Using XABITM to Enable RMS Statistics . . . . . . . . . . . . . . . . . . . . . . 12–11
-B–1 Use of the $XABDAT and $XABDAT_STORE Macros . . . . . . . . . . . . . B–9
+- 3–1 Use of the Create, Open, and Close Services
+- 3–2 Record Operations
+- 3–3 Displaying the Index Root for a File
+- 3–4 Using NAML Blocks for Extended File Specifications
+- 3–5 Using the RAB64 Structure
+- 12–1 Using XABITM to Enable RMS Statistics
+- [B–1 Use of the $XABDAT and $XABDAT_STORE Macros](#b)
 
-B–2 Use of the Create, Open, and Close Services . . . . . . . . . . . . . . . . . . . . B–13
+- [B–2 Use of the Create, Open, and Close Services](#b)
 
-B–3 Use of the Create Service for an Indexed File . . . . . . . . . . . . . . . . . . . B–16
+- [B–3 Use of the Create Service for an Indexed File](#b)
 
-B–4 Wildcard Processing Using Parse and Search Services . . . . . . . . . . . . B–21
-B–5 Use of the Connect Service and Multiple Keys . . . . . . . . . . . . . . . . . . . B–24
+- [B–4 Wildcard Processing Using Parse and Search Services](#b)
+- [B–5 Use of the Connect Service and Multiple Keys](#b)
 
-B–6 Use of the Rename Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–26
+- [B–6 Use of the Rename Service](#b)
 
-B–7 Use of the Get and Put Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–27
+- [B–7 Use of the Get and Put Services](#b)
 
-B–8 Use of the Delete Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–30
+- [B–8 Use of the Delete Service](#b)
 
-B–9 Use of the Update Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–31
+- [B–9 Use of the Update Service](#b)
 
-B–10 Use of Block I/O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–35
+- [B–10 Use of Block I/O](#b)
 
 
 **Figures**
 
 
-2–1 Argument List Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-12–1 Item Descriptor Data Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–1
+- 2–1 Argument List Format
+- 12–1 Item Descriptor Data Structure
 
-15–1 File Protection Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–6
+- 15–1 File Protection Field
 
 
 xi
@@ -613,180 +613,180 @@ xi
 **Tables**
 
 
-1–1 Record Management Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
+- 1–1 Record Management Services
 
-4–1 FAB Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
+- 4–1 FAB Fields
 
-4–2 Device Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–8
+- 4–2 Device Characteristics
 
-4–3 File Processing Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–12
+- 4–3 File Processing Options
 4–4 Maximum Record Size for File Organizations and Record Formats . . . 4–23
 
-5–1 NAM Block Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–1
+- 5–1 NAM Block Fields
 
-5–2 NAM$L_FNB Status Bits . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
+- 5–2 NAM$L_FNB Status Bits
 
-6–1 NAML Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–2
+- 6–1 NAML Fields
 
-6–2 NAML$V_CASE_LOOKUP Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–6
+- 6–2 NAML$V_CASE_LOOKUP Values
 
-7–1 RAB Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–1
+- 7–1 RAB Fields
 
-7–2 Record Processing Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–11
-7–3 Search Option Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–14
-7–4 Keyed Search Combinations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–15
-7–5 ROP_2 Record Processing Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–21
+- 7–2 Record Processing Options
+- 7–3 Search Option Results
+- 7–4 Keyed Search Combinations
+- 7–5 ROP_2 Record Processing Options
 
-8–1 RAB64 Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–1
+- 8–1 RAB64 Fields
 
-9–1 XABALL Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–1
+- 9–1 XABALL Fields
 
-10–1 XABDAT Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–1
+- 10–1 XABDAT Fields
 
-11–1 XABFHC Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11–1
+- 11–1 XABFHC Fields
 
-12–1 XABITM Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–2
+- 12–1 XABITM Fields
 
-12–2 XABITM Item List . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–3
+- 12–2 XABITM Item List
 
-12–3 System Networking Capabilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–8
+- 12–3 System Networking Capabilities
 
-12–4 File User Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–10
+- 12–4 File User Characteristics
 
-12–5 Tag Support Item Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12–11
-12–6 XAB$_CACHING_OPTIONS XABITM . . . . . . . . . . . . . . . . . . . . . . . . . 12–15
+- 12–5 Tag Support Item Codes
+- 12–6 XAB$_CACHING_OPTIONS XABITM
 
-14–1 XABKEY Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14–1
+- 14–1 XABKEY Fields
 
-15–1 XABPRO Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15–1
+- 15–1 XABPRO Fields
 
-16–1 XABRDT Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16–2
+- 16–1 XABRDT Fields
 
-18–1 XABSUM Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18–1
+- 18–1 XABSUM Fields
 
-19–1 XABTRM Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19–1
+- 19–1 XABTRM Fields
 
-RMS–1 Close Service FAB and XAB Input Fields . . . . . . . . . . . . . . . . . . . . . . RMS–4
-RMS–2 Close Service FAB and XAB Output Fields . . . . . . . . . . . . . . . . . . . . . RMS–5
-RMS–3 Connect Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–8
-RMS–4 Connect Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–8
-RMS–5 Create Service FAB and XAB Input Fields . . . . . . . . . . . . . . . . . . . . . RMS–11
-RMS–6 Create Service FAB and XAB Output Fields . . . . . . . . . . . . . . . . . . . . RMS–16
-RMS–7 Create Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–17
-RMS–8 Create Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–19
-RMS–9 Create Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . RMS–20
-RMS–10 Create Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–21
-RMS–11 Delete Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–27
-RMS–12 Delete Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–27
-RMS–13 Disconnect Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–29
-RMS–14 Disconnect Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . RMS–29
-RMS–15 Display Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–31
-RMS–16 Display Service FAB and XAB Output Fields . . . . . . . . . . . . . . . . . . . RMS–31
+- [RMS–1 Close Service FAB and XAB Input Fields](#rms-program-interface)
+- [RMS–2 Close Service FAB and XAB Output Fields](#rms-program-interface)
+- [RMS–3 Connect Service RAB Input Fields](#rms-program-interface)
+- [RMS–4 Connect Service RAB Output Fields](#rms-program-interface)
+- [RMS–5 Create Service FAB and XAB Input Fields](#rms-program-interface)
+- [RMS–6 Create Service FAB and XAB Output Fields](#rms-program-interface)
+- [RMS–7 Create Service NAM Input Fields](#rms-program-interface)
+- [RMS–8 Create Service NAM Output Fields](#rms-program-interface)
+- [RMS–9 Create Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–10 Create Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–11 Delete Service RAB Input Fields](#rms-program-interface)
+- [RMS–12 Delete Service RAB Output Fields](#rms-program-interface)
+- [RMS–13 Disconnect Service RAB Input Fields](#rms-program-interface)
+- [RMS–14 Disconnect Service RAB Output Fields](#rms-program-interface)
+- [RMS–15 Display Service FAB Input Fields](#rms-program-interface)
+- [RMS–16 Display Service FAB and XAB Output Fields](#rms-program-interface)
 
 
 xii
 
 
-RMS–17 Display Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–32
-RMS–18 Display Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–33
-RMS–19 Display Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–33
-RMS–20 Display Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–33
-RMS–21 Enter Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–36
-RMS–22 Enter Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–36
-RMS–23 Enter Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–37
-RMS–24 Enter Service NAM Output Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–37
-RMS–25 Enter Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . RMS–37
-RMS–26 Enter Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–38
-RMS–27 Erase Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–40
-RMS–28 Erase Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–40
-RMS–29 Erase Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–41
-RMS–30 Erase Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–42
-RMS–31 Erase Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . RMS–42
-RMS–32 Erase Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–44
-RMS–33 Extend Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–47
-RMS–34 Extend Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–48
-RMS–35 Find Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–50
-RMS–36 Find Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–52
-RMS–37 Find Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . . RMS–53
-RMS–38 Find Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–54
-RMS–39 Flush Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–57
-RMS–40 Flush Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–57
-RMS–41 Free Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–60
-RMS–42 Free Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–60
-RMS–43 Get Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–64
-RMS–44 Get Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–68
-RMS–45 Get Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . . . RMS–69
-RMS–46 Get Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . . . . RMS–70
-RMS–47 Next Volume Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . RMS–73
-RMS–48 Delete Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–74
-RMS–49 Open Service FAB and XAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . RMS–76
-RMS–50 Open Service FAB and XAB Output Fields . . . . . . . . . . . . . . . . . . . . . RMS–79
-RMS–51 Open Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–81
-RMS–52 Open Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–81
-RMS–53 Open Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . . RMS–82
-RMS–54 Open Service NAML Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–84
-RMS–55 Parse Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–89
-RMS–56 Parse Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–90
-RMS–57 Parse Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–90
-RMS–58 Parse Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–91
-RMS–59 Parse Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . RMS–92
-RMS–60 Parse Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–93
-RMS–61 Put Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–99
-RMS–62 Put Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–100
-RMS–63 Put Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . . . RMS–101
+- [RMS–17 Display Service NAM Input Fields](#rms-program-interface)
+- [RMS–18 Display Service NAM Output Fields](#rms-program-interface)
+- [RMS–19 Display Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–20 Display Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–21 Enter Service FAB Input Fields](#rms-program-interface)
+- [RMS–22 Enter Service FAB Output Fields](#rms-program-interface)
+- [RMS–23 Enter Service NAM Input Fields](#rms-program-interface)
+- [RMS–24 Enter Service NAM Output Field](#rms-program-interface)
+- [RMS–25 Enter Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–26 Enter Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–27 Erase Service FAB Input Fields](#rms-program-interface)
+- [RMS–28 Erase Service FAB Output Fields](#rms-program-interface)
+- [RMS–29 Erase Service NAM Input Fields](#rms-program-interface)
+- [RMS–30 Erase Service NAM Output Fields](#rms-program-interface)
+- [RMS–31 Erase Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–32 Erase Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–33 Extend Service FAB Input Fields](#rms-program-interface)
+- [RMS–34 Extend Service FAB Output Fields](#rms-program-interface)
+- [RMS–35 Find Service RAB Input Fields](#rms-program-interface)
+- [RMS–36 Find Service RAB Output Fields](#rms-program-interface)
+- [RMS–37 Find Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–38 Find Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–39 Flush Service RAB Input Fields](#rms-program-interface)
+- [RMS–40 Flush Service RAB Output Fields](#rms-program-interface)
+- [RMS–41 Free Service RAB Input Fields](#rms-program-interface)
+- [RMS–42 Free Service RAB Output Fields](#rms-program-interface)
+- [RMS–43 Get Service RAB Input Fields](#rms-program-interface)
+- [RMS–44 Get Service RAB Output Fields](#rms-program-interface)
+- [RMS–45 Get Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–46 Get Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–47 Next Volume Service RAB Input Fields](#rms-program-interface)
+- [RMS–48 Delete Service RAB Output Fields](#rms-program-interface)
+- [RMS–49 Open Service FAB and XAB Input Fields](#rms-program-interface)
+- [RMS–50 Open Service FAB and XAB Output Fields](#rms-program-interface)
+- [RMS–51 Open Service NAM Input Fields](#rms-program-interface)
+- [RMS–52 Open Service NAM Output Fields](#rms-program-interface)
+- [RMS–53 Open Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–54 Open Service NAML Output Fields](#rms-program-interface)
+- [RMS–55 Parse Service FAB Input Fields](#rms-program-interface)
+- [RMS–56 Parse Service FAB Output Fields](#rms-program-interface)
+- [RMS–57 Parse Service NAM Input Fields](#rms-program-interface)
+- [RMS–58 Parse Service NAM Output Fields](#rms-program-interface)
+- [RMS–59 Parse Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–60 Parse Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–61 Put Service RAB Input Fields](#rms-program-interface)
+- [RMS–62 Put Service RAB Output Fields](#rms-program-interface)
+- [RMS–63 Put Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
 
 
 xiii
 
 
-RMS–64 Put Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . . . . RMS–102
-RMS–65 Read Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–104
-RMS–66 Read Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–105
-RMS–67 Read Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . . RMS–105
-RMS–68 Read Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–106
-RMS–69 Release Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–108
-RMS–70 Release Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–108
-RMS–71 Remove Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–111
-RMS–72 Remove Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–111
-RMS–73 Remove Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–111
-RMS–74 Remove Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–112
-RMS–75 Remove Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–112
-RMS–76 Remove Service NAML Block Output Fields (Alpha Only) . . . . . . . . . . RMS–113
-RMS–77 Rename Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–115
-RMS–78 Rename Service FAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–116
-RMS–79 Rename Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–116
-RMS–80 Rename Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–117
-RMS–81 Rename Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–117
-RMS–82 Rename Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . RMS–118
-RMS–83 Rewind Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–122
-RMS–84 Rewind Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–122
-RMS–85 Search Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–124
-RMS–86 Search Service FAB Block Output Fields . . . . . . . . . . . . . . . . . . . . . . . RMS–124
-RMS–87 Search Service NAM Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–125
-RMS–88 Search Service NAM Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–126
-RMS–89 Search Service NAML Input Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–126
-RMS–90 Search Service NAML Output Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–128
-RMS–91 Space Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–131
-RMS–92 Space Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–131
-RMS–93 Truncate Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–133
-RMS–94 Truncate Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–134
-RMS–95 Update Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–136
-RMS–96 Update Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–137
-RMS–97 Update Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–137
-RMS–98 Update Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . RMS–138
-RMS–99 Wait Service FAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–141
-RMS–100 Wait Service FAB Output Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–141
-RMS–101 Wait Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–141
-RMS–102 Wait Service RAB Output Field . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–141
-RMS–103 Write Service RAB Input Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–143
-RMS–104 Write Service RAB Output Fields . . . . . . . . . . . . . . . . . . . . . . . . . . . . RMS–144
-RMS–105 Write Service RAB64 Input Fields (Alpha Only) . . . . . . . . . . . . . . . . . RMS–144
-RMS–106 Write Service RAB64 Output Fields (Alpha Only) . . . . . . . . . . . . . . . . RMS–145
+- [RMS–64 Put Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–65 Read Service RAB Input Fields](#rms-program-interface)
+- [RMS–66 Read Service RAB Output Fields](#rms-program-interface)
+- [RMS–67 Read Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–68 Read Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–69 Release Service RAB Input Fields](#rms-program-interface)
+- [RMS–70 Release Service RAB Output Fields](#rms-program-interface)
+- [RMS–71 Remove Service FAB Input Fields](#rms-program-interface)
+- [RMS–72 Remove Service FAB Output Fields](#rms-program-interface)
+- [RMS–73 Remove Service NAM Input Fields](#rms-program-interface)
+- [RMS–74 Remove Service NAM Output Fields](#rms-program-interface)
+- [RMS–75 Remove Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–76 Remove Service NAML Block Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–77 Rename Service FAB Input Fields](#rms-program-interface)
+- [RMS–78 Rename Service FAB Output Fields](#rms-program-interface)
+- [RMS–79 Rename Service NAM Input Fields](#rms-program-interface)
+- [RMS–80 Rename Service NAM Output Fields](#rms-program-interface)
+- [RMS–81 Rename Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–82 Rename Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–83 Rewind Service RAB Input Fields](#rms-program-interface)
+- [RMS–84 Rewind Service RAB Output Fields](#rms-program-interface)
+- [RMS–85 Search Service FAB Input Fields](#rms-program-interface)
+- [RMS–86 Search Service FAB Block Output Fields](#rms-program-interface)
+- [RMS–87 Search Service NAM Input Fields](#rms-program-interface)
+- [RMS–88 Search Service NAM Output Fields](#rms-program-interface)
+- [RMS–89 Search Service NAML Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–90 Search Service NAML Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–91 Space Service RAB Input Fields](#rms-program-interface)
+- [RMS–92 Space Service RAB Output Fields](#rms-program-interface)
+- [RMS–93 Truncate Service RAB Input Fields](#rms-program-interface)
+- [RMS–94 Truncate Service RAB Output Fields](#rms-program-interface)
+- [RMS–95 Update Service RAB Input Fields](#rms-program-interface)
+- [RMS–96 Update Service RAB Output Fields](#rms-program-interface)
+- [RMS–97 Update Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–98 Update Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
+- [RMS–99 Wait Service FAB Input Fields](#rms-program-interface)
+- [RMS–100 Wait Service FAB Output Field](#rms-program-interface)
+- [RMS–101 Wait Service RAB Input Fields](#rms-program-interface)
+- [RMS–102 Wait Service RAB Output Field](#rms-program-interface)
+- [RMS–103 Write Service RAB Input Fields](#rms-program-interface)
+- [RMS–104 Write Service RAB Output Fields](#rms-program-interface)
+- [RMS–105 Write Service RAB64 Input Fields (Alpha Only)](#rms-program-interface)
+- [RMS–106 Write Service RAB64 Output Fields (Alpha Only)](#rms-program-interface)
 
-B–1 User Control Blocks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–2
+- [B–1 User Control Blocks](#b)
 
-B–2 Record Management Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–3
-B–3 File, Record, and Block I/O Processing Macros . . . . . . . . . . . . . . . . . . B–11
+- [B–2 Record Management Services](#b)
+- [B–3 File, Record, and Block I/O Processing Macros](#b)
 
 
 

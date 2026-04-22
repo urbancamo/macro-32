@@ -74,70 +74,70 @@ ii
 MACRO Compiler Porting and User's Guide
 
 
-**Preface ................................................................................................................................... vii**
+- **Preface
 
-1. About VSI .................................................................................................................... vii
+- [1. About VSI](#1-about-vsi)
 
-2. Intended Audience ........................................................................................................ vii
+- [2. Intended Audience](#2-intended-audience)
 
-3. Document Structure ...................................................................................................... vii
+- [3. Document Structure](#3-document-structure)
 
-4. Related Documents ...................................................................................................... viii
+- [4. Related Documents](#4-related-documents)
 
-5. Typographical Conventions .......................................................................................... viii
-6. VSI Encourages Your Comments ..................................................................................... x
-7. How to Order Additional Documentation ......................................................................... x
+- [5. Typographical Conventions](#5-typographical-conventions)
+- [6. VSI Encourages Your Comments](#6-vsi-encourages-your-comments)
+- [7. How to Order Additional Documentation](#7-how-to-order-additional-documentation)
 
-**Chapter 1. Preparing to Port Macro-32 Code .................................................................... 1**
+- **Chapter 1. Preparing to Port Macro-32 Code
 
-1.1. Features of the MACRO Compiler ................................................................................ 1
-1.2. Differences Between the Compiler and the Assembler .................................................... 2
-1.2.1. Moving Code .................................................................................................... 2
-1.2.2. Replicating Code ............................................................................................... 3
-1.2.3. Removing Code ................................................................................................ 3
-1.2.4. Interleaving Instructions ..................................................................................... 3
-1.2.5. Reserved Operand Faults ................................................................................... 3
+- [1.1. Features of the MACRO Compiler](#11-features-of-the-macro-compiler)
+- [1.2. Differences Between the Compiler and the Assembler](#12-differences-between-the-compiler-and-the-assembler)
+- [1.2.1. Moving Code](#121-moving-code)
+- [1.2.2. Replicating Code](#122-replicating-code)
+- [1.2.3. Removing Code](#123-removing-code)
+- [1.2.4. Interleaving Instructions](#124-interleaving-instructions)
+- [1.2.5. Reserved Operand Faults](#125-reserved-operand-faults)
 1.3. Step-by-Step Porting Process for OpenVMS VAX to OpenVMS Alpha or OpenVMS
-I64 ..................................................................................................................................... 4
+- I64
 
-1.4. Step-by-Step Porting Process for OpenVMS Alpha to OpenVMS I64 .............................. 6
-1.5. Identifying Nonportable VAX MACRO Coding Practices ............................................... 6
-1.6. Establishing Useful Coding Conventions ....................................................................... 8
-1.7. Maintaining Common Sources ...................................................................................... 8
-1.7.1. Including Compiler Directive Definitions ............................................................ 8
-1.7.2. Removing VAX Dependencies ........................................................................... 9
-1.7.3. Conditionalizing Architecture-Specific Code ....................................................... 9
+- [1.4. Step-by-Step Porting Process for OpenVMS Alpha to OpenVMS I64](#14-step-by-step-porting-process-for-openvms-alpha-to-openvms-i64)
+- [1.5. Identifying Nonportable VAX MACRO Coding Practices](#15-identifying-nonportable-vax-macro-coding-practices)
+- [1.6. Establishing Useful Coding Conventions](#16-establishing-useful-coding-conventions)
+- [1.7. Maintaining Common Sources](#17-maintaining-common-sources)
+- [1.7.1. Including Compiler Directive Definitions](#171-including-compiler-directive-definitions)
+- [1.7.2. Removing VAX Dependencies](#172-removing-vax-dependencies)
+- [1.7.3. Conditionalizing Architecture-Specific Code](#173-conditionalizing-architecture-specific-code)
 
-**Chapter 2. How the MACRO Compiler Functions on Different Platforms ................... 13**
+- **Chapter 2. How the MACRO Compiler Functions on Different Platforms
 
-2.1. Using Alpha and Itanium Registers ............................................................................. 13
-2.2. Itanium Architecture, Calling Standard, and Register Mapping ...................................... 14
-2.3. Routine Calls and Declarations ................................................................................... 16
+- [2.1. Using Alpha and Itanium Registers](#21-using-alpha-and-itanium-registers)
+- [2.2. Itanium Architecture, Calling Standard, and Register Mapping](#22-itanium-architecture-calling-standard-and-register-mapping)
+- [2.3. Routine Calls and Declarations](#23-routine-calls-and-declarations)
 
-2.3.1. Linkage Section (OpenVMS Alpha only) .......................................................... 17
-2.3.2. Prologue and Epilogue Code ............................................................................ 17
-2.3.3. When to Declare Entry Points .......................................................................... 18
-2.3.4. Directives for Designating Routine Entry Points ................................................ 18
-2.3.5. Code Generation for Routine Calls ................................................................... 19
+- [2.3.1. Linkage Section (OpenVMS Alpha only)](#231-linkage-section-openvms-alpha-only)
+- [2.3.2. Prologue and Epilogue Code](#232-prologue-and-epilogue-code)
+- [2.3.3. When to Declare Entry Points](#233-when-to-declare-entry-points)
+- [2.3.4. Directives for Designating Routine Entry Points](#234-directives-for-designating-routine-entry-points)
+- [2.3.5. Code Generation for Routine Calls](#235-code-generation-for-routine-calls)
 
-2.4. Declaring CALL Entry Points ..................................................................................... 20
-2.4.1. Homed Argument Lists .................................................................................... 20
-2.4.2. Saving Modified Registers ............................................................................... 21
-2.4.3. Modifying the Argument Pointer ...................................................................... 22
-2.4.4. Establishing Dynamic Condition Handlers in Called Routines ............................ 22
-2.5. Declaring JSB Routine Entry Points ............................................................................ 22
-2.5.1. Differences Between .JSB_ENTRY and .JSB32_ENTRY ................................... 22
-2.5.2. Two General Cases for Using .JSB32_ENTRY .................................................. 23
-2.5.3. PUSHR and POPR Instructions Within JSB Routines ........................................ 24
+- [2.4. Declaring CALL Entry Points](#24-declaring-call-entry-points)
+- [2.4.1. Homed Argument Lists](#241-homed-argument-lists)
+- [2.4.2. Saving Modified Registers](#242-saving-modified-registers)
+- [2.4.3. Modifying the Argument Pointer](#243-modifying-the-argument-pointer)
+- [2.4.4. Establishing Dynamic Condition Handlers in Called Routines](#244-establishing-dynamic-condition-handlers-in-called-routines)
+- [2.5. Declaring JSB Routine Entry Points](#25-declaring-jsb-routine-entry-points)
+- [2.5.1. Differences Between .JSB_ENTRY and .JSB32_ENTRY](#251-differences-between-jsb_entry-and-jsb32_entry)
+- [2.5.2. Two General Cases for Using .JSB32_ENTRY](#252-two-general-cases-for-using-jsb32_entry)
+- [2.5.3. PUSHR and POPR Instructions Within JSB Routines](#253-pushr-and-popr-instructions-within-jsb-routines)
 
-2.5.4. Establishing Dynamic Condition Handlers in JSB Routines ................................ 24
-2.6. Declaring a Routine's Register Use ............................................................................. 24
-2.6.1. Input Argument for Entry Point Register Declaration ......................................... 25
-2.6.2. Output Argument for Entry Point Register Declaration ...................................... 25
-2.6.3. Scratch Argument for Entry Point Register Declaration ...................................... 26
-2.6.4. Preserve Argument for Entry Point Register Declaration .................................... 26
-2.6.5. Help for Specifying Register Sets ..................................................................... 27
-2.7. Branching Between Local Routines ............................................................................. 27
+- [2.5.4. Establishing Dynamic Condition Handlers in JSB Routines](#254-establishing-dynamic-condition-handlers-in-jsb-routines)
+- [2.6. Declaring a Routine's Register Use](#26-declaring-a-routines-register-use)
+- [2.6.1. Input Argument for Entry Point Register Declaration](#261-input-argument-for-entry-point-register-declaration)
+- [2.6.2. Output Argument for Entry Point Register Declaration](#262-output-argument-for-entry-point-register-declaration)
+- [2.6.3. Scratch Argument for Entry Point Register Declaration](#263-scratch-argument-for-entry-point-register-declaration)
+- [2.6.4. Preserve Argument for Entry Point Register Declaration](#264-preserve-argument-for-entry-point-register-declaration)
+- [2.6.5. Help for Specifying Register Sets](#265-help-for-specifying-register-sets)
+- [2.7. Branching Between Local Routines](#27-branching-between-local-routines)
 
 
 iii
@@ -146,72 +146,72 @@ iii
 MACRO Compiler Porting and User's Guide
 
 
-2.8. Declaring Exception Entry Points (OpenVMS Alpha only) ........................................... 28
-2.9. Using Packed Decimal Instructions ............................................................................. 29
+- [2.8. Declaring Exception Entry Points (OpenVMS Alpha only)](#28-declaring-exception-entry-points-openvms-alpha-only)
+- [2.9. Using Packed Decimal Instructions](#29-using-packed-decimal-instructions)
 2.9.1. Differences Between the OpenVMS VAX and OpenVMS Alpha/I64
-Implementations ........................................................................................................ 29
-2.10. Using Floating-Point Instructions .............................................................................. 30
+- Implementations
+- [2.10. Using Floating-Point Instructions](#210-using-floating-point-instructions)
 2.10.1. Differences Between the OpenVMS VAX and OpenVMS Alpha/I64
-Implementations ........................................................................................................ 31
-2.10.2. Impact on Routines in Other Languages .......................................................... 32
-2.11. Preserving VAX Atomicity and Granularity ............................................................... 33
-2.11.1. Preserving Atomicity ...................................................................................... 33
-2.11.2. Preserving Granularity ................................................................................... 35
-2.11.3. Precedence of Atomicity Over Granularity ...................................................... 37
-2.11.4. When Atomicity Cannot Be Guaranteed .......................................................... 37
-2.11.5. Alignment Considerations for Atomicity ......................................................... 39
-2.11.6. Interlocked Instructions and Atomicity ............................................................ 40
-2.12. Compiling and Linking ............................................................................................. 42
-2.12.1. Line Numbering in Listing File ...................................................................... 42
-2.13. Debugging ................................................................................................................ 43
-2.13.1. Code Relocation ............................................................................................ 43
+- Implementations
+- [2.10.2. Impact on Routines in Other Languages](#2102-impact-on-routines-in-other-languages)
+- [2.11. Preserving VAX Atomicity and Granularity](#211-preserving-vax-atomicity-and-granularity)
+- [2.11.1. Preserving Atomicity](#2111-preserving-atomicity)
+- [2.11.2. Preserving Granularity](#2112-preserving-granularity)
+- [2.11.3. Precedence of Atomicity Over Granularity](#2113-precedence-of-atomicity-over-granularity)
+- [2.11.4. When Atomicity Cannot Be Guaranteed](#2114-when-atomicity-cannot-be-guaranteed)
+- [2.11.5. Alignment Considerations for Atomicity](#2115-alignment-considerations-for-atomicity)
+- [2.11.6. Interlocked Instructions and Atomicity](#2116-interlocked-instructions-and-atomicity)
+- [2.12. Compiling and Linking](#212-compiling-and-linking)
+- [2.12.1. Line Numbering in Listing File](#2121-line-numbering-in-listing-file)
+- [2.13. Debugging](#213-debugging)
+- [2.13.1. Code Relocation](#2131-code-relocation)
 
-2.13.2. Symbolic Variables for Routine Arguments ..................................................... 44
-2.13.3. Locating Arguments Without $ARG _n_ Symbols ............................................... 44
-2.13.3.1. Additional Arguments That Are Easy to Locate .................................... 45
-2.13.3.2. Additional Arguments That Are Not Easy to Locate .............................. 45
-2.13.4. Using VAX and Alpha Register Names on OpenVMS I64 ................................ 46
-2.13.5. Debugging Code with Packed Decimal Data ................................................... 46
-2.13.6. Debugging Code with Floating-Point Data ...................................................... 46
+- [2.13.2. Symbolic Variables for Routine Arguments](#2132-symbolic-variables-for-routine-arguments)
+- 2.13.3. Locating Arguments Without $ARG _n_ Symbols
+- [2.13.3.1. Additional Arguments That Are Easy to Locate](#21331-additional-arguments-that-are-easy-to-locate)
+- [2.13.3.2. Additional Arguments That Are Not Easy to Locate](#21332-additional-arguments-that-are-not-easy-to-locate)
+- [2.13.4. Using VAX and Alpha Register Names on OpenVMS I64](#2134-using-vax-and-alpha-register-names-on-openvms-i64)
+- [2.13.5. Debugging Code with Packed Decimal Data](#2135-debugging-code-with-packed-decimal-data)
+- [2.13.6. Debugging Code with Floating-Point Data](#2136-debugging-code-with-floating-point-data)
 
-**Chapter 3. Recommended and Required Source Changes .............................................. 49**
+- **Chapter 3. Recommended and Required Source Changes
 
-3.1. Stack Usage ............................................................................................................... 49
-3.1.1. References to the Procedure Stack Frame .......................................................... 49
+- [3.1. Stack Usage](#31-stack-usage)
+- [3.1.1. References to the Procedure Stack Frame](#311-references-to-the-procedure-stack-frame)
 
-3.1.2. References Outside the Current Stack Frame ..................................................... 50
+- [3.1.2. References Outside the Current Stack Frame](#312-references-outside-the-current-stack-frame)
 
-3.1.3. Nonaligned Stack References ........................................................................... 50
-3.1.4. Building Data Structures on the Stack .............................................................. 50
-3.1.5. Quadword Moves Into the VAX SP and PC ...................................................... 51
-3.2. Instruction Stream ...................................................................................................... 51
+- [3.1.3. Nonaligned Stack References](#313-nonaligned-stack-references)
+- [3.1.4. Building Data Structures on the Stack](#314-building-data-structures-on-the-stack)
+- [3.1.5. Quadword Moves Into the VAX SP and PC](#315-quadword-moves-into-the-vax-sp-and-pc)
+- [3.2. Instruction Stream](#32-instruction-stream)
 
-3.2.1. Data Embedded in the Instruction Stream ......................................................... 51
+- [3.2.1. Data Embedded in the Instruction Stream](#321-data-embedded-in-the-instruction-stream)
 
-3.2.2. Run-Time Code Generation .............................................................................. 52
+- [3.2.2. Run-Time Code Generation](#322-run-time-code-generation)
 
-3.2.3. Dependencies on Instruction Size ..................................................................... 52
-3.2.4. Incomplete Instructions .................................................................................... 52
-3.2.5. Untranslatable VAX Instructions ....................................................................... 52
+- [3.2.3. Dependencies on Instruction Size](#323-dependencies-on-instruction-size)
+- [3.2.4. Incomplete Instructions](#324-incomplete-instructions)
+- [3.2.5. Untranslatable VAX Instructions](#325-untranslatable-vax-instructions)
 
-3.2.6. References to Internal Processor Registers ........................................................ 53
-3.2.7. Use of Z and N Condition Codes with the BICPSW Instruction .......................... 53
+- [3.2.6. References to Internal Processor Registers](#326-references-to-internal-processor-registers)
+- [3.2.7. Use of Z and N Condition Codes with the BICPSW Instruction](#327-use-of-z-and-n-condition-codes-with-the-bicpsw-instruction)
 
-3.2.8. Interlocked Memory Instructions ...................................................................... 53
-3.2.9. Use of the MOVPSL Instruction ...................................................................... 55
+- [3.2.8. Interlocked Memory Instructions](#328-interlocked-memory-instructions)
+- [3.2.9. Use of the MOVPSL Instruction](#329-use-of-the-movpsl-instruction)
 
-3.2.10. Instructions Implemented By Macros .............................................................. 55
-3.3. Flow Control Mechanisms .......................................................................................... 56
+- [3.2.10. Instructions Implemented By Macros](#3210-instructions-implemented-by-macros)
+- [3.3. Flow Control Mechanisms](#33-flow-control-mechanisms)
 
-3.3.1. Communication by Condition Codes ................................................................. 56
-3.3.2. Branches from JSB Routines into CALL Routines ............................................. 56
+- [3.3.1. Communication by Condition Codes](#331-communication-by-condition-codes)
+- [3.3.2. Branches from JSB Routines into CALL Routines](#332-branches-from-jsb-routines-into-call-routines)
 
-3.3.3. Pushing a Return Address onto the Stack .......................................................... 57
-3.3.4. Removing the Return Address from the Stack ................................................... 58
-3.3.5. Modifying the Return Address ......................................................................... 59
-3.3.6. Coroutine Calls ............................................................................................... 59
+- [3.3.3. Pushing a Return Address onto the Stack](#333-pushing-a-return-address-onto-the-stack)
+- [3.3.4. Removing the Return Address from the Stack](#334-removing-the-return-address-from-the-stack)
+- [3.3.5. Modifying the Return Address](#335-modifying-the-return-address)
+- [3.3.6. Coroutine Calls](#336-coroutine-calls)
 
-3.3.7. Using REI to Change Modes ............................................................................ 61
+- [3.3.7. Using REI to Change Modes](#337-using-rei-to-change-modes)
 
 
 iv
@@ -220,70 +220,70 @@ iv
 MACRO Compiler Porting and User's Guide
 
 
-3.3.8. Loop Nesting Limit ......................................................................................... 62
-3.4. Dynamic Image Relocation ......................................................................................... 63
-3.5. Overwriting Static Data .............................................................................................. 63
-3.6. Static Initialization Using External Symbols ................................................................ 64
-3.7. Transfer Vectors ......................................................................................................... 64
+- [3.3.8. Loop Nesting Limit](#338-loop-nesting-limit)
+- [3.4. Dynamic Image Relocation](#34-dynamic-image-relocation)
+- [3.5. Overwriting Static Data](#35-overwriting-static-data)
+- [3.6. Static Initialization Using External Symbols](#36-static-initialization-using-external-symbols)
+- [3.7. Transfer Vectors](#37-transfer-vectors)
 
-3.8. Arithmetic Exceptions ................................................................................................ 65
-3.9. Page Size ................................................................................................................... 66
-3.10. Locking Pages into a Working Set ............................................................................. 66
-3.11. Synchronization ........................................................................................................ 71
+- [3.8. Arithmetic Exceptions](#38-arithmetic-exceptions)
+- [3.9. Page Size](#39-page-size)
+- [3.10. Locking Pages into a Working Set](#310-locking-pages-into-a-working-set)
+- [3.11. Synchronization](#311-synchronization)
 
-**Chapter 4. Improving the Performance of Ported Code ................................................. 73**
+- **Chapter 4. Improving the Performance of Ported Code
 
-4.1. Aligning Data ............................................................................................................ 73
-4.1.1. Alignment Assumptions ................................................................................... 73
-4.1.2. Directives and Qualifier for Changing Alignment Assumptions .......................... 74
-4.1.3. Precedence of Alignment Controls .................................................................... 74
-4.1.4. Recommendations for Aligning Data ................................................................ 74
-4.2. Code Flow and Branch Prediction ............................................................................... 75
+- [4.1. Aligning Data](#41-aligning-data)
+- [4.1.1. Alignment Assumptions](#411-alignment-assumptions)
+- [4.1.2. Directives and Qualifier for Changing Alignment Assumptions](#412-directives-and-qualifier-for-changing-alignment-assumptions)
+- [4.1.3. Precedence of Alignment Controls](#413-precedence-of-alignment-controls)
+- [4.1.4. Recommendations for Aligning Data](#414-recommendations-for-aligning-data)
+- [4.2. Code Flow and Branch Prediction](#42-code-flow-and-branch-prediction)
 
-4.2.1. Default Code Flow and Branch Prediction ........................................................ 75
+- [4.2.1. Default Code Flow and Branch Prediction](#421-default-code-flow-and-branch-prediction)
 
-4.2.2. Changing the Compiler's Branch Prediction ...................................................... 77
-4.2.3. How to Use .BRANCH_LIKELY ..................................................................... 77
-4.2.4. How to Use .BRANCH_UNLIKELY ................................................................ 77
-4.2.5. Forward Jumps into Loops ............................................................................... 78
-4.3. Code Optimization ..................................................................................................... 79
-4.3.1. Using the VAXREGS Optimization (OpenVMS Alpha only) .............................. 80
-4.4. Common-Based Referencing ....................................................................................... 80
-4.4.1. Creating a Prefix File for Common-Based Referencing ...................................... 80
-4.4.1.1. Code Sequence Differences on OpenVMS I64 Systems ........................... 82
+- [4.2.2. Changing the Compiler's Branch Prediction](#422-changing-the-compilers-branch-prediction)
+- [4.2.3. How to Use .BRANCH_LIKELY](#423-how-to-use-branch_likely)
+- [4.2.4. How to Use .BRANCH_UNLIKELY](#424-how-to-use-branch_unlikely)
+- [4.2.5. Forward Jumps into Loops](#425-forward-jumps-into-loops)
+- [4.3. Code Optimization](#43-code-optimization)
+- [4.3.1. Using the VAXREGS Optimization (OpenVMS Alpha only)](#431-using-the-vaxregs-optimization-openvms-alpha-only)
+- [4.4. Common-Based Referencing](#44-common-based-referencing)
+- [4.4.1. Creating a Prefix File for Common-Based Referencing](#441-creating-a-prefix-file-for-common-based-referencing)
+- [4.4.1.1. Code Sequence Differences on OpenVMS I64 Systems](#4411-code-sequence-differences-on-openvms-i64-systems)
 
-**Chapter 5. MACRO Support for 64-Bit Addressing ....................................................... 85**
+- **Chapter 5. MACRO Support for 64-Bit Addressing
 
-5.1. Components for 64-Bit Addressing ............................................................................. 85
-5.2. Passing 64-Bit Values ................................................................................................. 86
-5.2.1. Calls with a Fixed-Size Argument List ............................................................. 86
-5.2.2. Calls with a Variable-Size Argument List .......................................................... 87
-5.3. Declaring 64-Bit Arguments ....................................................................................... 88
-5.4. Specifying 64-Bit Address Arithmetic ......................................................................... 89
-5.4.1. Dependence on Wrapping Behavior of Longword Operations ............................. 89
-5.5. Sign-Extending and Checking ..................................................................................... 90
-5.6. Alpha Instruction Built-ins .......................................................................................... 90
-5.7. Calculating Page-Size Dependent Values ..................................................................... 90
-5.8. Creating and Using Buffers in 64-Bit Address Space .................................................... 91
-5.9. Coding for Moves Longer Than 64 KB ....................................................................... 91
+- [5.1. Components for 64-Bit Addressing](#51-components-for-64-bit-addressing)
+- [5.2. Passing 64-Bit Values](#52-passing-64-bit-values)
+- [5.2.1. Calls with a Fixed-Size Argument List](#521-calls-with-a-fixed-size-argument-list)
+- [5.2.2. Calls with a Variable-Size Argument List](#522-calls-with-a-variable-size-argument-list)
+- [5.3. Declaring 64-Bit Arguments](#53-declaring-64-bit-arguments)
+- [5.4. Specifying 64-Bit Address Arithmetic](#54-specifying-64-bit-address-arithmetic)
+- [5.4.1. Dependence on Wrapping Behavior of Longword Operations](#541-dependence-on-wrapping-behavior-of-longword-operations)
+- [5.5. Sign-Extending and Checking](#55-sign-extending-and-checking)
+- [5.6. Alpha Instruction Built-ins](#56-alpha-instruction-built-ins)
+- [5.7. Calculating Page-Size Dependent Values](#57-calculating-page-size-dependent-values)
+- [5.8. Creating and Using Buffers in 64-Bit Address Space](#58-creating-and-using-buffers-in-64-bit-address-space)
+- [5.9. Coding for Moves Longer Than 64 KB](#59-coding-for-moves-longer-than-64-kb)
 
-**Appendix A. MACRO Compiler Qualifiers ...................................................................... 93**
+- **Appendix A. MACRO Compiler Qualifiers
 
-A.1. MACRO Compiler Qualifiers ..................................................................................... 93
+- [A.1. MACRO Compiler Qualifiers](#a1-macro-compiler-qualifiers)
 
-**Appendix B. Specialized Directives .................................................................................. 103**
+- **Appendix B. Specialized Directives
 
-B.1. VAX MACRO Assembler Directives ........................................................................ 103
+- [B.1. VAX MACRO Assembler Directives](#b1-vax-macro-assembler-directives)
 
-B.2. MACRO Compiler Specialized Directives ................................................................. 103
+- [B.2. MACRO Compiler Specialized Directives](#b2-macro-compiler-specialized-directives)
 
-**Appendix C. MACRO Compiler Built-ins ...................................................................... 125**
+- **Appendix C. MACRO Compiler Built-ins
 
-C.1. Alpha Instruction Built-ins for OpenVMS Alpha and OpenVMS I64 Systems .............. 126
-C.2. Alpha PALcode Built-ins .......................................................................................... 130
-C.3. Itanium Instruction Built-ins for OpenVMS I64 Systems ............................................ 132
+- [C.1. Alpha Instruction Built-ins for OpenVMS Alpha and OpenVMS I64 Systems](#c1-alpha-instruction-built-ins-for-openvms-alpha-and-openvms-i64-systems)
+- [C.2. Alpha PALcode Built-ins](#c2-alpha-palcode-built-ins)
+- [C.3. Itanium Instruction Built-ins for OpenVMS I64 Systems](#c3-itanium-instruction-built-ins-for-openvms-i64-systems)
 
-**Appendix D. Macros for Porting from VAX to Alpha or I64 ........................................ 135**
+- **Appendix D. Macros for Porting from VAX to Alpha or I64
 
 
 v
@@ -292,16 +292,16 @@ v
 MACRO Compiler Porting and User's Guide
 
 
-D.1. Calculating Page-Size Values ................................................................................... 135
-D.2. Saving and Restoring 64-Bit Registers ...................................................................... 140
-D.3. Locking Pages into a Working Set ............................................................................ 141
-D.3.1. Image Initialization-Time Lockdown .............................................................. 141
-D.3.2. On-the-Fly Lockdown ................................................................................... 143
+- [D.1. Calculating Page-Size Values](#d1-calculating-page-size-values)
+- [D.2. Saving and Restoring 64-Bit Registers](#d2-saving-and-restoring-64-bit-registers)
+- [D.3. Locking Pages into a Working Set](#d3-locking-pages-into-a-working-set)
+- [D.3.1. Image Initialization-Time Lockdown](#d31-image-initialization-time-lockdown)
+- [D.3.2. On-the-Fly Lockdown](#d32-on-the-fly-lockdown)
 
-**Appendix E. Macros for 64-Bit Addressing .................................................................... 145**
+- **Appendix E. Macros for 64-Bit Addressing
 
-E.1. Macros for Manipulating 64-Bit Addresses ................................................................ 145
-E.2. Macros for Checking Sign Extension and Descriptor Format ...................................... 148
+- [E.1. Macros for Manipulating 64-Bit Addresses](#e1-macros-for-manipulating-64-bit-addresses)
+- [E.2. Macros for Checking Sign Extension and Descriptor Format](#e2-macros-for-checking-sign-extension-and-descriptor-format)
 
 
 vi

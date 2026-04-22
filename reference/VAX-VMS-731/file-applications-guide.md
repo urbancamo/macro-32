@@ -66,438 +66,438 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xiii
+- [Preface](#preface)
 
 
 **1** **Introduction**
 
 
-1.1 File Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.2 Disk Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2.1 Files–11 On-Disk Structure Concepts . . . . . . . . . . . . . . . . . . . . . . . . . 1–6
-1.2.2 Files–11 Control Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
+- [1.1 File Concepts](#11-file-concepts)
+- [1.2 Disk Concepts](#12-disk-concepts)
+- 1.2.1 Files–11 On-Disk Structure Concepts
+- 1.2.2 Files–11 Control Files
 
-1.2.2.1 Index File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
-1.2.2.2 Storage Bit Map File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
-1.2.2.3 Bad Block File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.4 Master File Directory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.5 Core Image File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.6 Volume Set List File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
+- 1.2.2.1 Index File
+- 1.2.2.2 Storage Bit Map File
+- 1.2.2.3 Bad Block File
+- 1.2.2.4 Master File Directory
+- 1.2.2.5 Core Image File
+- 1.2.2.6 Volume Set List File
 
-1.2.2.7 Continuation File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.8 Backup Log File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.9 Pending Bad Block Log File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.2.2.10 Security Profiles File (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . 1–11
-1.2.3 Files–11 On–Disk Structure Level 1 Versus Structure Level 2 . . . . . . 1–11
-1.2.4 Physical Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–12
-1.2.5 CD–ROM Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–14
-1.2.5.1 CD–ROM On-Disc Formats . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–14
+- 1.2.2.7 Continuation File
+- 1.2.2.8 Backup Log File
+- 1.2.2.9 Pending Bad Block Log File
+- 1.2.2.10 Security Profiles File (VAX Only)
+- 1.2.3 Files–11 On–Disk Structure Level 1 Versus Structure Level 2
+- 1.2.4 Physical Structures
+- 1.2.5 CD–ROM Concepts
+- 1.2.5.1 CD–ROM On-Disc Formats
 
-1.2.5.2 Volume Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–14
+- 1.2.5.2 Volume Structure
 
-1.2.5.3 Files–11 C/D—ACPs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–15
-1.2.5.4 Using DIGITAL System Identifiers on CD–ROM . . . . . . . . . . . . . . 1–16
-1.3 Magnetic Tape Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–18
-1.3.1 ANSI-Labeled Magnetic Tape . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–19
-1.3.1.1 Logical Format of ANSI Magnetic Tape Volumes . . . . . . . . . . . . . . 1–20
-1.3.1.2 RMS Magnetic Tape Ancillary Control Process (MTAACP) . . . . . . 1–20
-1.3.1.3 Basic Components of the ANSI Magnetic Tape Format . . . . . . . . . 1–20
-1.3.1.4 Volume and File Configurations . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–23
-1.3.1.5 Volume Labels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–27
+- 1.2.5.3 Files–11 C/D—ACPs
+- 1.2.5.4 Using DIGITAL System Identifiers on CD–ROM
+- [1.3 Magnetic Tape Concepts](#13-magnetic-tape-concepts)
+- 1.3.1 ANSI-Labeled Magnetic Tape
+- 1.3.1.1 Logical Format of ANSI Magnetic Tape Volumes
+- 1.3.1.2 RMS Magnetic Tape Ancillary Control Process (MTAACP)
+- 1.3.1.3 Basic Components of the ANSI Magnetic Tape Format
+- 1.3.1.4 Volume and File Configurations
+- 1.3.1.5 Volume Labels
 
-1.3.1.5.1 VOL1 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–27
+- 1.3.1.5.1 VOL1 Label
 
-1.3.1.5.2 VOL2 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–27
+- 1.3.1.5.2 VOL2 Label
 
-1.3.1.6 Header Labels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–28
+- 1.3.1.6 Header Labels
 
-1.3.1.6.1 HDR1 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–28
+- 1.3.1.6.1 HDR1 Label
 
-1.3.1.6.2 HDR2 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–31
+- 1.3.1.6.2 HDR2 Label
 
-1.3.1.6.3 HDR3 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
+- 1.3.1.6.3 HDR3 Label
 
-1.3.1.6.4 HDR4 Label . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
+- 1.3.1.6.4 HDR4 Label
 
-1.3.1.7 Trailer Labels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
+- 1.3.1.7 Trailer Labels
 1.4 Using Command Procedures to Perform Routine File and Device
-Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
-1.5 Volume Protection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–35
-1.6 RMS (Record Management Services) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–35
+- Operations
+- [1.5 Volume Protection](#15-volume-protection)
+- [1.6 RMS (Record Management Services)](#16-rms-record-management-services)
 
 
 iii
 
 
-1.6.1 File Definition Language (FDL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–35
-1.6.2 RMS Data Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–36
-1.6.3 Record Management Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–36
-1.7 RMS Utilities . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–37
-1.7.1 The Analyze/RMS_File Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–37
-1.7.2 The Convert Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–37
-1.7.3 The Convert/Reclaim Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–38
-1.7.4 The Create/FDL Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–39
-1.7.5 The Edit/FDL Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–39
-1.8 Process and System Resources for File Applications . . . . . . . . . . . . . . . . . 1–40
-1.8.1 Memory Requirements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–40
-1.8.2 Process Limits . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–41
+- 1.6.1 File Definition Language (FDL)
+- 1.6.2 RMS Data Structures
+- 1.6.3 Record Management Services
+- [1.7 RMS Utilities](#17-rms-utilities)
+- 1.7.1 The Analyze/RMS_File Utility
+- 1.7.2 The Convert Utility
+- 1.7.3 The Convert/Reclaim Utility
+- 1.7.4 The Create/FDL Utility
+- 1.7.5 The Edit/FDL Utility
+- [1.8 Process and System Resources for File Applications](#18-process-and-system-resources-for-file-applications)
+- 1.8.1 Memory Requirements
+- 1.8.2 Process Limits
 
 
 **2** **Choosing a File Organization**
 
 
-2.1 Record Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.1.1 Record Access Modes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2.1.1.1 Sequential Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.1.1.2 Random Access by Key Value or Relative Record Number . . . . . . . 2–6
-2.1.1.3 Random Access by Record File Address . . . . . . . . . . . . . . . . . . . . . 2–7
-2.1.2 Record Formats . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.1.2.1 Fixed-Length Record Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.1.2.2 Variable-Length Record Format . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
+- [2.1 Record Concepts](#21-record-concepts)
+- 2.1.1 Record Access Modes
+- 2.1.1.1 Sequential Access
+- 2.1.1.2 Random Access by Key Value or Relative Record Number
+- 2.1.1.3 Random Access by Record File Address
+- 2.1.2 Record Formats
+- 2.1.2.1 Fixed-Length Record Format
+- 2.1.2.2 Variable-Length Record Format
 2.1.2.3 Variable-Length with Fixed-Length Control Field (VFC) Record
-Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–11
+- Format
 
-2.1.2.4 Stream Record Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2 File Organization Concepts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.2.1 Sequential File Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
-2.2.2 Relative File Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
-2.2.3 Indexed File Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–19
-2.2.3.1 Sequentially Retrieving Indexed Records . . . . . . . . . . . . . . . . . . . . 2–19
-2.2.3.2 Index Keys . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–20
-2.2.3.3 Other Key Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–20
-2.2.3.4 Specifying Sort Order . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–24
-2.2.3.5 Using Collated Keys . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–24
-2.2.3.6 Summary of Indexed File Organization . . . . . . . . . . . . . . . . . . . . . 2–25
+- 2.1.2.4 Stream Record Format
+- [2.2 File Organization Concepts](#22-file-organization-concepts)
+- 2.2.1 Sequential File Organization
+- 2.2.2 Relative File Organization
+- 2.2.3 Indexed File Organization
+- 2.2.3.1 Sequentially Retrieving Indexed Records
+- 2.2.3.2 Index Keys
+- 2.2.3.3 Other Key Characteristics
+- 2.2.3.4 Specifying Sort Order
+- 2.2.3.5 Using Collated Keys
+- 2.2.3.6 Summary of Indexed File Organization
 
 
 **3** **Performance Considerations**
 
 
-3.1 Design Considerations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–1
-3.1.1 Speed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–1
-3.1.2 Space . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–2
-3.1.3 Shared Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
-3.1.4 Impact on Applications Design . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
-3.2 Tuning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
-3.2.1 File Design Attributes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.1.1 Initial File Allocation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.1.2 Contiguity . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.1.3 Extending a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.1.3.1 Auto Extend Size Selection . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
-3.2.1.3.2 Establishing Auto Extend Default Quantities . . . . . . . . . . . . . 3–6
-3.2.1.3.3 Placement and Contiguity of Extends . . . . . . . . . . . . . . . . . . . 3–8
-3.2.1.4 Truncating a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–9
-3.2.1.5 Units of I/O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–9
+- [3.1 Design Considerations](#31-design-considerations)
+- 3.1.1 Speed
+- 3.1.2 Space
+- 3.1.3 Shared Access
+- 3.1.4 Impact on Applications Design
+- [3.2 Tuning](#32-tuning)
+- 3.2.1 File Design Attributes
+- 3.2.1.1 Initial File Allocation
+- 3.2.1.2 Contiguity
+- 3.2.1.3 Extending a File
+- 3.2.1.3.1 Auto Extend Size Selection
+- 3.2.1.3.2 Establishing Auto Extend Default Quantities
+- 3.2.1.3.3 Placement and Contiguity of Extends
+- 3.2.1.4 Truncating a File
+- 3.2.1.5 Units of I/O
 
 
 iv
 
 
-3.2.1.6 Multiple Areas for Indexed Files . . . . . . . . . . . . . . . . . . . . . . . . . . 3–10
-3.2.1.7 Bucket Fill Factor for Indexed Files . . . . . . . . . . . . . . . . . . . . . . . . 3–10
-3.2.2 Processing Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–11
-3.2.2.1 Multiple Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–11
-3.2.2.2 Deferred-Write Processing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–12
-3.2.2.3 Global Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–12
-3.2.2.4 Read-Ahead and Write-Behind Processing . . . . . . . . . . . . . . . . . . . 3–13
-3.3 Tuning a Sequential File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.3.1 Block Span Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.3.2 Multiblock Size Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.3.3 Number of Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–14
-3.3.4 Global Buffer Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–14
-3.3.5 Read-Ahead and Write-Behind Options . . . . . . . . . . . . . . . . . . . . . . . . 3–15
-3.4 Tuning a Relative File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–15
-3.4.1 Bucket Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–16
+- 3.2.1.6 Multiple Areas for Indexed Files
+- 3.2.1.7 Bucket Fill Factor for Indexed Files
+- 3.2.2 Processing Options
+- 3.2.2.1 Multiple Buffers
+- 3.2.2.2 Deferred-Write Processing
+- 3.2.2.3 Global Buffers
+- 3.2.2.4 Read-Ahead and Write-Behind Processing
+- [3.3 Tuning a Sequential File](#33-tuning-a-sequential-file)
+- 3.3.1 Block Span Option
+- 3.3.2 Multiblock Size Option
+- 3.3.3 Number of Buffers
+- 3.3.4 Global Buffer Option
+- 3.3.5 Read-Ahead and Write-Behind Options
+- [3.4 Tuning a Relative File](#34-tuning-a-relative-file)
+- 3.4.1 Bucket Size
 
-3.4.2 Number of Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–16
-3.4.3 Global Buffer Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–17
-3.4.4 Deferred-Write Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–18
-3.5 Tuning an Indexed File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–18
-3.5.1 File Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–18
-3.5.1.1 Prologs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–18
-3.5.1.2 Primary Index Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–20
-3.5.1.3 Alternate Index Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–22
+- 3.4.2 Number of Buffers
+- 3.4.3 Global Buffer Option
+- 3.4.4 Deferred-Write Option
+- [3.5 Tuning an Indexed File](#35-tuning-an-indexed-file)
+- 3.5.1 File Structure
+- 3.5.1.1 Prologs
+- 3.5.1.2 Primary Index Structure
+- 3.5.1.3 Alternate Index Structure
 
-3.5.1.4 Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–22
-3.5.1.5 Keys . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–23
-3.5.1.6 Areas . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–24
-3.5.2 Optimizing File Performance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–25
-3.5.2.1 Bucket Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–25
+- 3.5.1.4 Records
+- 3.5.1.5 Keys
+- 3.5.1.6 Areas
+- 3.5.2 Optimizing File Performance
+- 3.5.2.1 Bucket Size
 
-3.5.2.2 Fill Factor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–26
+- 3.5.2.2 Fill Factor
 
-3.5.2.3 Number of Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–27
+- 3.5.2.3 Number of Buffers
 
-3.5.2.4 Global Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–28
-3.5.2.5 Using the Deferred-Write Option . . . . . . . . . . . . . . . . . . . . . . . . . . 3–28
-3.6 Monitoring RMS Performance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–29
-3.6.1 Enabling RMS Statistics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–29
-3.6.2 Using RMS Statistics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–30
-3.7 Processing in an OpenVMS Cluster Environment . . . . . . . . . . . . . . . . . . . 3–32
-3.7.1 OpenVMS Cluster Shared Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–32
-3.7.1.1 Locking Considerations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–33
-3.7.1.2 I/O Considerations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–33
+- 3.5.2.4 Global Buffers
+- 3.5.2.5 Using the Deferred-Write Option
+- [3.6 Monitoring RMS Performance](#36-monitoring-rms-performance)
+- 3.6.1 Enabling RMS Statistics
+- 3.6.2 Using RMS Statistics
+- [3.7 Processing in an OpenVMS Cluster Environment](#37-processing-in-an-openvms-cluster-environment)
+- 3.7.1 OpenVMS Cluster Shared Access
+- 3.7.1.1 Locking Considerations
+- 3.7.1.2 I/O Considerations
 
-3.7.2 Performance Recommendations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–33
+- 3.7.2 Performance Recommendations
 
 
 **4** **Creating and Populating Files**
 
 
-4.1 File Creation Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.1.1 Using RMS Control Blocks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.1.1.1 File Access Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
+- [4.1 File Creation Characteristics](#41-file-creation-characteristics)
+- 4.1.1 Using RMS Control Blocks
+- 4.1.1.1 File Access Block
 
-4.1.1.2 Extended Attribute Blocks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.1.2 Using File Definition Language . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.1.2.1 Using the Edit/FDL Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
-4.1.2.2 Designing an FDL File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–10
-4.1.3 Using the FDL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–13
-4.2 Creating a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–15
-4.2.1 Using the Create Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–15
-4.2.2 Using the Create/FDL Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–16
+- 4.1.1.2 Extended Attribute Blocks
+- 4.1.2 Using File Definition Language
+- 4.1.2.1 Using the Edit/FDL Utility
+- 4.1.2.2 Designing an FDL File
+- 4.1.3 Using the FDL Routines
+- [4.2 Creating a File](#42-creating-a-file)
+- 4.2.1 Using the Create Service
+- 4.2.2 Using the Create/FDL Utility
 
 
 v
 
 
-4.2.3 Using the Convert Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–16
-4.2.4 Using the FDL$CREATE Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–16
-4.3 Creating and Accessing Tagged Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–19
-4.3.1 Programming Interface for File Tagging . . . . . . . . . . . . . . . . . . . . . . . 4–20
-4.3.2 Accessing a Tagged File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–22
-4.3.2.1 File Accesses That Do Not Sense Tags . . . . . . . . . . . . . . . . . . . . . . 4–23
-4.3.2.2 File Accesses That Sense Tags . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–23
-4.3.3 Preserving Tags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–25
-4.4 Defining File Protection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–25
-4.4.1 UIC-Based Protection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–26
+- 4.2.3 Using the Convert Utility
+- 4.2.4 Using the FDL$CREATE Routine
+- [4.3 Creating and Accessing Tagged Files](#43-creating-and-accessing-tagged-files)
+- 4.3.1 Programming Interface for File Tagging
+- 4.3.2 Accessing a Tagged File
+- 4.3.2.1 File Accesses That Do Not Sense Tags
+- 4.3.2.2 File Accesses That Sense Tags
+- 4.3.3 Preserving Tags
+- [4.4 Defining File Protection](#44-defining-file-protection)
+- 4.4.1 UIC-Based Protection
 
-4.4.2 ACL-Based Protection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–26
-4.5 Populating a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–27
-4.5.1 Using the Convert Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–27
-4.5.2 Using the Convert Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–27
-4.6 Summary of File-Creation Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–31
-4.6.1 File-Creation Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–31
-4.6.2 File Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–32
-4.6.3 File Allocation and Positioning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–34
+- 4.4.2 ACL-Based Protection
+- [4.5 Populating a File](#45-populating-a-file)
+- 4.5.1 Using the Convert Utility
+- 4.5.2 Using the Convert Routines
+- [4.6 Summary of File-Creation Options](#46-summary-of-file-creation-options)
+- 4.6.1 File-Creation Options
+- 4.6.2 File Characteristics
+- 4.6.3 File Allocation and Positioning
 
 
 **5** **Locating and Naming Files on Disks**
 
 
-5.1 Understanding Disk File Specifications . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–1
-5.2 File Specification Components . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–2
-5.2.1 The Node Component . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–2
-5.2.1.1 Local Node . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
+- [5.1 Understanding Disk File Specifications](#51-understanding-disk-file-specifications)
+- [5.2 File Specification Components](#52-file-specification-components)
+- 5.2.1 The Node Component
+- 5.2.1.1 Local Node
 
-5.2.1.2 Remote Node . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
-5.2.2 The Device Component . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
-5.2.3 On-Disk Components . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.2.3.1 Character Set for On-Disk Components . . . . . . . . . . . . . . . . . . . . . 5–4
-5.2.3.1.1 Base Character Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
+- 5.2.1.2 Remote Node
+- 5.2.2 The Device Component
+- 5.2.3 On-Disk Components
+- 5.2.3.1 Character Set for On-Disk Components
+- 5.2.3.1.1 Base Character Set
 
-5.2.3.1.2 Extended Character Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.2.4 RMS and On-Disk Representation . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.2.4.1 Simple Characters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
-5.2.4.2 Compound Characters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
-5.2.4.3 Uppercase and Lowercase Letters and Multiple File Versions . . . . 5–7
-5.2.4.4 Convert System Service . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.2.5 The Root Component . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.2.6 The Directory Component . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–8
-5.2.7 The File Name, Type, and Version Components . . . . . . . . . . . . . . . . . . 5–9
-5.2.8 Leading Hyphens in File and Subdirectory Names (Alpha Only) . . . . . 5–10
-5.2.9 Restrictions and Anomalies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–10
+- 5.2.3.1.2 Extended Character Set
+- 5.2.4 RMS and On-Disk Representation
+- 5.2.4.1 Simple Characters
+- 5.2.4.2 Compound Characters
+- 5.2.4.3 Uppercase and Lowercase Letters and Multiple File Versions
+- 5.2.4.4 Convert System Service
+- 5.2.5 The Root Component
+- 5.2.6 The Directory Component
+- 5.2.7 The File Name, Type, and Version Components
+- 5.2.8 Leading Hyphens in File and Subdirectory Names (Alpha Only)
+- 5.2.9 Restrictions and Anomalies
 
-5.2.9.1 Restriction with Extended File Names . . . . . . . . . . . . . . . . . . . . . . 5–10
-5.2.9.2 DCL Parsing Anomaly . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–11
-5.3 Logical Names and Parsing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–11
-5.4 File Specification and Component Length Limits . . . . . . . . . . . . . . . . . . . . 5–12
-5.4.1 VAX Systems and ODS-2 Disks on Alpha Systems . . . . . . . . . . . . . . . 5–12
-5.4.2 ODS-5 on Alpha Systems . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–13
-5.4.3 Maximum Subdirectory Depths . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–13
-5.4.4 Accessing Files on ODS-5 Disks from VAX Systems . . . . . . . . . . . . . . . 5–14
-5.4.5 Determining the Structure Level of a Disk Device . . . . . . . . . . . . . . . . 5–14
-5.4.6 Using File Specification Defaults . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–17
-5.5 Image Activation Using Logical Names . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–17
-5.6 Sample Use of Logical Names . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–17
-5.7 Types of Logical Names . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–20
+- 5.2.9.1 Restriction with Extended File Names
+- 5.2.9.2 DCL Parsing Anomaly
+- [5.3 Logical Names and Parsing](#53-logical-names-and-parsing)
+- [5.4 File Specification and Component Length Limits](#54-file-specification-and-component-length-limits)
+- 5.4.1 VAX Systems and ODS-2 Disks on Alpha Systems
+- 5.4.2 ODS-5 on Alpha Systems
+- 5.4.3 Maximum Subdirectory Depths
+- 5.4.4 Accessing Files on ODS-5 Disks from VAX Systems
+- 5.4.5 Determining the Structure Level of a Disk Device
+- 5.4.6 Using File Specification Defaults
+- [5.5 Image Activation Using Logical Names](#55-image-activation-using-logical-names)
+- [5.6 Sample Use of Logical Names](#56-sample-use-of-logical-names)
+- [5.7 Types of Logical Names](#57-types-of-logical-names)
 
 
 vi
 
 
-5.8 Introduction to File Parsing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–21
-5.9 Using One File Specification to Locate Many Files . . . . . . . . . . . . . . . . . . 5–22
-5.9.1 Processing One File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–27
-5.9.2 Processing Many Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–28
-5.9.3 Processing One or Many Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–29
+- [5.8 Introduction to File Parsing](#58-introduction-to-file-parsing)
+- [5.9 Using One File Specification to Locate Many Files](#59-using-one-file-specification-to-locate-many-files)
+- 5.9.1 Processing One File
+- 5.9.2 Processing Many Files
+- 5.9.3 Processing One or Many Files
 
 
 **6** **Advanced Use of File Specifications**
 
 
-6.1 How RMS Applies Defaults . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–1
-6.2 Understanding RMS Parsing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–4
-6.2.1 Checking for Open-by-Name Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–5
-6.2.2 File Specification Formats and Translating Logical Names . . . . . . . . . 6–5
-6.2.3 Special Parsing Conventions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–6
-6.2.3.1 Parsing Conventions for a Search List . . . . . . . . . . . . . . . . . . . . . . 6–7
-6.2.3.2 Special Processing for a Related File Specification . . . . . . . . . . . . . 6–8
-6.2.3.3 Input File Specification Parsing . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–9
-6.2.3.4 Output File Specification Parsing . . . . . . . . . . . . . . . . . . . . . . . . . 6–10
-6.3 Directory Syntax Conventions and Directory Concatenation . . . . . . . . . . . 6–11
-6.3.1 Using Normal Directory Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–11
-6.3.2 Rooted-Directory Syntax Applications . . . . . . . . . . . . . . . . . . . . . . . . . 6–14
-6.3.3 Using Rooted-Directory Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–14
-6.3.4 Concatenating Rooted-Directory Specifications . . . . . . . . . . . . . . . . . . 6–15
-6.3.5 An Example of Using a Rooted Directory . . . . . . . . . . . . . . . . . . . . . . . 6–17
-6.3.6 Using a Rooted Directory to Extend RMS’s Subdirectory Limit . . . . . . 6–18
-6.4 DID-Abbreviated Directories (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . 6–19
-6.5 FID-Abbreviated Names (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–20
-6.5.1 Restrictions on FID-Abbreviated Names . . . . . . . . . . . . . . . . . . . . . . . 6–21
-6.6 Using Process-Permanent Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–21
+- [6.1 How RMS Applies Defaults](#61-how-rms-applies-defaults)
+- [6.2 Understanding RMS Parsing](#62-understanding-rms-parsing)
+- 6.2.1 Checking for Open-by-Name Block
+- 6.2.2 File Specification Formats and Translating Logical Names
+- 6.2.3 Special Parsing Conventions
+- 6.2.3.1 Parsing Conventions for a Search List
+- 6.2.3.2 Special Processing for a Related File Specification
+- 6.2.3.3 Input File Specification Parsing
+- 6.2.3.4 Output File Specification Parsing
+- [6.3 Directory Syntax Conventions and Directory Concatenation](#63-directory-syntax-conventions-and-directory-concatenation)
+- 6.3.1 Using Normal Directory Syntax
+- 6.3.2 Rooted-Directory Syntax Applications
+- 6.3.3 Using Rooted-Directory Syntax
+- 6.3.4 Concatenating Rooted-Directory Specifications
+- 6.3.5 An Example of Using a Rooted Directory
+- 6.3.6 Using a Rooted Directory to Extend RMS’s Subdirectory Limit
+- [6.4 DID-Abbreviated Directories (Alpha Only)](#64-did-abbreviated-directories-alpha-only)
+- [6.5 FID-Abbreviated Names (Alpha Only)](#65-fid-abbreviated-names-alpha-only)
+- 6.5.1 Restrictions on FID-Abbreviated Names
+- [6.6 Using Process-Permanent Files](#66-using-process-permanent-files)
 
 
 **7** **File Sharing and Buffering**
 
 
-7.1 File Accessing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–1
-7.1.1 Types of File Sharing and Record Streams . . . . . . . . . . . . . . . . . . . . . 7–2
-7.1.2 Interlocked Interprocess File Sharing . . . . . . . . . . . . . . . . . . . . . . . . . 7–5
-7.1.3 User-Interlocked Interprocess File Sharing . . . . . . . . . . . . . . . . . . . . . 7–6
-7.2 Record Locking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–7
-7.2.1 Default Record Locking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–8
-7.2.2 Record-Locking Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–8
-7.2.2.1 Exclusive Locking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–9
-7.2.2.2 Write Locking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–9
-7.2.2.3 Read Locking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–10
-7.2.2.4 No Locking (Query Locking) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–10
-7.2.2.5 No Query Record Locking Option (Alpha Only) . . . . . . . . . . . . . . . 7–10
-7.2.2.6 Put Service Considerations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–12
-7.2.2.7 Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–13
-7.2.3 Handling Record-Locking Conflicts . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–13
-7.2.3.1 Handling the Record-Locked Error . . . . . . . . . . . . . . . . . . . . . . . . 7–14
-7.2.3.2 Waiting for Locked Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–15
-7.2.3.3 Reading Regardless of Lock . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–15
-7.2.4 Miscellaneous Record-Locking Options . . . . . . . . . . . . . . . . . . . . . . . . 7–15
-7.2.4.1 Manual-Unlocking Option . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–15
-7.2.4.2 Lock-Nonexistent-Record Option . . . . . . . . . . . . . . . . . . . . . . . . . . 7–16
-7.2.5 Record-Locking Deadlocks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–16
-7.2.5.1 Record Locking Options to Control Deadlock Detection . . . . . . . . . 7–17
+- [7.1 File Accessing](#71-file-accessing)
+- 7.1.1 Types of File Sharing and Record Streams
+- 7.1.2 Interlocked Interprocess File Sharing
+- 7.1.3 User-Interlocked Interprocess File Sharing
+- [7.2 Record Locking](#72-record-locking)
+- 7.2.1 Default Record Locking
+- 7.2.2 Record-Locking Options
+- 7.2.2.1 Exclusive Locking
+- 7.2.2.2 Write Locking
+- 7.2.2.3 Read Locking
+- 7.2.2.4 No Locking (Query Locking)
+- 7.2.2.5 No Query Record Locking Option (Alpha Only)
+- 7.2.2.6 Put Service Considerations
+- 7.2.2.7 Summary
+- 7.2.3 Handling Record-Locking Conflicts
+- 7.2.3.1 Handling the Record-Locked Error
+- 7.2.3.2 Waiting for Locked Records
+- 7.2.3.3 Reading Regardless of Lock
+- 7.2.4 Miscellaneous Record-Locking Options
+- 7.2.4.1 Manual-Unlocking Option
+- 7.2.4.2 Lock-Nonexistent-Record Option
+- 7.2.5 Record-Locking Deadlocks
+- 7.2.5.1 Record Locking Options to Control Deadlock Detection
 
 
 vii
 
 
-7.3 Local and Shared Buffering Techniques . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–17
-7.3.1 Record Transfer Modes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–17
-7.3.2 Understanding Buffering . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–18
-7.3.3 Buffering for Sequential Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–20
-7.3.4 Buffering for Relative Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–20
-7.3.5 Buffering for Indexed Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–21
-7.3.6 Using Global Buffers for Shared Files . . . . . . . . . . . . . . . . . . . . . . . . . 7–22
-7.3.6.1 Enhancing Global Buffer Performance . . . . . . . . . . . . . . . . . . . . . . 7–24
+- [7.3 Local and Shared Buffering Techniques](#73-local-and-shared-buffering-techniques)
+- 7.3.1 Record Transfer Modes
+- 7.3.2 Understanding Buffering
+- 7.3.3 Buffering for Sequential Files
+- 7.3.4 Buffering for Relative Files
+- 7.3.5 Buffering for Indexed Files
+- 7.3.6 Using Global Buffers for Shared Files
+- 7.3.6.1 Enhancing Global Buffer Performance
 
 
 **8** **Record Processing**
 
 
-8.1 Record Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–1
-8.2 Primary Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–1
-8.2.1 Locating and Retrieving Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–2
-8.2.2 Inserting Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–3
-8.2.3 Updating Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
-8.2.4 Deleting Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–4
-8.3 Secondary Services . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–5
-8.4 Record Access for the Various File Organizations . . . . . . . . . . . . . . . . . . . 8–5
-8.4.1 Processing Sequential Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–7
-8.4.1.1 Sequential Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–7
-8.4.1.2 Random Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–7
-8.4.2 Processing Relative Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–8
-8.4.2.1 Sequential Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–8
-8.4.2.2 Random Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–8
-8.4.3 Processing Indexed Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–9
-8.4.3.1 Sequential Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–12
-8.4.3.2 Random Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–12
-8.4.4 Access by Record File Address (RFA) . . . . . . . . . . . . . . . . . . . . . . . . . . 8–14
-8.5 Block Input/Output . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–15
-8.6 Current Record Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–15
+- [8.1 Record Operations](#81-record-operations)
+- [8.2 Primary Services](#82-primary-services)
+- 8.2.1 Locating and Retrieving Records
+- 8.2.2 Inserting Records
+- 8.2.3 Updating Records
+- 8.2.4 Deleting Records
+- [8.3 Secondary Services](#83-secondary-services)
+- [8.4 Record Access for the Various File Organizations](#84-record-access-for-the-various-file-organizations)
+- 8.4.1 Processing Sequential Files
+- 8.4.1.1 Sequential Access
+- 8.4.1.2 Random Access
+- 8.4.2 Processing Relative Files
+- 8.4.2.1 Sequential Access
+- 8.4.2.2 Random Access
+- 8.4.3 Processing Indexed Files
+- 8.4.3.1 Sequential Access
+- 8.4.3.2 Random Access
+- 8.4.4 Access by Record File Address (RFA)
+- [8.5 Block Input/Output](#85-block-inputoutput)
+- [8.6 Current Record Context](#86-current-record-context)
 
-8.6.1 Current-Record Position . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–16
+- 8.6.1 Current-Record Position
 
-8.6.2 Next-Record Position . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–17
-8.7 Synchronous and Asynchronous Operations . . . . . . . . . . . . . . . . . . . . . . . . 8–18
-8.7.1 Using Synchronous Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–18
-8.7.2 Using Asynchronous Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–19
+- 8.6.2 Next-Record Position
+- [8.7 Synchronous and Asynchronous Operations](#87-synchronous-and-asynchronous-operations)
+- 8.7.1 Using Synchronous Operations
+- 8.7.2 Using Asynchronous Operations
 
 
 **9** **Run-Time Options**
 
 
-9.1 Specifying Run-Time Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–1
-9.1.1 Using the Edit/FDL Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–1
-9.1.2 Using Language Statements and RMS . . . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.2 Options Related to Opening and Closing Files . . . . . . . . . . . . . . . . . . . . . . 9–5
-9.2.1 File Access and Sharing Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
-9.2.2 File Specifications . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
-9.2.3 File Performance Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.2.3.1 Extension Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
+- [9.1 Specifying Run-Time Options](#91-specifying-run-time-options)
+- 9.1.1 Using the Edit/FDL Utility
+- 9.1.2 Using Language Statements and RMS
+- [9.2 Options Related to Opening and Closing Files](#92-options-related-to-opening-and-closing-files)
+- 9.2.1 File Access and Sharing Options
+- 9.2.2 File Specifications
+- 9.2.3 File Performance Options
+- 9.2.3.1 Extension Size
 
-9.2.3.2 Window Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.2.3.3 Summary of Performance Options . . . . . . . . . . . . . . . . . . . . . . . . . 9–8
-9.2.4 Record Access Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–10
-9.2.5 Options for Adding Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–10
-9.2.6 Options for Data Reliability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–11
-9.2.7 Options for File Disposition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–11
-9.2.8 Options for Indexed Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–12
+- 9.2.3.2 Window Size
+- 9.2.3.3 Summary of Performance Options
+- 9.2.4 Record Access Options
+- 9.2.5 Options for Adding Records
+- 9.2.6 Options for Data Reliability
+- 9.2.7 Options for File Disposition
+- 9.2.8 Options for Indexed Files
 
 
 viii
 
 
-9.2.9 Options for Magnetic Tape Processing . . . . . . . . . . . . . . . . . . . . . . . . . 9–13
-9.2.10 Options for Nonstandard File Processing . . . . . . . . . . . . . . . . . . . . . . . 9–14
-9.3 Summary of Record Operation Options . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–14
-9.3.1 Record Retrieval Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–15
-9.3.2 Put Service Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–18
-9.3.3 Record Update Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–20
-9.3.4 Record Deletion Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–21
-9.4 Run-Time Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–22
+- 9.2.9 Options for Magnetic Tape Processing
+- 9.2.10 Options for Nonstandard File Processing
+- [9.3 Summary of Record Operation Options](#93-summary-of-record-operation-options)
+- 9.3.1 Record Retrieval Options
+- 9.3.2 Put Service Options
+- 9.3.3 Record Update Options
+- 9.3.4 Record Deletion Options
+- [9.4 Run-Time Example](#94-run-time-example)
 
 
 **10** **Maintaining Files**
 
 
-10.1 Viewing File Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–1
-10.1.1 Performing an Error Check . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–1
-10.1.2 Generating a Statistics Report . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–6
-10.1.3 Using Interactive Mode . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–11
-10.1.4 Examining a Sequential File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–12
-10.1.5 Examining a Relative File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–15
-10.1.6 Examining an Indexed File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–17
-10.2 Generating an FDL File from a Data File . . . . . . . . . . . . . . . . . . . . . . . . . 10–22
-10.3 Optimizing and Redesigning File Characteristics . . . . . . . . . . . . . . . . . . . 10–24
-10.3.1 Redesigning an FDL File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–25
-10.3.2 Optimizing a Data File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–26
-10.4 Making a File Contiguous . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–27
-10.4.1 Using the Copy Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–27
-10.4.2 Using the Convert Utility . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–28
-10.4.3 Reclaiming Buckets in Prolog 3 Files . . . . . . . . . . . . . . . . . . . . . . . . . . 10–28
-10.5 Reorganizing a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–28
-10.6 Making Archive Copies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–29
+- [10.1 Viewing File Characteristics](#101-viewing-file-characteristics)
+- 10.1.1 Performing an Error Check
+- 10.1.2 Generating a Statistics Report
+- 10.1.3 Using Interactive Mode
+- 10.1.4 Examining a Sequential File
+- 10.1.5 Examining a Relative File
+- 10.1.6 Examining an Indexed File
+- [10.2 Generating an FDL File from a Data File](#102-generating-an-fdl-file-from-a-data-file)
+- [10.3 Optimizing and Redesigning File Characteristics](#103-optimizing-and-redesigning-file-characteristics)
+- 10.3.1 Redesigning an FDL File
+- 10.3.2 Optimizing a Data File
+- [10.4 Making a File Contiguous](#104-making-a-file-contiguous)
+- 10.4.1 Using the Copy Utility
+- 10.4.2 Using the Convert Utility
+- 10.4.3 Reclaiming Buckets in Prolog 3 Files
+- [10.5 Reorganizing a File](#105-reorganizing-a-file)
+- [10.6 Making Archive Copies](#106-making-archive-copies)
 
 
 **A** **Edit/FDL Utility Optimization Algorithms**
 
 
-A.1 Allocation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–1
+- [A.1 Allocation](#a1-allocation)
 
-A.2 Extension Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–1
+- [A.2 Extension Size](#a2-extension-size)
 
-A.3 Bucket Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–1
+- [A.3 Bucket Size](#a3-bucket-size)
 
-A.4 Global Buffers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–2
-A.5 Index Depth . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–2
+- [A.4 Global Buffers](#a4-global-buffers)
+- [A.5 Index Depth](#a5-index-depth)
 
 
 **Glossary**
@@ -509,138 +509,138 @@ A.5 Index Depth . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
 **Examples**
 
 
-2–1 Creating a File Containing Collated Keys . . . . . . . . . . . . . . . . . . . . . . 2–25
-4–1 Sample Edit/FDL Utility Session . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–5
-4–2 Sample FDL File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–9
-4–3 Using FDL Routines in a Pascal Program . . . . . . . . . . . . . . . . . . . . . . 4–14
-4–4 Using the FDL$CREATE Routine in a Fortran Program . . . . . . . . . . . 4–17
-4–5 Using the FDL$CREATE Routine from a COBOL Program . . . . . . . . . 4–18
-4–6 Tagging a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–21
-4–7 Accessing a Tagged File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–24
-4–8 Using the CONVERT Routines in a Fortran Program . . . . . . . . . . . . . 4–28
+- 2–1 Creating a File Containing Collated Keys
+- 4–1 Sample Edit/FDL Utility Session
+- 4–2 Sample FDL File
+- 4–3 Using FDL Routines in a Pascal Program
+- 4–4 Using the FDL$CREATE Routine in a Fortran Program
+- 4–5 Using the FDL$CREATE Routine from a COBOL Program
+- 4–6 Tagging a File
+- 4–7 Accessing a Tagged File
+- 4–8 Using the CONVERT Routines in a Fortran Program
 
 
 ix
 
 
-4–9 Using the CONVERT Routines in a COBOL Program . . . . . . . . . . . . . 4–29
-5–1 Using Logical Names for Remote File Access . . . . . . . . . . . . . . . . . . . . 5–19
-5–2 Selecting the USEROPEN Option to Call a Routine . . . . . . . . . . . . . . 5–24
-5–3 Using the Parse and Search Services . . . . . . . . . . . . . . . . . . . . . . . . . . 5–26
-6–1 Rooted-Directory Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–18
-7–1 Designing a Pause Between Attempts to Access a Record . . . . . . . . . . 7–14
-9–1 Specifying Run-Time Attributes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–2
-9–2 Using the FDL$PARSE and FDL$RELEASE Routines . . . . . . . . . . . . 9–22
-10–1 Using ANALYZE/RMS_FILE to Create a Check Report . . . . . . . . . . . . 10–2
-10–2 Using ANALYZE/RMS_FILE to Create a Statistics Report . . . . . . . . . 10–6
-10–3 Examining a Sequential File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–13
-10–4 Examining a Relative File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–16
-10–5 Examining an Area Descriptor Path . . . . . . . . . . . . . . . . . . . . . . . . . . 10–18
-10–6 Examining a Primary Record . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–20
-10–7 Examining an Alternate Record . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–22
+- 4–9 Using the CONVERT Routines in a COBOL Program
+- 5–1 Using Logical Names for Remote File Access
+- 5–2 Selecting the USEROPEN Option to Call a Routine
+- 5–3 Using the Parse and Search Services
+- 6–1 Rooted-Directory Syntax
+- 7–1 Designing a Pause Between Attempts to Access a Record
+- 9–1 Specifying Run-Time Attributes
+- 9–2 Using the FDL$PARSE and FDL$RELEASE Routines
+- 10–1 Using ANALYZE/RMS_FILE to Create a Check Report
+- 10–2 Using ANALYZE/RMS_FILE to Create a Statistics Report
+- 10–3 Examining a Sequential File
+- 10–4 Examining a Relative File
+- 10–5 Examining an Area Descriptor Path
+- 10–6 Examining a Primary Record
+- 10–7 Examining an Alternate Record
 
-10–8 KEY and ANALYSIS_OF_KEY Sections in an FDL File . . . . . . . . . . . 10–23
+- 10–8 KEY and ANALYSIS_OF_KEY Sections in an FDL File
 
 
 **Figures**
 
 
-1–1 Files–11 On-Disk Structure Hierarchy . . . . . . . . . . . . . . . . . . . . . . . . . 1–6
-1–2 Single and Multiple File Extents . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–7
-1–3 Tracks and Cylinders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–13
+- 1–1 Files–11 On-Disk Structure Hierarchy
+- 1–2 Single and Multiple File Extents
+- 1–3 Tracks and Cylinders
 
-1–4 DSI and FAT Structures in an XAR . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–17
+- 1–4 DSI and FAT Structures in an XAR
 
-1–5 Interrecord Gaps . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–19
-1–6 Basic Layout of an ANSI Magnetic Tape Volume . . . . . . . . . . . . . . . . . 1–21
-1–7 Single File on a Single Volume . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–24
-1–8 Single File on Multiple Tape Volumes . . . . . . . . . . . . . . . . . . . . . . . . . 1–25
-1–9 Multifile/Single-Volume Configuration . . . . . . . . . . . . . . . . . . . . . . . . . 1–25
-1–10 Multifile/Multivolume Configuration . . . . . . . . . . . . . . . . . . . . . . . . . . 1–26
-1–11 Blocked Fixed-Length Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–32
-1–12 Variable-Length Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–32
-1–13 Using CONVERT to Create a Data File . . . . . . . . . . . . . . . . . . . . . . . . 1–38
-1–14 Using CREATE/FDL to Create an Empty Data File . . . . . . . . . . . . . . 1–39
-2–1 Sequential Access to a Sequential File . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2–2 Sequentially Retrieving Records in a Relative File . . . . . . . . . . . . . . . 2–4
-2–3 Sequentially Storing Records in a Relative File . . . . . . . . . . . . . . . . . . 2–5
-2–4 Random Access by Relative Record Number . . . . . . . . . . . . . . . . . . . . 2–6
-2–5 Random Access by Record File Address . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2–6 Comparison of Fixed- and Variable-Length Records . . . . . . . . . . . . . . . 2–11
-2–7 Writing a VFC Record to a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2–8 Retrieving a VFC Record . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2–9 Sequential File Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2–10 Relative File Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
-2–11 Variable-Length Records in Fixed-Length Cells . . . . . . . . . . . . . . . . . . 2–18
-2–12 Single-Key Indexed File Organization . . . . . . . . . . . . . . . . . . . . . . . . . 2–22
-2–13 Multiple-Key Indexed File Organization . . . . . . . . . . . . . . . . . . . . . . . 2–23
+- 1–5 Interrecord Gaps
+- 1–6 Basic Layout of an ANSI Magnetic Tape Volume
+- 1–7 Single File on a Single Volume
+- 1–8 Single File on Multiple Tape Volumes
+- 1–9 Multifile/Single-Volume Configuration
+- 1–10 Multifile/Multivolume Configuration
+- 1–11 Blocked Fixed-Length Records
+- 1–12 Variable-Length Records
+- 1–13 Using CONVERT to Create a Data File
+- 1–14 Using CREATE/FDL to Create an Empty Data File
+- 2–1 Sequential Access to a Sequential File
+- 2–2 Sequentially Retrieving Records in a Relative File
+- 2–3 Sequentially Storing Records in a Relative File
+- 2–4 Random Access by Relative Record Number
+- 2–5 Random Access by Record File Address
+- 2–6 Comparison of Fixed- and Variable-Length Records
+- 2–7 Writing a VFC Record to a File
+- 2–8 Retrieving a VFC Record
+- 2–9 Sequential File Organization
+- 2–10 Relative File Organization
+- 2–11 Variable-Length Records in Fixed-Length Cells
+- 2–12 Single-Key Indexed File Organization
+- 2–13 Multiple-Key Indexed File Organization
 
-3–1 RMS Index Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–21
+- 3–1 RMS Index Structure
 
 
 x
 
 
-3–2 Primary Index Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–21
-3–3 Finding the Record with Key 14 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–22
-4–1 Line_Plot Graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–11
-4–2 Surface_Plot Graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–12
+- 3–2 Primary Index Structure
+- 3–3 Finding the Record with Key 14
+- 4–1 Line_Plot Graph
+- 4–2 Surface_Plot Graph
 
-4–3 Design Mnemonics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–13
+- 4–3 Design Mnemonics
 
-7–1 Shared File Access . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–1
+- 7–1 Shared File Access
 
-7–2 RMS Buffers and the Application Program . . . . . . . . . . . . . . . . . . . . . 7–19
-7–3 Using Global Buffers for a Shared File . . . . . . . . . . . . . . . . . . . . . . . . 7–23
-8–1 Using RFA Access to Establish Record Position . . . . . . . . . . . . . . . . . . 8–14
-10–1 Tree Structure for Sequential Files . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–12
-10–2 Record Layout and Content for SEQ.DAT . . . . . . . . . . . . . . . . . . . . . . 10–12
+- 7–2 RMS Buffers and the Application Program
+- 7–3 Using Global Buffers for a Shared File
+- 8–1 Using RFA Access to Establish Record Position
+- 10–1 Tree Structure for Sequential Files
+- 10–2 Record Layout and Content for SEQ.DAT
 
-10–3 Tree Structure of Relative Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–15
+- 10–3 Tree Structure of Relative Files
 
-10–4 Area Descriptor Path . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–17
-10–5 Key Descriptor Path . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–19
-10–6 Structure of Primary Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–20
+- 10–4 Area Descriptor Path
+- 10–5 Key Descriptor Path
+- 10–6 Structure of Primary Records
 
-10–7 Structure of Alternate Records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–21
+- 10–7 Structure of Alternate Records
 
-10–8 RMS Tuning Cycle . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10–25
+- 10–8 RMS Tuning Cycle
 
 
 **Tables**
 
 
-1–1 Record Access Methods . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 Record Access Methods
 
-1–2 Record Formats . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–2 Record Formats
 
-1–3 File Structure Options on OpenVMS Systems . . . . . . . . . . . . . . . . . . . 1–4
-1–4 Comparison of ODS-1, ODS-2, and ODS-5 Levels . . . . . . . . . . . . . . . . 1–4
+- 1–3 File Structure Options on OpenVMS Systems
+- 1–4 Comparison of ODS-1, ODS-2, and ODS-5 Levels
 
-1–5 Files–11 Control Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
+- 1–5 Files–11 Control Files
 
-1–6 Labels and Components Supported by OpenVMS Systems . . . . . . . . . 1–23
-2–1 Supported Record Access Modes and File Organizations . . . . . . . . . . . 2–2
-2–2 File Organization Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2–3 Sequential File Organization: Advantages and Disadvantages . . . . . . 2–16
-2–4 Relative File Organization: Advantages and Disadvantages . . . . . . . . 2–18
-2–5 Indexed File Organization: Advantages and Disadvantages . . . . . . . . 2–25
-4–1 Summary of the Edit/FDL Utility Commands . . . . . . . . . . . . . . . . . . . 4–3
-4–2 Edit/FDL Utility Scripts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–4
-6–1 File Specification Defaults . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–2
-6–2 Example of Applying Defaults . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6–3
-7–1 File Access Record Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–3
-7–2 File-Sharing Record Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7–4
-7–3 Initial File Sharing and Subsequent File Access . . . . . . . . . . . . . . . . . 7–6
-7–4 Initial File Access and Subsequent File Sharing . . . . . . . . . . . . . . . . . 7–6
-7–5 Methods Available for Specifying No Query Record Locking . . . . . . . . 7–12
-7–6 Compatibility of Record-Locking Options . . . . . . . . . . . . . . . . . . . . . . . 7–13
-8–1 Record Operations and File Organizations . . . . . . . . . . . . . . . . . . . . . . 8–2
-8–2 Search Key Types . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–9
+- 1–6 Labels and Components Supported by OpenVMS Systems
+- 2–1 Supported Record Access Modes and File Organizations
+- 2–2 File Organization Characteristics
+- 2–3 Sequential File Organization: Advantages and Disadvantages
+- 2–4 Relative File Organization: Advantages and Disadvantages
+- 2–5 Indexed File Organization: Advantages and Disadvantages
+- 4–1 Summary of the Edit/FDL Utility Commands
+- 4–2 Edit/FDL Utility Scripts
+- 6–1 File Specification Defaults
+- 6–2 Example of Applying Defaults
+- 7–1 File Access Record Operations
+- 7–2 File-Sharing Record Operations
+- 7–3 Initial File Sharing and Subsequent File Access
+- 7–4 Initial File Access and Subsequent File Sharing
+- 7–5 Methods Available for Specifying No Query Record Locking
+- 7–6 Compatibility of Record-Locking Options
+- 8–1 Record Operations and File Organizations
+- 8–2 Search Key Types
 
-8–3 Record Access Stream Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8–15
+- 8–3 Record Access Stream Context
 
-10–1 ANALYZE/RMS_FILE Command Summary . . . . . . . . . . . . . . . . . . . . . 10–11
+- 10–1 ANALYZE/RMS_FILE Command Summary
 
 
 xi

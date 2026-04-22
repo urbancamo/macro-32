@@ -62,213 +62,213 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ix
+- [Preface](#preface)
 
 
 **System Service Descriptions**
 
 
-$GETUTC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–3
-$GET_ALIGN_FAULT_DATA (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS2–4
-$GET_ARITH_EXCEPTION (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–6
-$GET_DEFAULT_TRANS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–8
-$GET_GALAXY_LOCK_INFO (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . SYS2–10
-$GET_GALAXY_LOCK_SIZE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS2–12
-$GET_REGION_INFO (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–14
-$GET_SECURITY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–19
-$GET_SYS_ALIGN_FAULT_DATA (Alpha Only) . . . . . . . . . . . . . . . . . . . . SYS2–27
-$GET_USER_CAPABILITY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–29
-$GOTO_UNWIND (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–32
-$GOTO_UNWIND_64 (Alpha and I64 only) . . . . . . . . . . . . . . . . . . . . . . . . SYS2–34
-$GRANTID . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–36
-$HASH_PASSWORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–40
-$HIBER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–43
-$ICC_ACCEPT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–45
-$ICC_CLOSE_ASSOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–48
-$ICC_CONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–50
-$ICC_CONNECTW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–55
-$ICC_DISCONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–56
-$ICC_DISCONNECTW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–59
-$ICC_OPEN_ASSOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–60
-$ICC_RECEIVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–67
-$ICC_RECEIVEW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–70
-$ICC_REJECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–71
-$ICC_REPLY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–73
-$ICC_REPLYW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–76
-$ICC_TRANSCEIVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–77
-$ICC_TRANSCEIVEW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–81
-$ICC_TRANSMIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–82
-$ICC_TRANSMITW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–85
-$IDTOASC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–86
-$IEEE_SET_FP_CONTROL (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–90
-$INIT_SYS_ALIGN_FAULT_REPORT (Alpha Only) . . . . . . . . . . . . . . . . . SYS2–93
-$INIT_VOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–96
+- [$GETUTC](#getutc-get-utc-time)
+- [$GET_ALIGN_FAULT_DATA (Alpha Only)](#get_align_fault_data-alpha-only-get-alignment-fault-data)
+- [$GET_ARITH_EXCEPTION (Alpha Only)](#get_arith_exception-alpha-only-get-arithmetic-exception-information)
+- [$GET_DEFAULT_TRANS](#get_default_trans-get-default-transaction)
+- [$GET_GALAXY_LOCK_INFO (Alpha Only)](#get_galaxy_lock_info-alpha-only-get-openvms-galaxy-lock-information)
+- [$GET_GALAXY_LOCK_SIZE (Alpha Only)](#get_galaxy_lock_size-alpha-only-get-openvms-galaxy-lock-size)
+- [$GET_REGION_INFO (Alpha Only)](#get_region_info-alpha-only-get-information-about-a-specified-virtual-region)
+- [$GET_SECURITY](#get_security-get-security-characteristics)
+- [$GET_SYS_ALIGN_FAULT_DATA (Alpha Only)](#get_sys_align_fault_data-alpha-only-get-system-alignment-fault-data)
+- [$GET_USER_CAPABILITY (Alpha Only)](#get_user_capability-alpha-only-reserve-a-user-capability)
+- [$GOTO_UNWIND (Alpha Only)](#goto_unwind-alpha-only-unwind-call-stack)
+- [$GOTO_UNWIND_64 (Alpha and I64 only)](#goto_unwind_64-alpha-and-i64-only-unwind-call-stack)
+- [$GRANTID](#grantid-grant-identifier-to-process)
+- [$HASH_PASSWORD](#hash_password-hash-password)
+- [$HIBER](#hiber-hibernate)
+- [$ICC_ACCEPT](#icc_accept-accept-for-intra-cluster-communications-icc)
+- [$ICC_CLOSE_ASSOC](#icc_close_assoc-close-association-for-intra-cluster-communications-icc)
+- [$ICC_CONNECT](#icc_connect-connect-for-intra-cluster-communications-icc)
+- [$ICC_CONNECTW](#icc_connectw-connect-for-intra-cluster-communications-and-wait)
+- [$ICC_DISCONNECT](#icc_disconnect-disconnect-for-intra-cluster-communications-icc)
+- [$ICC_DISCONNECTW](#icc_disconnectw-disconnect-and-wait-for-intra-cluster-communications-icc)
+- [$ICC_OPEN_ASSOC](#icc_open_assoc-open-association-for-intra-cluster-communications-icc)
+- [$ICC_RECEIVE](#icc_receive-receive-for-intra-cluster-communications-icc)
+- [$ICC_RECEIVEW](#icc_receivew-receive-and-wait-for-intra-cluster-communications-icc)
+- [$ICC_REJECT](#icc_reject-reject-for-intra-cluster-communications-icc)
+- [$ICC_REPLY](#icc_reply-reply-for-intra-cluster-communications-icc)
+- [$ICC_REPLYW](#icc_replyw-reply-and-wait-for-intra-cluster-communications-icc)
+- [$ICC_TRANSCEIVE](#icc_transceive-transceive-for-intra-cluster-communications-icc)
+- [$ICC_TRANSCEIVEW](#icc_transceivew-transceive-and-wait-for-intra-cluster-communications-icc)
+- [$ICC_TRANSMIT](#icc_transmit-transmit-for-intra-cluster-communications-icc)
+- [$ICC_TRANSMITW](#icc_transmitw-transmit-and-wait-for-intra-cluster-communications-icc)
+- [$IDTOASC](#idtoasc-translate-identifier-to-identifier-name)
+- [$IEEE_SET_FP_CONTROL (Alpha Only)](#ieee_set_fp_control-alpha-only-set-ieee-floating-point-control-register)
+- [$INIT_SYS_ALIGN_FAULT_REPORT (Alpha Only)](#init_sys_align_fault_report-alpha-only-initialize-system-alignment-fault-reporting)
+- [$INIT_VOL](#init_vol-initialize-volume)
 
 
 iii
 
 
-$IO_CLEANUP (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–110
-$IO_FASTPATH (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–111
-$IO_FASTPATHW (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–113
-$IO_PERFORM (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–114
-$IO_PERFORMW (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–117
-$IO_SETUP (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–118
-$JOIN_RM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–121
-$JOIN_RMW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–127
-$LCKPAG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–128
-$LCKPAG_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–131
-$LKWSET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–134
-$LKWSET_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–137
-$MGBLSC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–140
-$MGBLSC_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–146
-$MGBLSC_GPFN_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–156
-$MOD_HOLDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–162
-$MOD_IDENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–165
-$MOUNT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–169
-$MTACCESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–183
-$NUMTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–186
-$NUMUTC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–188
-$NXTVOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–190
-$OPEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–191
-$PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–192
-$PARSE_ACL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–193
-$PERM_DIS_ALIGN_FAULT_REPORT (Alpha Only) . . . . . . . . . . . . . . . . SYS2–196
-$PERM_REPORT_ALIGN_FAULT (Alpha Only) . . . . . . . . . . . . . . . . . . . . SYS2–197
-$PERSONA_ASSUME (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–199
-$PERSONA_ASSUME (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–201
-$PERSONA_CLONE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–203
-$PERSONA_CREATE (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–205
-$PERSONA_CREATE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–207
-$PERSONA_CREATE_EXTENSION (Alpha Only) . . . . . . . . . . . . . . . . . . SYS2–212
-$PERSONA_DELEGATE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–215
-$PERSONA_DELETE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–217
-$PERSONA_DELETE_EXTENSION (Alpha Only) . . . . . . . . . . . . . . . . . . SYS2–218
-$PERSONA_EXTENSION_LOOKUP (Alpha Only) . . . . . . . . . . . . . . . . . . SYS2–220
-$PERSONA_FIND (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–222
-$PERSONA_MODIFY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–226
-$PERSONA_QUERY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–229
-$PERSONA_RESERVE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–234
-$PROCESS_AFFINITY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–236
-$PROCESS_CAPABILITIES (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–241
-$PROCESS_SCAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–246
-$PURGWS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–261
-$PURGE_WS (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–263
-$PUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–265
+- [$IO_CLEANUP (Alpha Only)](#io_cleanup-alpha-only-clean-up-fast-io)
+- [$IO_FASTPATH (Alpha Only)](#io_fastpath-alpha-only-control-fast-path-devices)
+- [$IO_FASTPATHW (Alpha Only)](#io_fastpathw-alpha-only-control-fast-path-devices)
+- [$IO_PERFORM (Alpha Only)](#io_perform-alpha-only-perform-fast-io)
+- [$IO_PERFORMW (Alpha Only)](#io_performw-alpha-only-perform-fast-io-and-wait)
+- [$IO_SETUP (Alpha Only)](#io_setup-alpha-only-set-up-fast-io)
+- [$JOIN_RM](#join_rm-join-resource-manager)
+- [$JOIN_RMW](#join_rmw-join-resource-manager-and-wait)
+- [$LCKPAG](#lckpag-lock-pages-in-memory)
+- [$LCKPAG_64 (Alpha Only)](#lckpag_64-alpha-only-lock-pages-in-memory)
+- [$LKWSET](#lkwset-lock-pages-in-working-set)
+- [$LKWSET_64 (Alpha Only)](#lkwset_64-alpha-only-lock-pages-in-working-set)
+- [$MGBLSC](#mgblsc-map-global-section)
+- [$MGBLSC_64 (Alpha Only)](#mgblsc_64-alpha-only-map-to-global-section)
+- [$MGBLSC_GPFN_64 (Alpha Only)](#mgblsc_gpfn_64-alpha-only-map-global-page-frame-section)
+- [$MOD_HOLDER](#mod_holder-modify-holder-record-in-rights-database)
+- [$MOD_IDENT](#mod_ident-modify-identifier-in-rights-database)
+- [$MOUNT](#mount-mount-volume)
+- [$MTACCESS](#mtaccess-magnetic-tape-accessibility)
+- [$NUMTIM](#numtim-convert-binary-time-to-numeric-time)
+- [$NUMUTC](#numutc-convert-utc-time-to-numeric-components)
+- [$NXTVOL](#nxtvol-next-volume)
+- [$OPEN](#open-opens-file)
+- [$PARSE](#parse-analyze-file-specification-string)
+- [$PARSE_ACL](#parse_acl-parse-access-control-list-entry)
+- [$PERM_DIS_ALIGN_FAULT_REPORT (Alpha Only)](#perm_dis_align_fault_report-alpha-only-disable-alignment-fault-reporting)
+- [$PERM_REPORT_ALIGN_FAULT (Alpha Only)](#perm_report_align_fault-alpha-only-report-alignment-fault)
+- [$PERSONA_ASSUME (VAX Only)](#persona_assume-vax-only-assume-persona)
+- [$PERSONA_ASSUME (Alpha Only)](#persona_assume-vax-only-assume-persona)
+- [$PERSONA_CLONE (Alpha Only)](#persona_clone-alpha-only-clone-persona)
+- [$PERSONA_CREATE (VAX Only)](#persona_create-vax-only-create-persona)
+- [$PERSONA_CREATE (Alpha Only)](#persona_create-vax-only-create-persona)
+- [$PERSONA_CREATE_EXTENSION (Alpha Only)](#persona_create_extension-alpha-only-create-persona-extension)
+- [$PERSONA_DELEGATE (Alpha Only)](#persona_delegate-alpha-only-delegate-persona-to-a-server-process)
+- [$PERSONA_DELETE](#persona_delete-delete-persona)
+- [$PERSONA_DELETE_EXTENSION (Alpha Only)](#persona_delete_extension-alpha-only-delete-persona-extension)
+- [$PERSONA_EXTENSION_LOOKUP (Alpha Only)](#persona_extension_lookup-alpha-only-translates-an-extension-name)
+- [$PERSONA_FIND (Alpha Only)](#persona_find-alpha-only-find-persona-with-characteristics)
+- [$PERSONA_MODIFY (Alpha Only)](#persona_modify-alpha-only-modify-persona-data)
+- [$PERSONA_QUERY (Alpha Only)](#persona_query-alpha-only-query-for-persona-data)
+- [$PERSONA_RESERVE (Alpha Only)](#persona_reserve-alpha-only-reserve-persona-slot)
+- [$PROCESS_AFFINITY (Alpha Only)](#process_affinity-alpha-only-modify-process-affinity)
+- [$PROCESS_CAPABILITIES (Alpha Only)](#process_capabilities-alpha-only-modify-process-user-capabilities)
+- [$PROCESS_SCAN](#process_scan-process-scan)
+- [$PURGWS](#purgws-purge-working-set)
+- [$PURGE_WS (Alpha Only)](#purge_ws-alpha-only-purge-working-set)
+- [$PUT](#put-inserts-record)
 
 
 
 iv
 
 
-$PUTMSG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–266
-$QIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–273
-$QIOW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–279
-$READ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–280
-$READEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–281
-$REGISTRY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–283
-$REGISTRYW (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–308
-$RELEASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–309
-$RELEASE_GALAXY_LOCK (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS2–310
-$RELEASE_VP (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–312
-$REMOVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–313
-$REM_HOLDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–314
-$REM_IDENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–316
-$RENAME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–318
-$RESCHED . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–319
-$RESTORE_VP_EXCEPTION (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–320
-$RESTORE_VP_STATE (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–322
-$RESUME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–324
-$REVOKID . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–326
-$REWIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–330
-$RMSRUNDWN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–331
-$SAVE_VP_EXCEPTION (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–333
-$SCAN_INTRUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–335
-$SCHDWK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–340
-$SCHED . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–343
-$SEARCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–348
-$SETAST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–349
-$SETCLUEVT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–350
-$SETDDIR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–353
-$SETDFPROT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–355
-$SETDTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–357
-$SETDTIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–363
-$SETEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–364
-$SETEXV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–365
-$SETIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–367
-$SETIMR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–369
-$SETPRA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–372
-$SETPRI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–374
-$SETPRN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–378
-$SETPRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–379
-$SETPRT_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–382
-$SETPRV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–385
-$SETRWM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–389
-$SETSHLV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–391
-$SETSTK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–393
-$SETSWM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–395
-$SETUAI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–397
+- [$PUTMSG](#putmsg-put-message)
+- [$QIO](#qio-queue-io-request)
+- [$QIOW](#qiow-queue-io-request-and-wait)
+- [$READ](#read-retrieves-bytes-from-file)
+- [$READEF](#readef-read-event-flags)
+- [$REGISTRY (Alpha Only)](#registry-alpha-only-interface-to-the-openvms-registry-database)
+- [$REGISTRYW (Alpha Only)](#registryw-alpha-only-interface-to-the-openvms-registry-database-and-wait)
+- [$RELEASE](#release-unlocks-record)
+- [$RELEASE_GALAXY_LOCK (Alpha Only)](#release_galaxy_lock-alpha-only-release-openvms-galaxy-lock)
+- [$RELEASE_VP (VAX Only)](#release_vp-vax-only-release-vector-processor)
+- [$REMOVE](#remove-deletes-file-name)
+- [$REM_HOLDER](#rem_holder-remove-holder-record-from-rights-database)
+- [$REM_IDENT](#rem_ident-remove-identifier-from-rights-database)
+- [$RENAME](#rename-rename-file)
+- [$RESCHED](#resched-reschedule-process)
+- [$RESTORE_VP_EXCEPTION (VAX Only)](#restore_vp_exception-vax-only-restore-vector-processor-exception-state)
+- [$RESTORE_VP_STATE (VAX Only)](#restore_vp_state-vax-only-restore-vector-state)
+- [$RESUME](#resume-resume-process)
+- [$REVOKID](#revokid-revoke-identifier-from-process)
+- [$REWIND](#rewind-sets-to-first-record)
+- [$RMSRUNDWN](#rmsrundwn-rms-rundown)
+- [$SAVE_VP_EXCEPTION (VAX Only)](#save_vp_exception-vax-only-save-vector-processor-exception-state)
+- [$SCAN_INTRUSION](#scan_intrusion-scan-intrusion-database)
+- [$SCHDWK](#schdwk-schedule-wakeup)
+- [$SCHED](#sched-affect-process-scheduling)
+- [$SEARCH](#search-scans-directory-file)
+- [$SETAST](#setast-set-ast-enable)
+- [$SETCLUEVT](#setcluevt-set-cluster-event)
+- [$SETDDIR](#setddir-set-default-directory)
+- [$SETDFPROT](#setdfprot-set-default-file-protection)
+- [$SETDTI](#setdti-set-distributed-transaction-information)
+- [$SETDTIW](#setdtiw-set-distributed-transaction-information-and-wait)
+- [$SETEF](#setef-set-event-flag)
+- [$SETEXV](#setexv-set-exception-vector)
+- [$SETIME](#setime-set-system-time)
+- [$SETIMR](#setimr-set-timer)
+- [$SETPRA](#setpra-set-power-recovery-ast)
+- [$SETPRI](#setpri-set-priority)
+- [$SETPRN](#setprn-set-process-name)
+- [$SETPRT](#setprt-set-protection-on-pages)
+- [$SETPRT_64 (Alpha Only)](#setprt_64-alpha-only-set-protection-on-pages)
+- [$SETPRV](#setprv-set-privileges)
+- [$SETRWM](#setrwm-set-resource-wait-mode)
+- [$SETSHLV](#setshlv-set-automatic-unshelving)
+- [$SETSTK](#setstk-set-stack-limits)
+- [$SETSWM](#setswm-set-process-swap-mode)
+- [$SETUAI](#setuai-set-user-authorization-information)
 
 
 v
 
 
-$SETUP_AVOID_PREEMPT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–410
-$SET_DEFAULT_TRANS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–411
-$SET_DEFAULT_TRANSW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–415
-$SET_DEVICE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–416
-$SET_DEVICEW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–421
-$SET_IMPLICIT_AFFINITY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS2–422
-$SET_PROCESS_PROPERTIESW (Alpha Only) . . . . . . . . . . . . . . . . . . . . SYS2–426
-$SET_RESOURCE_DOMAIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–429
-$SET_RETURN_VALUE (Alpha and I64 only) . . . . . . . . . . . . . . . . . . . . . . SYS2–434
-$SET_SECURITY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–436
-$SET_SYSTEM_EVENT (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–443
-$SHOW_INTRUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–446
-$SIGNAL_ARRAY_64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–451
-$SNDERR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–453
-$SNDJBC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–454
-$SNDJBCW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–513
-$SNDOPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–514
-$SPACE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–528
-$START_ALIGN_FAULT_REPORT (Alpha Only) . . . . . . . . . . . . . . . . . . . SYS2–529
-$START_BRANCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–533
-$START_BRANCHW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–540
-$START_TRANS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–541
-$START_TRANSW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–547
-$STOP_ALIGN_FAULT_REPORT (Alpha Only) . . . . . . . . . . . . . . . . . . . . SYS2–548
-$STOP_SYS_ALIGN_FAULT_REPORT (Alpha Only) . . . . . . . . . . . . . . . . SYS2–549
-$SUBSYSTEM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–550
-$SUSPND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–552
-$SYNCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–555
-$TIMCON . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–557
-$TRANS_EVENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–559
-$TRANS_EVENTW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–564
-$TRNLNM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–565
-$TRUNCATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–572
-$TSTCLUEVT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–573
-$ULKPAG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–575
-$ULKPAG_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–577
-$ULWSET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–580
-$ULWSET_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–582
-$UNWIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–585
-$UPDSEC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–587
-$UPDSECW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–592
-$UPDSEC_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–593
-$UPDSEC_64W (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–598
-$VERIFY_PROXY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–599
-$WAIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–604
-$WAITFR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–605
-$WAKE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–607
+- [$SETUP_AVOID_PREEMPT](#setup_avoid_preempt-setup-for-process-preemption-avoidance)
+- [$SET_DEFAULT_TRANS](#set_default_trans-set-default-transaction)
+- [$SET_DEFAULT_TRANSW](#set_default_transw-set-default-transaction-and-wait)
+- [$SET_DEVICE](#set_device-set-device-characteristics)
+- [$SET_DEVICEW](#set_devicew-set-device-characteristics-and-wait)
+- [$SET_IMPLICIT_AFFINITY (Alpha Only)](#set_implicit_affinity-alpha-only-modify-process-implicit-affinity)
+- [$SET_PROCESS_PROPERTIESW (Alpha Only)](#set_process_propertiesw-alpha-only-sets-simple-value)
+- [$SET_RESOURCE_DOMAIN](#set_resource_domain-set-resource-domain)
+- [$SET_RETURN_VALUE (Alpha and I64 only)](#set_return_value-alpha-and-i64-only-sets-the-return-value-of)
+- [$SET_SECURITY](#set_security-set-security-characteristics)
+- [$SET_SYSTEM_EVENT (Alpha Only)](#set_system_event-alpha-only-set-system-event)
+- [$SHOW_INTRUSION](#show_intrusion-show-intrusion-information)
+- [$SIGNAL_ARRAY_64](#signal_array_64-signal-array)
+- [$SNDERR](#snderr-send-message-to-error-logger)
+- [$SNDJBC](#sndjbc-send-to-job-controller)
+- [$SNDJBCW](#sndjbcw-send-to-job-controller-and-wait)
+- [$SNDOPR](#sndopr-send-message-to-operator)
+- [$SPACE](#space-skip-tape-file)
+- [$START_ALIGN_FAULT_REPORT (Alpha Only)](#start_align_fault_report-alpha-only-start-alignment-fault-reporting)
+- [$START_BRANCH](#start_branch-start-branch)
+- [$START_BRANCHW](#start_branchw-start-branch-and-wait)
+- [$START_TRANS](#start_trans-start-transaction)
+- [$START_TRANSW](#start_transw-start-transaction-and-wait)
+- [$STOP_ALIGN_FAULT_REPORT (Alpha Only)](#stop_align_fault_report-alpha-only-stop-alignment-fault-reporting)
+- [$STOP_SYS_ALIGN_FAULT_REPORT (Alpha Only)](#stop_sys_align_fault_report-alpha-only-stop-system-alignment-fault-reporting)
+- [$SUBSYSTEM](#subsystem-subsystem)
+- [$SUSPND](#suspnd-suspend-process)
+- [$SYNCH](#synch-synchronize)
+- [$TIMCON](#timcon-time-converter)
+- [$TRANS_EVENT](#trans_event-transaction-event)
+- [$TRANS_EVENTW](#trans_eventw-transaction-event-and-wait)
+- [$TRNLNM](#trnlnm-translate-logical-name)
+- [$TRUNCATE](#truncate-shortens-sequential-file)
+- [$TSTCLUEVT](#tstcluevt-test-cluster-event)
+- [$ULKPAG](#ulkpag-unlock-pages-from-memory)
+- [$ULKPAG_64 (Alpha Only)](#ulkpag_64-alpha-only-unlock-pages-from-memory)
+- [$ULWSET](#ulwset-unlock-pages-from-working-set)
+- [$ULWSET_64 (Alpha Only)](#ulwset_64-alpha-only-unlock-pages-from-working-set)
+- [$UNWIND](#unwind-unwind-call-stack)
+- [$UPDSEC](#updsec-update-section-file-on-disk)
+- [$UPDSECW](#updsecw-update-section-file-on-disk-and-wait)
+- [$UPDSEC_64 (Alpha Only)](#updsec_64-alpha-only-update-global-section-file-on-disk)
+- [$UPDSEC_64W (Alpha Only)](#updsec_64w-alpha-only-update-global-section-file-on-disk-and-wait)
+- [$VERIFY_PROXY](#verify_proxy-verify-a-proxy)
+- [$WAIT](#wait-suspends-image-execution)
+- [$WAITFR](#waitfr-wait-for-single-event-flag)
+- [$WAKE](#wake-wake-process-from-hibernation)
 
 
 
 vi
 
 
-$WFLAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–609
-$WFLOR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–611
-$WRITE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–613
+- [$WFLAND](#wfland-wait-for-logical-and-of-event-flags)
+- [$WFLOR](#wflor-wait-for-logical-or-of-event-flags)
+- [$WRITE](#write-transfers-bytes-to-file)
 
 
 **A** **Obsolete Services**
@@ -281,25 +281,25 @@ $WRITE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 
 
 SYS2–1 Postcondition When $GET_DEFAULT_TRANS Completes
-Successfully . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–8
-SYS2–2 Region Summary Buffer Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–17
+- Successfully
+- SYS2–2 Region Summary Buffer Format
 SYS2–3 Format of the IEEE Floating-Point Control Register (Alpha Only) . . . SYS2–90
-SYS2–4 $JOIN_RM Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–121
-SYS2–5 Flags Used with $PROCESS_SCAN . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–255
+- SYS2–4 $JOIN_RM Option Flags
+- SYS2–5 Flags Used with $PROCESS_SCAN
 
-SYS2–6 Valid Function Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–287
+- SYS2–6 Valid Function Codes
 
-SYS2–7 Item Code Summary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–297
-SYS2–8 $SETDTI Operation Flag . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–357
-SYS2–9 $SETDTI Function Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–359
-SYS2–10 $SET_DEFAULT_TRANS Option Flag . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–411
+- SYS2–7 Item Code Summary
+- SYS2–8 $SETDTI Operation Flag
+- SYS2–9 $SETDTI Function Codes
+- SYS2–10 $SET_DEFAULT_TRANS Option Flag
 
-SYS2–11 CPU Time Limit Decision Table . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–477
+- SYS2–11 CPU Time Limit Decision Table
 
-SYS2–12 Working Set Decision Table . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–500
-SYS2–13 $START_BRANCH Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–533
-SYS2–14 $START_TRANS Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS2–541
-SYS2–15 Completion Semantics of the $TRANS_EVENT Service . . . . . . . . . . . . SYS2–561
+- SYS2–12 Working Set Decision Table
+- SYS2–13 $START_BRANCH Option Flags
+- SYS2–14 $START_TRANS Option Flags
+- SYS2–15 Completion Semantics of the $TRANS_EVENT Service
 
 
 vii

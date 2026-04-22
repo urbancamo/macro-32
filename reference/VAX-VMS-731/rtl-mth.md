@@ -68,7 +68,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vii
+- [Preface](#preface)
 
 
 **Part I** **MTH$ Tutorial Section**
@@ -77,47 +77,47 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **OpenVMS Run-Time Library Mathematics (MTH$) Facility**
 
 
-1.1 Entry Point Names . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.2 Calling Conventions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1.3 Algorithms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.4 Condition Handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.5 Complex Numbers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
+- [1.1 Entry Point Names](#11-entry-point-names)
+- [1.2 Calling Conventions](#12-calling-conventions)
+- [1.3 Algorithms](#13-algorithms)
+- [1.4 Condition Handling](#14-condition-handling)
+- [1.5 Complex Numbers](#15-complex-numbers)
 1.6 Mathematics Routines Not Documented in the MTH$ Reference
 
-Section . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
-1.7 Examples of Calls to Run-Time Library Mathematics Routines . . . . . . . . . 1–8
-1.7.1 BASIC Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
-1.7.2 COBOL Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
-1.7.3 Fortran Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
-1.7.4 MACRO Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–10
-1.7.5 Pascal Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–13
-1.7.6 PL/I Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–14
-1.7.7 Ada Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–15
+- Section
+- [1.7 Examples of Calls to Run-Time Library Mathematics Routines](#17-examples-of-calls-to-run-time-library-mathematics-routines)
+- 1.7.1 BASIC Example
+- 1.7.2 COBOL Example
+- 1.7.3 Fortran Examples
+- 1.7.4 MACRO Examples
+- 1.7.5 Pascal Examples
+- 1.7.6 PL/I Examples
+- 1.7.7 Ada Example
 
 
 **2** **Vector Routines in MTH$**
 
 
-2.1 BLAS — Basic Linear Algebra Subroutines Level 1 . . . . . . . . . . . . . . . . . 2–1
-2.1.1 Using BLAS Level 1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.1.1.1 Memory Overlap . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.1.1.2 Round-Off Effects . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.1.1.3 Underflow and Overflow . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.1.1.4 Notational Definitions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.2 FOLR — First Order Linear Recurrence Routines . . . . . . . . . . . . . . . . . . . 2–6
+- [2.1 BLAS — Basic Linear Algebra Subroutines Level 1](#21-blas-basic-linear-algebra-subroutines-level-1)
+- 2.1.1 Using BLAS Level 1
+- 2.1.1.1 Memory Overlap
+- 2.1.1.2 Round-Off Effects
+- 2.1.1.3 Underflow and Overflow
+- 2.1.1.4 Notational Definitions
+- [2.2 FOLR — First Order Linear Recurrence Routines](#22-folr-first-order-linear-recurrence-routines)
 
-2.2.1 FOLR Routine Name Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.2.2 Calling a FOLR Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.3 Vector Versions of Existing Scalar Routines . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.3.1 Exceptions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.3.2 Underflow Detection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.3.3 Vector Routine Name Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.3.4 Calling a Vector Math Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2.4 Fast-Vector Math Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–11
-2.4.1 Exception Handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.4.2 Special Restrictions On Input Arguments . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.4.3 Accuracy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.4.4 Performance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
+- 2.2.1 FOLR Routine Name Format
+- 2.2.2 Calling a FOLR Routine
+- [2.3 Vector Versions of Existing Scalar Routines](#23-vector-versions-of-existing-scalar-routines)
+- 2.3.1 Exceptions
+- 2.3.2 Underflow Detection
+- 2.3.3 Vector Routine Name Format
+- 2.3.4 Calling a Vector Math Routine
+- [2.4 Fast-Vector Math Routines](#24-fast-vector-math-routines)
+- 2.4.1 Exception Handling
+- 2.4.2 Special Restrictions On Input Arguments
+- 2.4.3 Accuracy
+- 2.4.4 Performance
 
 
 iii
@@ -126,178 +126,178 @@ iii
 **Part II** **Scalar MTH$ Reference Section**
 
 
-MTH$xACOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–3
+- [MTH$xACOS](#mthxacosarc-cosine-of-angle-expressed-in-radians)
 
-MTH$xACOSD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–6
+- [MTH$xACOSD](#mthxacosdarc-cosine-of-angle-expressed-in-degrees)
 
-MTH$xASIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–8
+- [MTH$xASIN](#mthxasinarc-sine-in-radians)
 
-MTH$xASIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–10
+- [MTH$xASIND](#mthxasindarc-sine-in-degrees)
 
-MTH$xATAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–12
+- [MTH$xATAN](#mthxatanarc-tangent-in-radians)
 
-MTH$xATAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–14
+- [MTH$xATAND](#mthxatandarc-tangent-in-degrees)
 
-MTH$xATAN2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–16
+- [MTH$xATAN2](#mthxatan2arc-tangent-in-radians-with-two-arguments)
 
-MTH$xATAND2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–18
+- [MTH$xATAND2](#mthxatand2arc-tangent-in-degrees-with-two-arguments)
 
-MTH$xATANH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–20
+- [MTH$xATANH](#mthxatanhhyperbolic-arc-tangent)
 
-MTH$CxABS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–22
+- [MTH$CxABS](#mthcxabscomplex-absolute-value)
 
-MTH$CCOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–25
+- [MTH$CCOS](#mthccoscosine-of-a-complex-number-f-floating-value)
 
-MTH$CxCOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–27
+- [MTH$CxCOS](#mthcxcoscosine-of-a-complex-number)
 
-MTH$CEXP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–29
+- [MTH$CEXP](#mthcexpcomplex-exponential-f-floating-value)
 
-MTH$CxEXP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–31
+- [MTH$CxEXP](#mthcxexpcomplex-exponential)
 
-MTH$CLOG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–33
+- [MTH$CLOG](#mthclogcomplex-natural-logarithm-f-floating-value)
 
-MTH$CxLOG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–34
+- [MTH$CxLOG](#mthcxlogcomplex-natural-logarithm)
 
-MTH$CMPLX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–36
+- [MTH$CMPLX](#mthcmplxcomplex-number-made-from-f-floating-point)
 
-MTH$xCMPLX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–38
+- [MTH$xCMPLX](#mthxcmplxcomplex-number-made-from-d-or-g-floating-point)
 
-MTH$CONJG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–40
+- [MTH$CONJG](#mthconjgconjugate-of-a-complex-number-f-floating-value)
 
-MTH$xCONJG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–41
+- [MTH$xCONJG](#mthxconjgconjugate-of-a-complex-number)
 
-MTH$xCOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–43
+- [MTH$xCOS](#mthxcoscosine-of-angle-expressed-in-radians)
 
-MTH$xCOSD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–45
+- [MTH$xCOSD](#mthxcosdcosine-of-angle-expressed-in-degrees)
 
-MTH$xCOSH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–47
+- [MTH$xCOSH](#mthxcoshhyperbolic-cosine)
 
-MTH$CSIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–49
+- [MTH$CSIN](#mthcsinsine-of-a-complex-number-f-floating-value)
 
-MTH$CxSIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–50
+- [MTH$CxSIN](#mthcxsinsine-of-a-complex-number)
 
-MTH$CSQRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–52
+- [MTH$CSQRT](#mthcsqrtcomplex-square-root-f-floating-value)
 
-MTH$CxSQRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–54
+- [MTH$CxSQRT](#mthcxsqrtcomplex-square-root)
 
-MTH$CVT_x_x . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–56
+- [MTH$CVT_x_x](#mthcvt_x_xconvert-one-double-precision-value)
 
-MTH$CVT_xA_xA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–58
+- [MTH$CVT_xA_xA](#mthcvt_xa_xaconvert-an-array-of-double-precision-values)
 
-MTH$xEXP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–60
+- [MTH$xEXP](#mthxexpexponential)
 
-MTH$HACOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–63
+- [MTH$HACOS](#mthhacosarc-cosine-of-angle-expressed-in-radians-h-floating-value)
 
-MTH$HACOSD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–65
+- [MTH$HACOSD](#mthhacosdarc-cosine-of-angle-expressed-in-degrees-h-floating-value)
 
-MTH$HASIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–67
+- [MTH$HASIN](#mthhasinarc-sine-in-radians-h-floating-value)
 
-MTH$HASIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–69
+- [MTH$HASIND](#mthhasindarc-sine-in-degrees-h-floating-value)
 
-MTH$HATAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–71
+- [MTH$HATAN](#mthhatanarc-tangent-in-radians-h-floating-value)
 
-MTH$HATAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–73
+- [MTH$HATAND](#mthhatandarc-tangent-in-degrees-h-floating-value)
 
-MTH$HATAN2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–75
+- [MTH$HATAN2](#mthhatan2arc-tangent-in-radians-h-floating-value-with-two-arguments)
 
-MTH$HATAND2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–77
+- [MTH$HATAND2](#mthhatand2arc-tangent-in-degrees-h-floating-value-with-two-arguments)
 
-MTH$HATANH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–79
+- [MTH$HATANH](#mthhatanhhyperbolic-arc-tangent-h-floating-value)
 
-MTH$HCOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–81
+- [MTH$HCOS](#mthhcoscosine-of-angle-expressed-in-radians-h-floating-value)
 
-MTH$HCOSD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–82
+- [MTH$HCOSD](#mthhcosdcosine-of-angle-expressed-in-degrees-h-floating-value)
 
-MTH$HCOSH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–83
+- [MTH$HCOSH](#mthhcoshhyperbolic-cosine-h-floating-value)
 
-MTH$HEXP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–85
+- [MTH$HEXP](#mthhexpexponential-h-floating-value)
 
-MTH$HLOG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–87
+- [MTH$HLOG](#mthhlognatural-logarithm-h-floating-value)
 
-MTH$HLOG2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–89
+- [MTH$HLOG2](#mthhlog2base-2-logarithm-h-floating-value)
 
 
 iv
 
 
-MTH$HLOG10 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–91
+- [MTH$HLOG10](#mthhlog10common-logarithm-h-floating-value)
 
-MTH$HSIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–93
+- [MTH$HSIN](#mthhsinsine-of-angle-expressed-in-radians-h-floating-value)
 
-MTH$HSIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–94
+- [MTH$HSIND](#mthhsindsine-of-angle-expressed-in-degrees-h-floating-value)
 
-MTH$HSINH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–95
+- [MTH$HSINH](#mthhsinhhyperbolic-sine-h-floating-value)
 
-MTH$HSQRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–97
+- [MTH$HSQRT](#mthhsqrtsquare-root-h-floating-value)
 
-MTH$HTAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–99
+- [MTH$HTAN](#mthhtantangent-of-angle-expressed-in-radians-h-floating-value)
 
-MTH$HTAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–101
+- [MTH$HTAND](#mthhtandtangent-of-angle-expressed-in-degrees-h-floating-value)
 
-MTH$HTANH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–103
+- [MTH$HTANH](#mthhtanhcompute-the-hyperbolic-tangent-h-floating-value)
 
-MTH$xIMAG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–105
+- [MTH$xIMAG](#mthximagimaginary-part-of-a-complex-number)
 
-MTH$xLOG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–107
+- [MTH$xLOG](#mthxlognatural-logarithm)
 
-MTH$xLOG2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–109
+- [MTH$xLOG2](#mthxlog2base-2-logarithm)
 
-MTH$xLOG10 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–111
+- [MTH$xLOG10](#mthxlog10common-logarithm)
 
-MTH$RANDOM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–113
+- [MTH$RANDOM](#mthrandomrandom-number-generator-uniformly-distributed)
 
-MTH$xREAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–115
+- [MTH$xREAL](#mthxrealreal-part-of-a-complex-number)
 
-MTH$xSIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–117
+- [MTH$xSIN](#mthxsinsine-of-angle-expressed-in-radians)
 
-MTH$xSINCOS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–119
+- [MTH$xSINCOS](#mthxsincossine-and-cosine-of-angle-expressed-in-radians)
 
-MTH$xSINCOSD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–122
+- [MTH$xSINCOSD](#mthxsincosdsine-and-cosine-of-angle-expressed-in-degrees)
 
-MTH$xSIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–125
+- [MTH$xSIND](#mthxsindsine-of-angle-expressed-in-degrees)
 
-MTH$xSINH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–127
+- [MTH$xSINH](#mthxsinhhyperbolic-sine)
 
-MTH$xSQRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–130
+- [MTH$xSQRT](#mthxsqrtsquare-root)
 
-MTH$xTAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–133
+- [MTH$xTAN](#mthxtantangent-of-angle-expressed-in-radians)
 
-MTH$xTAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–135
+- [MTH$xTAND](#mthxtandtangent-of-angle-expressed-in-degrees)
 
-MTH$xTANH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–137
+- [MTH$xTANH](#mthxtanhcompute-the-hyperbolic-tangent)
 
-MTH$UMAX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–139
+- [MTH$UMAX](#mthumaxcompute-unsigned-maximum)
 
-MTH$UMIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . scalar_MTH–140
+- [MTH$UMIN](#mthumincompute-unsigned-minimum)
 
 
 **Part III** **Vector MTH$ Reference Section**
 
 
-BLAS1$VIxAMAX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–143
+- [BLAS1$VIxAMAX](#blas1vixamaxobtain-the-index-of-the-first-element-of-a-vector-having-the-largest-absolute-value)
 
-BLAS1$VxASUM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–146
+- [BLAS1$VxASUM](#blas1vxasumobtain-the-sum-of-the-absolute-values-of-the-elements-of-a-vector)
 
-BLAS1$VxAXPY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–149
+- [BLAS1$VxAXPY](#blas1vxaxpymultiply-a-vector-by-a-scalar-and-add-a-vector)
 
-BLAS1$VxCOPY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–154
+- [BLAS1$VxCOPY](#blas1vxcopycopy-a-vector)
 
-BLAS1$VxDOTx . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–159
+- [BLAS1$VxDOTx](#blas1vxdotxobtain-the-inner-product-of-two-vectors)
 
-BLAS1$VxNRM2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–164
+- [BLAS1$VxNRM2](#blas1vxnrm2obtain-the-euclidean-norm-of-a-vector)
 
-BLAS1$VxROT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–167
+- [BLAS1$VxROT](#blas1vxrotapply-a-givens-plane-rotation)
 
-BLAS1$VxROTG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–173
+- [BLAS1$VxROTG](#blas1vxrotggenerate-the-elements-for-a-givens-plane-rotation)
 
-BLAS1$VxSCAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–177
+- [BLAS1$VxSCAL](#blas1vxscalscale-the-elements-of-a-vector)
 
-BLAS1$VxSWAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–181
+- [BLAS1$VxSWAP](#blas1vxswapswap-the-elements-of-two-vectors)
 
-MTH$VxFOLRy_MA_V15 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–185
-MTH$VxFOLRy_z_V8 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–189
-MTH$VxFOLRLy_MA_V5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–193
-MTH$VxFOLRLy_z_V2 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vector_MTH–197
+- [MTH$VxFOLRy_MA_V15](#mthvxfolry_ma_v15first-order-linear-recurrence-multiplication-and-addition)
+- [MTH$VxFOLRy_z_V8](#mthvxfolry_z_v8first-order-linear-recurrence-multiplication-or-addition)
+- [MTH$VxFOLRLy_MA_V5](#mthvxfolrly_ma_v5first-order-linear-recurrence-multiplication-and-addition-last-value)
+- [MTH$VxFOLRLy_z_V2](#mthvxfolrly_z_v2first-order-linear-recurrence-multiplication-or-addition-last-value)
 
 
 v
@@ -315,21 +315,21 @@ v
 **Tables**
 
 
-1–1 Additional Mathematics Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
+- 1–1 Additional Mathematics Routines
 
-2–1 Functions of BLAS Level 1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
+- 2–1 Functions of BLAS Level 1
 
-2–2 Determining the FOLR Routine You Need . . . . . . . . . . . . . . . . . . . . . . 2–7
-2–3 Vector Routine Format — Underflow Signaling Enabled . . . . . . . . . . . 2–8
-2–4 Vector Routine Format — Underflow Signaling Disabled . . . . . . . . . . . 2–8
+- 2–2 Determining the FOLR Routine You Need
+- 2–3 Vector Routine Format — Underflow Signaling Enabled
+- 2–4 Vector Routine Format — Underflow Signaling Disabled
 
-2–5 Fast-Vector Math Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
+- 2–5 Fast-Vector Math Routines
 
-2–6 Input Argument Restrictions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
+- 2–6 Input Argument Restrictions
 
-A–1 Additional MTH$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–1
+- [A–1 Additional MTH$ Routines](#a)
 
-B–1 Vector MTH$ Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–1
+- [B–1 Vector MTH$ Routines](#b)
 
 
 vi

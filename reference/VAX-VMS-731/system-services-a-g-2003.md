@@ -62,179 +62,179 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ## **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ix
+- [Preface](#preface)
 
 
 **System Service Descriptions**
 
 
-$ABORT_TRANS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–3
-$ABORT_TRANSW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–10
-$ACK_EVENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–11
-$ACM (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–23
-$ACMW (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–75
-$ACQUIRE_GALAXY_LOCK (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS1–76
-$ADD_BRANCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–78
-$ADD_BRANCHW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–82
-$ADD_HOLDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–83
-$ADD_IDENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–86
-$ADD_PROXY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–89
-$ADJSTK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–93
-$ADJWSL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–95
-$ALLOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–97
-$ASCEFC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–100
-$ASCTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–104
-$ASCTOID . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–107
-$ASCUTC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–110
-$ASSIGN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–113
-$AUDIT_EVENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–118
-$AUDIT_EVENTW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–136
-$AVOID_PREEMPT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–137
-$BINTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–139
-$BINUTC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–142
-$BRKTHRU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–145
-$BRKTHRUW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–153
-$CANCEL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–154
-$CANEXH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–156
-$CANTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–157
-$CANWAK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–159
-$CHECK_ACCESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–161
-$CHECK_FEN (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–169
-$CHECK_PRIVILEGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–170
-$CHECK_PRIVILEGEW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–175
-$CHKPRO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–176
+- [$ABORT_TRANS](#abort_trans-abort-transaction)
+- [$ABORT_TRANSW](#abort_transw-abort-transaction-and-wait)
+- [$ACK_EVENT](#ack_event-acknowledge-event)
+- [$ACM (Alpha Only)](#acm-alpha-only-authentication-and-credential-management)
+- [$ACMW (Alpha Only)](#acmw-alpha-only-authentication-and-credential-management)
+- [$ACQUIRE_GALAXY_LOCK (Alpha Only)](#acquire_galaxy_lock-alpha-only-acquire-galaxy-lock)
+- [$ADD_BRANCH](#add_branch-add-branch)
+- [$ADD_BRANCHW](#add_branchw-add-branch-and-wait)
+- [$ADD_HOLDER](#add_holder-add-holder-record-to-rights-database)
+- [$ADD_IDENT](#add_ident-add-identifier-to-rights-database)
+- [$ADD_PROXY](#add_proxy-add-or-modify-proxy)
+- [$ADJSTK](#adjstk-adjust-outer-mode-stack-pointer)
+- [$ADJWSL](#adjwsl-adjust-working-set-limit)
+- [$ALLOC](#alloc-allocate-device)
+- [$ASCEFC](#ascefc-associate-common-event-flag-cluster)
+- [$ASCTIM](#asctim-convert-binary-time-to-ascii-string)
+- [$ASCTOID](#asctoid-translate-identifier-name-to-identifier)
+- [$ASCUTC](#ascutc-convert-utc-to-ascii)
+- [$ASSIGN](#assign-assign-io-channel)
+- [$AUDIT_EVENT](#audit_event-audit-event)
+- [$AUDIT_EVENTW](#audit_eventw-audit-event-and-wait)
+- [$AVOID_PREEMPT](#avoid_preempt-avoid-process-preemption)
+- [$BINTIM](#bintim-convert-ascii-string-to-binary-time)
+- [$BINUTC](#binutc-convert-ascii-string-to-utc-binary-time)
+- [$BRKTHRU](#brkthru-breakthrough)
+- [$BRKTHRUW](#brkthruw-breakthrough-and-wait)
+- [$CANCEL](#cancel-cancel-io-on-channel)
+- [$CANEXH](#canexh-cancel-exit-handler)
+- [$CANTIM](#cantim-cancel-timer)
+- [$CANWAK](#canwak-cancel-wakeup)
+- [$CHECK_ACCESS](#check_access-check-access)
+- [$CHECK_FEN (Alpha Only)](#check_fen-alpha-only-check-floating-point)
+- [$CHECK_PRIVILEGE](#check_privilege-check-privilege)
+- [$CHECK_PRIVILEGEW](#check_privilegew-check-privilege-and-wait)
+- [$CHKPRO](#chkpro-check-access-protection)
 
 
 iii
 
 
-$CLEAR_SYSTEM_EVENT (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–184
-$CLOSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–186
-$CLRAST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–187
-$CLRCLUEVT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–188
-$CLREF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–190
-$CMEXEC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–191
-$CMEXEC_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–193
-$CMKRNL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–195
-$CMKRNL_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–198
-$CONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–200
-$CPU_CAPABILITIES (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–201
-$CPU_TRANSITION (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–205
-$CPU_TRANSITIONW (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–211
-$CREATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–212
-$CREATE_BUFOBJ_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–213
-$CREATE_GALAXY_LOCK (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–217
-$CREATE_GALAXY_LOCK_TABLE (Alpha Only) . . . . . . . . . . . . . . . . . . . SYS1–220
-$CREATE_GDZRO (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–223
-$CREATE_GFILE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–231
-$CREATE_GPFILE (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–237
-$CREATE_GPFN (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–241
-$CREATE_RDB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–246
-$CREATE_REGION_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–248
-$CREATE_UID . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–256
-$CREATE_USER_PROFILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–257
-$CRELNM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–263
-$CRELNT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–271
-$CREMBX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–277
-$CREPRC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–284
-$CRETVA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–302
-$CRETVA_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–305
-$CRMPSC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–310
-$CRMPSC_FILE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–323
-$CRMPSC_GDZRO_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–329
-$CRMPSC_GFILE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–342
-$CRMPSC_GPFILE_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–350
-$CRMPSC_GPFN_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–357
-$CRMPSC_PFN_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–364
-$CVT_FILENAME (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–369
-$DACEFC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–374
-$DALLOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–376
-$DASSGN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–378
-$DCLAST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–380
-$DCLCMH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–382
-$DCLEXH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–385
-$DECLARE_RM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–388
-$DECLARE_RMW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–398
+- [$CLEAR_SYSTEM_EVENT (Alpha Only)](#clear_system_event-alpha-only-clear-system-event)
+- [$CLOSE](#close-closes-file)
+- [$CLRAST](#clrast-clear-ast)
+- [$CLRCLUEVT](#clrcluevt-clear-cluster-event)
+- [$CLREF](#clref-clear-event-flag)
+- [$CMEXEC](#cmexec-change-to-executive-mode)
+- [$CMEXEC_64 (Alpha Only)](#cmexec_64-alpha-only-change-to-executive-mode-with-quadword-argument-list)
+- [$CMKRNL](#cmkrnl-change-to-kernel-mode)
+- [$CMKRNL_64 (Alpha Only)](#cmkrnl_64-alpha-only-change-to-kernel-mode-with-quadword-argument-list)
+- [$CONNECT](#connect-connect-rab-with-fab)
+- [$CPU_CAPABILITIES (Alpha Only)](#cpu_capabilities-alpha-only-modify-cpu-user-capabilities)
+- [$CPU_TRANSITION (Alpha Only)](#cpu_transition-alpha-only-cpu-transition)
+- [$CPU_TRANSITIONW (Alpha Only)](#cpu_transitionw-alpha-only-cpu-transition-and-wait)
+- [$CREATE](#create-constructs-new-file)
+- [$CREATE_BUFOBJ_64 (Alpha Only)](#create_bufobj_64-alpha-only-create-buffer-object)
+- [$CREATE_GALAXY_LOCK (Alpha Only)](#create_galaxy_lock-alpha-only-create-openvms-galaxy-lock)
+- [$CREATE_GALAXY_LOCK_TABLE (Alpha Only)](#create_galaxy_lock_table-alpha-only-create-openvms-galaxy-lock-table)
+- [$CREATE_GDZRO (Alpha Only)](#create_gdzro-alpha-only-create-permanent-global-demand-zero-section)
+- [$CREATE_GFILE (Alpha Only)](#create_gfile-alpha-only-create-permanent-global-disk-file-section)
+- [$CREATE_GPFILE (Alpha Only)](#create_gpfile-alpha-only-create-permanent-global-page-file-section)
+- [$CREATE_GPFN (Alpha Only)](#create_gpfn-alpha-only-create-permanent-global-page-frame-section)
+- [$CREATE_RDB](#create_rdb-create-rights-database)
+- [$CREATE_REGION_64 (Alpha Only)](#create_region_64-alpha-only-create-virtual-region)
+- [$CREATE_UID](#create_uid-create-uid)
+- [$CREATE_USER_PROFILE](#create_user_profile-create-user-profile)
+- [$CRELNM](#crelnm-create-logical-name)
+- [$CRELNT](#crelnt-create-logical-name-table)
+- [$CREMBX](#crembx-create-mailbox-and-assign-channel)
+- [$CREPRC](#creprc-create-process)
+- [$CRETVA](#cretva-create-virtual-address-space)
+- [$CRETVA_64 (Alpha Only)](#cretva_64-alpha-only-create-virtual-address-space)
+- [$CRMPSC](#crmpsc-create-and-map-section)
+- [$CRMPSC_FILE_64 (Alpha Only)](#crmpsc_file_64-alpha-only-create-and-map-private-disk-file-section)
+- [$CRMPSC_GDZRO_64 (Alpha Only)](#crmpsc_gdzro_64-alpha-only-create-and-map-to-global-demand-zero-section)
+- [$CRMPSC_GFILE_64 (Alpha Only)](#crmpsc_gfile_64-alpha-only-create-and-map-global-disk-file-section)
+- [$CRMPSC_GPFILE_64 (Alpha Only)](#crmpsc_gpfile_64-alpha-only-create-and-map-global-page-file-section)
+- [$CRMPSC_GPFN_64 (Alpha Only)](#crmpsc_gpfn_64-alpha-only-create-and-map-global-page-frame-section)
+- [$CRMPSC_PFN_64 (Alpha Only)](#crmpsc_pfn_64-alpha-only-create-and-map-private-page-frame-section)
+- [$CVT_FILENAME (Alpha Only)](#cvt_filename-alpha-only-converts-string)
+- [$DACEFC](#dacefc-disassociate-common-event-flag-cluster)
+- [$DALLOC](#dalloc-deallocate-device)
+- [$DASSGN](#dassgn-deassign-io-channel)
+- [$DCLAST](#dclast-declare-ast)
+- [$DCLCMH](#dclcmh-declare-change-mode-or-compatibility-mode-handler)
+- [$DCLEXH](#dclexh-declare-exit-handler)
+- [$DECLARE_RM](#declare_rm-declare-resource-manager)
+- [$DECLARE_RMW](#declare_rmw-declare-resource-manager-and-wait)
 
 
 
 iv
 
 
-$DELETE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–399
-$DELETE_BUFOBJ (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–400
-$DELETE_GALAXY_LOCK (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–402
-$DELETE_GALAXY_LOCK_TABLE (Alpha Only) . . . . . . . . . . . . . . . . . . . SYS1–404
-$DELETE_INTRUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–405
-$DELETE_PROXY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–408
-$DELETE_REGION_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–411
-$DELLNM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–414
-$DELMBX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–417
-$DELPRC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–419
-$DELTVA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–422
-$DELTVA_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–424
-$DEQ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–428
-$DEVICE_PATH_SCAN (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–433
-$DEVICE_SCAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–437
-$DGBLSC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–441
-$DISCONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–445
-$DISMOU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–446
-$DISPLAY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–450
-$DISPLAY_PROXY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–451
-$DLCEFC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–457
-$DNS (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–459
-$DNSW (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–486
-$END_BRANCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–487
-$END_BRANCHW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–493
-$END_TRANS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–494
-$END_TRANSW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–501
-$ENQ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–502
-$ENQW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–516
-$ENTER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–517
-$ERAPAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–518
-$ERASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–521
-$EXIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–522
-$EXPREG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–523
-$EXPREG_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–526
-$EXTEND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–530
-$FAO/$FAOL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–531
-$FAOL_64 (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–552
-$FILESCAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–554
-$FIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–562
-$FIND_HELD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–563
-$FIND_HOLDER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–566
-$FINISH_RDB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–569
-$FLUSH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–571
-$FORCEX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–572
-$FORGET_RM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–575
-$FORGET_RMW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–580
+- [$DELETE](#delete-removes-existing-record)
+- [$DELETE_BUFOBJ (Alpha Only)](#delete_bufobj-alpha-only-delete-buffer-object)
+- [$DELETE_GALAXY_LOCK (Alpha Only)](#delete_galaxy_lock-alpha-only-delete-an-openvms-galaxy-lock)
+- [$DELETE_GALAXY_LOCK_TABLE (Alpha Only)](#delete_galaxy_lock_table-alpha-only-delete-openvms-galaxy-lock-table)
+- [$DELETE_INTRUSION](#delete_intrusion-delete-intrusion-records)
+- [$DELETE_PROXY](#delete_proxy-delete-or-modify-proxy)
+- [$DELETE_REGION_64 (Alpha Only)](#delete_region_64-alpha-only-delete-a-virtual-region)
+- [$DELLNM](#dellnm-delete-logical-name)
+- [$DELMBX](#delmbx-delete-mailbox)
+- [$DELPRC](#delprc-delete-process)
+- [$DELTVA](#deltva-delete-virtual-address-space)
+- [$DELTVA_64 (Alpha Only)](#deltva_64-alpha-only-delete-virtual-address-space)
+- [$DEQ](#deq-dequeue-lock-request)
+- [$DEVICE_PATH_SCAN (Alpha Only)](#device_path_scan-alpha-only-scan-for-device-paths)
+- [$DEVICE_SCAN](#device_scan-scan-for-devices)
+- [$DGBLSC](#dgblsc-delete-global-section)
+- [$DISCONNECT](#disconnect-breaks-connection)
+- [$DISMOU](#dismou-dismount-volume)
+- [$DISPLAY](#display-retrieves-file-attribute-information)
+- [$DISPLAY_PROXY](#display_proxy-display-proxy-information)
+- [$DLCEFC](#dlcefc-delete-common-event-flag-cluster)
+- [$DNS (VAX Only)](#dns-vax-only-distributed-name-service-clerk)
+- [$DNSW (VAX Only)](#dnsw-vax-only-distributed-name-service-clerk-and-wait)
+- [$END_BRANCH](#end_branch-end-branch)
+- [$END_BRANCHW](#end_branchw-end-branch-and-wait)
+- [$END_TRANS](#end_trans-end-transaction)
+- [$END_TRANSW](#end_transw-end-transaction-and-wait)
+- [$ENQ](#enq-enqueue-lock-request)
+- [$ENQW](#enqw-enqueue-lock-request-and-wait)
+- [$ENTER](#enter-inserts-file-name-in-directory)
+- [$ERAPAT](#erapat-get-security-erase-pattern)
+- [$ERASE](#erase-deletes-a-disk-file)
+- [$EXIT](#exit-exit)
+- [$EXPREG](#expreg-expand-programcontrol-region)
+- [$EXPREG_64 (Alpha Only)](#expreg_64-alpha-only-expand-virtual-address-space)
+- [$EXTEND](#extend-extend-file-disk-space)
+- [$FAO/$FAOL](#faofaol-formatted-ascii-output-services)
+- [$FAOL_64 (Alpha Only)](#faol_64-alpha-only-formatted-asci-output-with-list-parameter-for-64-bit-virtual-addresses)
+- [$FILESCAN](#filescan-scan-string-for-file-specification)
+- [$FIND](#find-locates-record)
+- [$FIND_HELD](#find_held-find-identifiers-held-by-user)
+- [$FIND_HOLDER](#find_holder-find-holder-of-identifier)
+- [$FINISH_RDB](#finish_rdb-terminate-rights-database-context)
+- [$FLUSH](#flush-writes-out-buffers)
+- [$FORCEX](#forcex-force-exit)
+- [$FORGET_RM](#forget_rm-forget-resource-manager)
+- [$FORGET_RMW](#forget_rmw-forget-resource-manager-and-wait)
 
 
 v
 
 
-$FORMAT_ACL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–581
-$FORMAT_AUDIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–594
-$FREE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–598
-$FREE_USER_CAPABILITY (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SYS1–599
-$GET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–601
-$GETDTI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–602
-$GETDTIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–612
-$GETDVI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–613
-$GETDVIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–635
-$GETENV (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–636
-$GETJPI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–638
-$GETJPIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–664
-$GETLKI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–665
-$GETLKIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–677
-$GETMSG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–678
-$GETQUI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–682
-$GETQUIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–726
-$GETRMI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–727
-$GETSYI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–759
-$GETSYIW . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–785
-$GETTIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–786
-$GETUAI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–788
+- [$FORMAT_ACL](#format_acl-format-access-control-list-entry)
+- [$FORMAT_AUDIT](#format_audit-format-security-audit-event-message)
+- [$FREE](#free-unlocks-records)
+- [$FREE_USER_CAPABILITY (Alpha Only)](#free_user_capability-alpha-only-release-a-reserved-user-capability)
+- [$GET](#get-retrieves-record)
+- [$GETDTI](#getdti-get-distributed-transaction-information)
+- [$GETDTIW](#getdtiw-get-distributed-transaction-information-and-wait)
+- [$GETDVI](#getdvi-get-devicevolume-information)
+- [$GETDVIW](#getdviw-get-devicevolume-information-and-wait)
+- [$GETENV (Alpha Only)](#getenv-alpha-only-get-environment)
+- [$GETJPI](#getjpi-get-jobprocess-information)
+- [$GETJPIW](#getjpiw-get-jobprocess-information-and-wait)
+- [$GETLKI](#getlki-get-lock-information)
+- [$GETLKIW](#getlkiw-get-lock-information-and-wait)
+- [$GETMSG](#getmsg-get-message)
+- [$GETQUI](#getqui-get-queue-information)
+- [$GETQUIW](#getquiw-get-queue-information-and-wait)
+- [$GETRMI](#getrmi-get-resource-monitor-information)
+- [$GETSYI](#getsyi-get-systemwide-information)
+- [$GETSYIW](#getsyiw-get-systemwide-information-and-wait)
+- [$GETTIM](#gettim-get-time)
+- [$GETUAI](#getuai-get-user-authorization-information)
 
 
 **Index**
@@ -243,71 +243,71 @@ $GETUAI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
 **Tables**
 
 
-SYS1–1 $ABORT_TRANS Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–3
+- SYS1–1 $ABORT_TRANS Option Flags
 
-SYS1–2 Abort Reason Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–4
+- SYS1–2 Abort Reason Codes
 
-SYS1–3 Postconditions When $ABORT_TRANS Completes Successfully . . . . . SYS1–7
-SYS1–4 Replies to an Abort Event Report (DDTM$K_ABORT) . . . . . . . . . . . . SYS1–12
-SYS1–5 Replies to a Commit Event Report (DDTM$K_COMMIT) . . . . . . . . . . SYS1–12
+- SYS1–3 Postconditions When $ABORT_TRANS Completes Successfully
+- SYS1–4 Replies to an Abort Event Report (DDTM$K_ABORT)
+- SYS1–5 Replies to a Commit Event Report (DDTM$K_COMMIT)
 SYS1–6 Replies to a One-phase Commit Event Report
-(DDTM$K_ONE_PHASE_COMMIT) . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–14
-SYS1–7 Replies to a Prepare Event Report (DDTM$K_PREPARE) . . . . . . . . . . SYS1–15
+- (DDTM$K_ONE_PHASE_COMMIT)
+- SYS1–7 Replies to a Prepare Event Report (DDTM$K_PREPARE)
 SYS1–8 Replies to a Default Transaction Started Event Report
-(DDTM$K_STARTED_DEFAULT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–17
+- (DDTM$K_STARTED_DEFAULT)
 
 SYS1–9 Replies to a Nondefault Transaction Started Event Report
-(DDTM$K_STARTED_NONDEFAULT) . . . . . . . . . . . . . . . . . . . . . . . . SYS1–18
+- (DDTM$K_STARTED_NONDEFAULT)
 
-SYS1–10 Abort Reason Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–19
+- SYS1–10 Abort Reason Codes
 
-SYS1–11 Function Codes and Function Modifiers . . . . . . . . . . . . . . . . . . . . . . . . SYS1–36
+- SYS1–11 Function Codes and Function Modifiers
 
-SYS1–12 Function Codes and Common Item Codes . . . . . . . . . . . . . . . . . . . . . . SYS1–39
+- SYS1–12 Function Codes and Common Item Codes
 
-SYS1–13 Status Codes and Function Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–60
+- SYS1–13 Status Codes and Function Codes
 
-SYS1–14 Function Codes and VMS Specific Item Codes . . . . . . . . . . . . . . . . . . . SYS1–61
-SYS1–15 $ADD_BRANCH Option Flag . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–78
-SYS1–16 Postconditions When $ADD_BRANCH Completes Successfully . . . . . . SYS1–80
-SYS1–17 Description of $AUDIT_EVENT Types and Subtypes . . . . . . . . . . . . . SYS1–122
+- SYS1–14 Function Codes and VMS Specific Item Codes
+- SYS1–15 $ADD_BRANCH Option Flag
+- SYS1–16 Postconditions When $ADD_BRANCH Completes Successfully
+- SYS1–17 Description of $AUDIT_EVENT Types and Subtypes
 
 
 vi
 
 
-SYS1–18 Services That Do Not Accept Shared Page Table Regions . . . . . . . . . . SYS1–252
-SYS1–19 Sample Returned Values from $CREATE_REGION_64 . . . . . . . . . . . . SYS1–254
-SYS1–20 User Privileges . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–285
-SYS1–21 Required and Optional Arguments for the $CRMPSC Service . . . . . . . SYS1–316
-SYS1–22 Shared Page Tables . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–338
-SYS1–23 $DECLARE_RM Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–388
-SYS1–24 Fields in an Event Report Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–391
-SYS1–25 $DECLARE_RM Event Selection Flags . . . . . . . . . . . . . . . . . . . . . . . . SYS1–394
-SYS1–26 $DNS Item Codes and Their Data Types . . . . . . . . . . . . . . . . . . . . . . . SYS1–474
-SYS1–27 $END_BRANCH Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–487
-SYS1–28 Postconditions When $END_BRANCH Completes Successfully . . . . . . SYS1–490
+- SYS1–18 Services That Do Not Accept Shared Page Table Regions
+- SYS1–19 Sample Returned Values from $CREATE_REGION_64
+- SYS1–20 User Privileges
+- SYS1–21 Required and Optional Arguments for the $CRMPSC Service
+- SYS1–22 Shared Page Tables
+- SYS1–23 $DECLARE_RM Option Flags
+- SYS1–24 Fields in an Event Report Block
+- SYS1–25 $DECLARE_RM Event Selection Flags
+- SYS1–26 $DNS Item Codes and Their Data Types
+- SYS1–27 $END_BRANCH Option Flags
+- SYS1–28 Postconditions When $END_BRANCH Completes Successfully
 SYS1–29 Postconditions When $END_BRANCH Completes with the
-SS$_ABORT Error . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–491
-SYS1–30 $END_TRANS Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–494
+- SS$_ABORT Error
+- SYS1–30 $END_TRANS Option Flags
 
-SYS1–31 Abort Reason Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–495
+- SYS1–31 Abort Reason Codes
 
-SYS1–32 Postconditions When $END_TRANS Completes Successfully . . . . . . . SYS1–498
+- SYS1–32 Postconditions When $END_TRANS Completes Successfully
 SYS1–33 Postconditions When $END_TRANS Completes with SS$_ABORT
-Error . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–499
+- Error
 
-SYS1–34 Compatibility of Lock Modes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–504
-SYS1–35 Legal QUECVT Conversions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–509
-SYS1–36 $FAO Directives . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–535
-SYS1–37 $FAO Output Field Lengths and Fill Characters . . . . . . . . . . . . . . . . . SYS1–542
-SYS1–38 $FORGET_RM Option Flag . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–575
-SYS1–39 $FORGET_RM’s Implicit Acknowledgments . . . . . . . . . . . . . . . . . . . . SYS1–577
-SYS1–40 Postconditions When $FORGET_RM Completes Successfully . . . . . . . SYS1–577
-SYS1–41 $GETDTI Option Flags . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–602
-SYS1–42 $GETDTI Transaction States . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–607
+- SYS1–34 Compatibility of Lock Modes
+- SYS1–35 Legal QUECVT Conversions
+- SYS1–36 $FAO Directives
+- SYS1–37 $FAO Output Field Lengths and Fill Characters
+- SYS1–38 $FORGET_RM Option Flag
+- SYS1–39 $FORGET_RM’s Implicit Acknowledgments
+- SYS1–40 Postconditions When $FORGET_RM Completes Successfully
+- SYS1–41 $GETDTI Option Flags
+- SYS1–42 $GETDTI Transaction States
 
-SYS1–43 Attributes of an Identifier . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SYS1–648
+- SYS1–43 Attributes of an Identifier
 
 
 vii

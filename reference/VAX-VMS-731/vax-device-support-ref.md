@@ -109,431 +109,431 @@ Thank you.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xiii
+- [Preface](#preface)
 
 
 **1** **Data Structures**
 
 
-1.1 Configuration Control Block (ACF) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2 Adapter Control Block (ADP) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
-1.3 Channel Control Block (CCB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–12
-1.4 Per-CPU Database (CPU) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–13
-1.5 Control Register Access Mailbox (CRAM) . . . . . . . . . . . . . . . . . . . . . . . . . 1–20
-1.5.1 Hardware Mailbox Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–22
-1.6 Control Register Access Mailbox Header (CRAMH) . . . . . . . . . . . . . . . . . . 1–24
-1.7 Channel Request Block (CRB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–26
-1.7.1 Interrupt Transfer Vector Block (VEC) . . . . . . . . . . . . . . . . . . . . . . . . . 1–29
-1.8 Device Data Block (DDB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
-1.9 Driver Dispatch Table (DDT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–35
-1.10 Driver Prologue Table (DPT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–38
-1.11 Interrupt Dispatch Block (IDB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–42
-1.12 I/O Request Packet (IRP) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–44
-1.13 I/O Request Packet Extension (IRPE) . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–49
-1.14 Object Rights Block (ORB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–51
-1.15 SCSI Class Driver Request Packet (SCDRP) . . . . . . . . . . . . . . . . . . . . . . . 1–54
-1.16 SCSI Connection Descriptor Table (SCDT) . . . . . . . . . . . . . . . . . . . . . . . . . 1–66
-1.17 SCSI Port Descriptor Table (SPDT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–73
-1.18 Spinlock Data Structure (SPL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–81
-1.19 Unit Control Block (UCB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–83
+- [1.1 Configuration Control Block (ACF)](#11-configuration-control-block-acf)
+- [1.2 Adapter Control Block (ADP)](#12-adapter-control-block-adp)
+- [1.3 Channel Control Block (CCB)](#13-channel-control-block-ccb)
+- [1.4 Per-CPU Database (CPU)](#14-per-cpu-database-cpu)
+- [1.5 Control Register Access Mailbox (CRAM)](#15-control-register-access-mailbox-cram)
+- 1.5.1 Hardware Mailbox Structure
+- [1.6 Control Register Access Mailbox Header (CRAMH)](#16-control-register-access-mailbox-header-cramh)
+- [1.7 Channel Request Block (CRB)](#17-channel-request-block-crb)
+- 1.7.1 Interrupt Transfer Vector Block (VEC)
+- [1.8 Device Data Block (DDB)](#18-device-data-block-ddb)
+- [1.9 Driver Dispatch Table (DDT)](#19-driver-dispatch-table-ddt)
+- [1.10 Driver Prologue Table (DPT)](#110-driver-prologue-table-dpt)
+- [1.11 Interrupt Dispatch Block (IDB)](#111-interrupt-dispatch-block-idb)
+- [1.12 I/O Request Packet (IRP)](#112-io-request-packet-irp)
+- [1.13 I/O Request Packet Extension (IRPE)](#113-io-request-packet-extension-irpe)
+- [1.14 Object Rights Block (ORB)](#114-object-rights-block-orb)
+- [1.15 SCSI Class Driver Request Packet (SCDRP)](#115-scsi-class-driver-request-packet-scdrp)
+- [1.16 SCSI Connection Descriptor Table (SCDT)](#116-scsi-connection-descriptor-table-scdt)
+- [1.17 SCSI Port Descriptor Table (SPDT)](#117-scsi-port-descriptor-table-spdt)
+- [1.18 Spinlock Data Structure (SPL)](#118-spinlock-data-structure-spl)
+- [1.19 Unit Control Block (UCB)](#119-unit-control-block-ucb)
 
 
 **2** **System Macros Invoked by Drivers**
 
 
-ADPDISP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
+- [ADPDISP](#adpdisp)
 
-BI_NODE_RESET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
+- [BI_NODE_RESET](#bi_node_reset)
 
-CASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
+- [CASE](#case)
 
-CLASS_CTRL_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
+- [CLASS_CTRL_INIT](#class_ctrl_init)
 
-CLASS_UNIT_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
+- [CLASS_UNIT_INIT](#class_unit_init)
 
-CPUDISP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
+- [CPUDISP](#cpudisp)
 
-DDTAB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
+- [DDTAB](#ddtab)
 
-$DEF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
+- [$DEF](#def)
 
-$DEFEND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–15
+- [$DEFEND](#defend)
 
-$DEFINI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
+- [$DEFINI](#defini)
 
-DEVICELOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–17
+- [DEVICELOCK](#devicelock)
 
-DEVICEUNLOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–19
+- [DEVICEUNLOCK](#deviceunlock)
 
-DPTAB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–21
+- [DPTAB](#dptab)
 
-DPT_STORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–25
+- [DPT_STORE](#dpt_store)
 
 
 v
 
 
-DSBINT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–28
+- [DSBINT](#dsbint)
 
-ENBINT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–29
+- [ENBINT](#enbint)
 
-$EQULST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–30
+- [$EQULST](#equlst)
 
-FIND_CPU_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–32
+- [FIND_CPU_DATA](#find_cpu_data)
 
-FORK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–33
+- [FORK](#fork)
 
-FORKLOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–34
+- [FORKLOCK](#forklock)
 
-FORKUNLOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–36
+- [FORKUNLOCK](#forkunlock)
 
-FUNCTAB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–37
+- [FUNCTAB](#functab)
 
-IFNORD, IFNOWRT, IFRD, IFWRT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–39
+- [IFNORD, IFNOWRT, IFRD, IFWRT](#ifnord-ifnowrt-ifrd-ifwrt)
 
-INVALIDATE_TB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–41
+- [INVALIDATE_TB](#invalidate_tb)
 
-IOFORK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–43
+- [IOFORK](#iofork)
 
-LOADALT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–44
+- [LOADALT](#loadalt)
 
-LOADMBA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–45
+- [LOADMBA](#loadmba)
 
-LOADUBA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–46
+- [LOADUBA](#loaduba)
 
-LOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–47
+- [LOCK](#lock)
 
-LOCK_SYSTEM_PAGES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–48
+- [LOCK_SYSTEM_PAGES](#lock_system_pages)
 
-PURDPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–50
+- [PURDPR](#purdpr)
 
-READ_CSR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–51
+- [READ_CSR](#read_csr)
 
-READ_SYSTIME . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–52
+- [READ_SYSTIME](#read_systime)
 
-RELALT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–53
+- [RELALT](#relalt)
 
-RELCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–54
+- [RELCHAN](#relchan)
 
-RELDPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–55
+- [RELDPR](#reldpr)
 
-RELMPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–56
+- [RELMPR](#relmpr)
 
-RELSCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–57
+- [RELSCHAN](#relschan)
 
-REQALT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–58
+- [REQALT](#reqalt)
 
-REQCOM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–59
+- [REQCOM](#reqcom)
 
-REQDPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–60
+- [REQDPR](#reqdpr)
 
-REQMPR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–61
+- [REQMPR](#reqmpr)
 
-REQPCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–62
+- [REQPCHAN](#reqpchan)
 
-REQSCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–63
+- [REQSCHAN](#reqschan)
 
-SAVIPL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–64
+- [SAVIPL](#savipl)
 
-SETIPL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–65
+- [SETIPL](#setipl)
 
-SOFTINT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–67
+- [SOFTINT](#softint)
 
-SPI$ABORT_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–68
+- [SPI$ABORT_COMMAND](#spiabort_command)
 
-SPI$ALLOCATE_COMMAND_BUFFER . . . . . . . . . . . . . . . . . . . . . . . . . . 2–69
+- [SPI$ALLOCATE_COMMAND_BUFFER](#spiallocate_command_buffer)
 
-SPI$CONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–70
+- [SPI$CONNECT](#spiconnect)
 
-SPI$DEALLOCATE_COMMAND_BUFFER . . . . . . . . . . . . . . . . . . . . . . . . 2–73
+- [SPI$DEALLOCATE_COMMAND_BUFFER](#spideallocate_command_buffer)
 
-SPI$DISCONNECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–74
+- [SPI$DISCONNECT](#spidisconnect)
 
-SPI$FINISH_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–75
+- [SPI$FINISH_COMMAND](#spifinish_command)
 
-SPI$GET_CONNECTION_CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–76
+- [SPI$GET_CONNECTION_CHAR](#spiget_connection_char)
 
-SPI$MAP_BUFFER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–79
+- [SPI$MAP_BUFFER](#spimap_buffer)
 
-SPI$QUEUE_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–81
+- [SPI$QUEUE_COMMAND](#spiqueue_command)
 
-SPI$RECEIVE_BYTES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–83
+- [SPI$RECEIVE_BYTES](#spireceive_bytes)
 
-SPI$RELEASE_BUS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–84
+- [SPI$RELEASE_BUS](#spirelease_bus)
 
-SPI$RELEASE_QUEUE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–85
+- [SPI$RELEASE_QUEUE](#spirelease_queue)
 
-SPI$RESET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–86
+- [SPI$RESET](#spireset)
 
-SPI$SEND_BYTES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–87
+- [SPI$SEND_BYTES](#spisend_bytes)
 
 
 
 vi
 
 
-SPI$SEND_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–88
+- [SPI$SEND_COMMAND](#spisend_command)
 
-SPI$SENSE_PHASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–90
+- [SPI$SENSE_PHASE](#spisense_phase)
 
-SPI$SET_CONNECTION_CHAR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–91
+- [SPI$SET_CONNECTION_CHAR](#spiset_connection_char)
 
-SPI$SET_PHASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–94
+- [SPI$SET_PHASE](#spiset_phase)
 
-SPI$UNMAP_BUFFER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–95
+- [SPI$UNMAP_BUFFER](#spiunmap_buffer)
 
-SWAPLONG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–96
+- [SWAPLONG](#swaplong)
 
-SWAPWORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–97
+- [SWAPWORD](#swapword)
 
-TIMEDWAIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–98
+- [TIMEDWAIT](#timedwait)
 
-TIMEWAIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–100
+- [TIMEWAIT](#timewait)
 
-UNLOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–101
+- [UNLOCK](#unlock)
 
-UNLOCK_SYSTEM_PAGES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–102
+- [UNLOCK_SYSTEM_PAGES](#unlock_system_pages)
 
-$VEC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–103
+- [$VEC](#vec)
 
-$VECEND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–104
+- [$VECEND](#vecend)
 
-$VECINI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–105
+- [$VECINI](#vecini)
 
-$VIELD, _VIELD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–106
+- [$VIELD, _VIELD](#vield-_vield)
 
-WFIKPCH, WFIRLCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–108
+- [WFIKPCH, WFIRLCH](#wfikpch-wfirlch)
 
-WRITE_CSR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–110
+- [WRITE_CSR](#write_csr)
 
 
 **3** **Operating System Routines**
 
 
-BYTE_SWAP_LONG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–2
+- [BYTE_SWAP_LONG](#byte_swap_long)
 
-BYTE_SWAP_WORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
+- [BYTE_SWAP_WORD](#byte_swap_word)
 
-COM$DELATTNAST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
+- [COM$DELATTNAST](#comdelattnast)
 
-COM$DRVDEALMEM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
+- [COM$DRVDEALMEM](#comdrvdealmem)
 
-COM$FLUSHATTNS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–6
+- [COM$FLUSHATTNS](#comflushattns)
 
-COM$POST, COM$POST_NOCNT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–7
+- [COM$POST, COM$POST_NOCNT](#compost-compost_nocnt)
 
-COM$SETATTNAST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–8
+- [COM$SETATTNAST](#comsetattnast)
 
-ERL$DEVICERR, ERL$DEVICTMO, ERL$DEVICEATTN . . . . . . . . . . . . 3–10
+- [ERL$DEVICERR, ERL$DEVICTMO, ERL$DEVICEATTN](#erldevicerr-erldevictmo-erldeviceattn)
 
-EXE$ABORTIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–12
+- [EXE$ABORTIO](#exeabortio)
 
-EXE$ALLOCBUF, EXE$ALLOCIRP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–14
+- [EXE$ALLOCBUF, EXE$ALLOCIRP](#exeallocbuf-exeallocirp)
 
-EXE$ALONONPAGED . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–16
+- [EXE$ALONONPAGED](#exealononpaged)
 
-EXE$ALOPHYCNTG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–17
+- [EXE$ALOPHYCNTG](#exealophycntg)
 
-EXE$ALTQUEPKT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–18
+- [EXE$ALTQUEPKT](#exealtquepkt)
 
-EXE$CRAM_CMD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–19
+- [EXE$CRAM_CMD](#execram_cmd)
 
-EXE$CREDIT_BYTCNT, EXE$CREDIT_BYTCNT_BYTLM . . . . . . . . . . . 3–21
+- [EXE$CREDIT_BYTCNT, EXE$CREDIT_BYTCNT_BYTLM](#execredit_bytcnt-execredit_bytcnt_bytlm)
 
-EXE$DEANONPAGED, EXE$DEANONPGDSIZ . . . . . . . . . . . . . . . . . . . . 3–23
+- [EXE$DEANONPAGED, EXE$DEANONPGDSIZ](#exedeanonpaged-exedeanonpgdsiz)
 
-EXE$DEBIT_BYTCNT(_NW), EXE$DEBIT_BYTCNT_BYTLM(_NW) . . . . 3–24
+- [EXE$DEBIT_BYTCNT(_NW), EXE$DEBIT_BYTCNT_BYTLM(_NW)](#exedebit_bytcnt_nw-exedebit_bytcnt_bytlm_nw)
 
-EXE$DEBIT_BYTCNT_ALO, EXE$DEBIT_BYTCNT_BYTLM_ALO . . . . . 3–26
+- [EXE$DEBIT_BYTCNT_ALO, EXE$DEBIT_BYTCNT_BYTLM_ALO](#exedebit_bytcnt_alo-exedebit_bytcnt_bytlm_alo)
 
-EXE$FINISHIO, EXE$FINISHIOC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–28
+- [EXE$FINISHIO, EXE$FINISHIOC](#exefinishio-exefinishioc)
 
-EXE$FORK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–30
+- [EXE$FORK](#exefork)
 
-EXE$INSERTIRP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–31
+- [EXE$INSERTIRP](#exeinsertirp)
 
-EXE$INSIOQ, EXE$INSIOQC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–32
+- [EXE$INSIOQ, EXE$INSIOQC](#exeinsioq-exeinsioqc)
 
-EXE$INSTIMQ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–34
+- [EXE$INSTIMQ](#exeinstimq)
 
-EXE$IOFORK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–35
+- [EXE$IOFORK](#exeiofork)
 
-EXE$MODIFY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–37
+- [EXE$MODIFY](#exemodify)
 
-EXE$MODIFYLOCK, EXE$MODIFYLOCKR . . . . . . . . . . . . . . . . . . . . . . 3–40
+- [EXE$MODIFYLOCK, EXE$MODIFYLOCKR](#exemodifylock-exemodifylockr)
 
-EXE$ONEPARM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–43
+- [EXE$ONEPARM](#exeoneparm)
 
 
 vii
 
 
-EXE$QIODRVPKT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–44
+- [EXE$QIODRVPKT](#exeqiodrvpkt)
 
-EXE$QIORETURN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–46
+- [EXE$QIORETURN](#exeqioreturn)
 
-EXE$READ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–47
+- [EXE$READ](#exeread)
 
-EXE$READCHK, EXE$READCHKR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–50
+- [EXE$READCHK, EXE$READCHKR](#exereadchk-exereadchkr)
 
-EXE$READLOCK, EXE$READLOCKR . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–52
+- [EXE$READLOCK, EXE$READLOCKR](#exereadlock-exereadlockr)
 
-EXE$RMVTIMQ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–55
+- [EXE$RMVTIMQ](#exermvtimq)
 
-EXE$SENSEMODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–56
+- [EXE$SENSEMODE](#exesensemode)
 
-EXE$SETCHAR, EXE$SETMODE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–57
+- [EXE$SETCHAR, EXE$SETMODE](#exesetchar-exesetmode)
 
-EXE$SNDEVMSG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–59
+- [EXE$SNDEVMSG](#exesndevmsg)
 
-EXE$WRITE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–61
+- [EXE$WRITE](#exewrite)
 
-EXE$WRITECHK, EXE$WRITECHKR . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–63
+- [EXE$WRITECHK, EXE$WRITECHKR](#exewritechk-exewritechkr)
 
-EXE$WRITELOCK, EXE$WRITELOCKR . . . . . . . . . . . . . . . . . . . . . . . . . 3–65
+- [EXE$WRITELOCK, EXE$WRITELOCKR](#exewritelock-exewritelockr)
 
-EXE$WRTMAILBOX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–68
+- [EXE$WRTMAILBOX](#exewrtmailbox)
 
-EXE$ZEROPARM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–69
+- [EXE$ZEROPARM](#exezeroparm)
 
-IOC$ALLOCATE_CRAM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–70
+- [IOC$ALLOCATE_CRAM](#iocallocate_cram)
 
-IOC$ALOALTMAP, IOC$ALOALTMAPN, IOC$ALOALTMAPSP . . . . . . . 3–71
+- [IOC$ALOALTMAP, IOC$ALOALTMAPN, IOC$ALOALTMAPSP](#iocaloaltmap-iocaloaltmapn-iocaloaltmapsp)
 
-IOC$ALOTCMAP_DMA, IOC$ALOTCMAP_DMAN . . . . . . . . . . . . . . . . . 3–73
+- [IOC$ALOTCMAP_DMA, IOC$ALOTCMAP_DMAN](#iocalotcmap_dma-iocalotcmap_dman)
 
-IOC$ALOUBAMAP, IOC$ALOUBAMAPN . . . . . . . . . . . . . . . . . . . . . . . . . 3–75
+- [IOC$ALOUBAMAP, IOC$ALOUBAMAPN](#iocaloubamap-iocaloubamapn)
 
-IOC$ALOVMEMAP_DMA, IOC$ALOVMEMAP_DMAN . . . . . . . . . . . . . . 3–77
+- [IOC$ALOVMEMAP_DMA, IOC$ALOVMEMAP_DMAN](#iocalovmemap_dma-iocalovmemap_dman)
 
-IOC$ALOVMEMAP_PIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–79
+- [IOC$ALOVMEMAP_PIO](#iocalovmemap_pio)
 
-IOC$ALOXBIMAP, IOC$ALOXBIMAPN . . . . . . . . . . . . . . . . . . . . . . . . . . 3–81
+- [IOC$ALOXBIMAP, IOC$ALOXBIMAPN](#iocaloxbimap-iocaloxbimapn)
 
-IOC$ALOXBIMAPRM, IOC$ALOXBIMAPRMN . . . . . . . . . . . . . . . . . . . . 3–83
+- [IOC$ALOXBIMAPRM, IOC$ALOXBIMAPRMN](#iocaloxbimaprm-iocaloxbimaprmn)
 
-IOC$APPLYECC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–85
+- [IOC$APPLYECC](#iocapplyecc)
 
-IOC$CANCELIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–86
+- [IOC$CANCELIO](#ioccancelio)
 
-IOC$CRAM_IO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–88
+- [IOC$CRAM_IO](#ioccram_io)
 
-IOC$DEALLOCATE_CRAM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–90
+- [IOC$DEALLOCATE_CRAM](#iocdeallocate_cram)
 
-IOC$DIAGBUFILL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–91
+- [IOC$DIAGBUFILL](#iocdiagbufill)
 
-IOC$INITIATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–92
+- [IOC$INITIATE](#iocinitiate)
 
-IOC$IOPOST . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–94
+- [IOC$IOPOST](#iociopost)
 
-IOC$LOADALTMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–96
+- [IOC$LOADALTMAP](#iocloadaltmap)
 
-IOC$LOADMBAMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–98
+- [IOC$LOADMBAMAP](#iocloadmbamap)
 
-IOC$LOADTCMAP_DMA, IOC$LOADTCMAP_DMAN . . . . . . . . . . . . . . . 3–99
+- [IOC$LOADTCMAP_DMA, IOC$LOADTCMAP_DMAN](#iocloadtcmap_dma-iocloadtcmap_dman)
 
-IOC$LOADUBAMAP, IOC$LOADUBAMAPA . . . . . . . . . . . . . . . . . . . . . . 3–101
+- [IOC$LOADUBAMAP, IOC$LOADUBAMAPA](#iocloadubamap-iocloadubamapa)
 
-IOC$LOADVMEMAP_DMA, IOC$LOADVMEMAP_DMAN . . . . . . . . . . . . 3–103
+- [IOC$LOADVMEMAP_DMA, IOC$LOADVMEMAP_DMAN](#iocloadvmemap_dma-iocloadvmemap_dman)
 
-IOC$LOADVMEMAP_PIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–105
+- [IOC$LOADVMEMAP_PIO](#iocloadvmemap_pio)
 
-IOC$LOADXBIMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–107
+- [IOC$LOADXBIMAP](#iocloadxbimap)
 
-IOC$MOVFRUSER, IOC$MOVFRUSER2 . . . . . . . . . . . . . . . . . . . . . . . . . 3–108
+- [IOC$MOVFRUSER, IOC$MOVFRUSER2](#iocmovfruser-iocmovfruser2)
 
-IOC$MOVTOUSER, IOC$MOVTOUSER2 . . . . . . . . . . . . . . . . . . . . . . . . . 3–110
+- [IOC$MOVTOUSER, IOC$MOVTOUSER2](#iocmovtouser-iocmovtouser2)
 
-IOC$PURGDATAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–112
+- [IOC$PURGDATAP](#iocpurgdatap)
 
-IOC$RELALTMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–114
+- [IOC$RELALTMAP](#iocrelaltmap)
 
-IOC$RELCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–116
+- [IOC$RELCHAN](#iocrelchan)
 
-IOC$RELDATAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–117
+- [IOC$RELDATAP](#iocreldatap)
 
-IOC$RELMAPREG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–119
+- [IOC$RELMAPREG](#iocrelmapreg)
 
-IOC$RELSCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–121
+- [IOC$RELSCHAN](#iocrelschan)
 
-IOC$RELTCMAP_DMA, IOC$RELTCMAP_DMAN . . . . . . . . . . . . . . . . . . 3–122
+- [IOC$RELTCMAP_DMA, IOC$RELTCMAP_DMAN](#iocreltcmap_dma-iocreltcmap_dman)
 
-IOC$RELVMEMAP_DMA, IOC$RELVMEMAP_DMAN . . . . . . . . . . . . . . . 3–124
+- [IOC$RELVMEMAP_DMA, IOC$RELVMEMAP_DMAN](#iocrelvmemap_dma-iocrelvmemap_dman)
 
-IOC$RELVMEMAP_PIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–126
+- [IOC$RELVMEMAP_PIO](#iocrelvmemap_pio)
 
 
 
 viii
 
 
-IOC$RELXBIMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–128
+- [IOC$RELXBIMAP](#iocrelxbimap)
 
-IOC$REQALTMA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–129
+- [IOC$REQALTMA](#iocreqaltma)
 
-IOC$REQCOM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–131
+- [IOC$REQCOM](#iocreqcom)
 
-IOC$REQDATAP, IOC$REQDATAPNW . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–133
+- [IOC$REQDATAP, IOC$REQDATAPNW](#iocreqdatap-iocreqdatapnw)
 
-IOC$REQMAPREG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–135
+- [IOC$REQMAPREG](#iocreqmapreg)
 
-IOC$REQPCHANH, IOC$REQPCHANL, . . . . . . . . . . . . . . . . . . . . . . . . . 3–137
+- [IOC$REQPCHANH, IOC$REQPCHANL,](#iocreqpchanh-iocreqpchanl-iocreqschanh-iocreqschanl)
 
-IOC$REQXBIMAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–139
+- [IOC$REQXBIMAP](#iocreqxbimap)
 
-IOC$RETURN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–141
+- [IOC$RETURN](#iocreturn)
 
-IOC$VERIFYCHAN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–142
+- [IOC$VERIFYCHAN](#iocverifychan)
 
-IOC$WFIKPCH, IOC$WFIRLCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–143
+- [IOC$WFIKPCH, IOC$WFIRLCH](#iocwfikpch-iocwfirlch)
 
-LDR$ALLOC_PT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–146
+- [LDR$ALLOC_PT](#ldralloc_pt)
 
-LDR$DEALLOC_PT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–147
+- [LDR$DEALLOC_PT](#ldrdealloc_pt)
 
-MMG$UNLOCK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–148
+- [MMG$UNLOCK](#mmgunlock)
 
-SMP$ACQNOIPL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–149
+- [SMP$ACQNOIPL](#smpacqnoipl)
 
-SMP$ACQUIRE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–150
+- [SMP$ACQUIRE](#smpacquire)
 
-SMP$ACQUIREL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–152
+- [SMP$ACQUIREL](#smpacquirel)
 
-SMP$RELEASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–153
+- [SMP$RELEASE](#smprelease)
 
-SMP$RELEASEL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–154
+- [SMP$RELEASEL](#smpreleasel)
 
-SMP$RESTORE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–155
+- [SMP$RESTORE](#smprestore)
 
-SMP$RESTOREL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–156
+- [SMP$RESTOREL](#smprestorel)
 
 
 **4** **Device Driver Entry Points**
 
 
-Alternate Start-I/O Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
+- [Alternate Start-I/O Routine](#alternate-start-io-routine)
 
-Cancel-I/O Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–4
+- [Cancel-I/O Routine](#cancel-io-routine)
 
-Cloned UCB Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
+- [Cloned UCB Routine](#cloned-ucb-routine)
 
-Controller Initialization Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–8
+- [Controller Initialization Routine](#controller-initialization-routine)
 
-Driver Unloading Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–10
+- [Driver Unloading Routine](#driver-unloading-routine)
 
-FDT Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–11
+- [FDT Routines](#fdt-routines)
 
-Interrupt Service Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–13
-Register-Dumping Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–15
+- [Interrupt Service Routine](#interrupt-service-routine)
+- [Register-Dumping Routine](#register-dumping-routine)
 
-Start-I/O Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–17
+- [Start-I/O Routine](#start-io-routine)
 
-Timeout Handling Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–19
-Unit Delivery Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–21
+- [Timeout Handling Routine](#timeout-handling-routine)
+- [Unit Delivery Routine](#unit-delivery-routine)
 
-Unit Initialization Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–23
+- [Unit Initialization Routine](#unit-delivery-routine)
 
-Unsolicited Interrupt Service Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–25
+- [Unsolicited Interrupt Service Routine](#unsolicited-interrupt-service-routine)
 
 
 **Index**
@@ -542,123 +542,123 @@ Unsolicited Interrupt Service Routine . . . . . . . . . . . . . . . . . . . . . 
 **Figures**
 
 
-1–1 I/O Database . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 I/O Database
 
-1–2 Configuration Control Block (ACF) . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1–3 Adapter Control Block (ADP) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–5
+- 1–2 Configuration Control Block (ACF)
+- 1–3 Adapter Control Block (ADP)
 
-1–4 Channel Control Block (CCB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–12
+- 1–4 Channel Control Block (CCB)
 
-1–5 Per-CPU Database (CPU) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–13
+- 1–5 Per-CPU Database (CPU)
 
-1–6 Control Register Access Mailbox (CRAM) . . . . . . . . . . . . . . . . . . . . . . 1–21
+- 1–6 Control Register Access Mailbox (CRAM)
 
 
 ix
 
 
-1–7 Hardware Mailbox Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–23
+- 1–7 Hardware Mailbox Structure
 
-1–8 Control Register Access Mailbox Header (CRAMH) . . . . . . . . . . . . . . . 1–25
-1–9 Channel Request Block (CRB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–26
-1–10 Interrupt Transfer Vector Block (VEC) . . . . . . . . . . . . . . . . . . . . . . . . . 1–30
+- 1–8 Control Register Access Mailbox Header (CRAMH)
+- 1–9 Channel Request Block (CRB)
+- 1–10 Interrupt Transfer Vector Block (VEC)
 
-1–11 Device Data Block (DDB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–34
+- 1–11 Device Data Block (DDB)
 
-1–12 Driver Dispatch Table (DDT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–36
-1–13 Driver Prologue Table (DPT) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–38
-1–14 Interrupt Dispatch Block (IDB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–42
-1–15 I/O Request Packet (IRP) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–44
-1–16 I/O Request Packet Extension (IRPE) . . . . . . . . . . . . . . . . . . . . . . . . . 1–50
-1–17 Object Rights Block (ORB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–52
-1–18 SCSI Class Driver Request Packet (SCDRP) . . . . . . . . . . . . . . . . . . . . 1–54
-1–19 SCSI Connection Descriptor Table (SCDT) . . . . . . . . . . . . . . . . . . . . . . 1–66
-1–20 SCSI Port Descriptor Table (SPDT) . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–74
-1–21 Spinlock Data Structure (SPL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–81
-1–22 Composition of Extended Unit Control Blocks . . . . . . . . . . . . . . . . . . . 1–84
+- 1–12 Driver Dispatch Table (DDT)
+- 1–13 Driver Prologue Table (DPT)
+- 1–14 Interrupt Dispatch Block (IDB)
+- 1–15 I/O Request Packet (IRP)
+- 1–16 I/O Request Packet Extension (IRPE)
+- 1–17 Object Rights Block (ORB)
+- 1–18 SCSI Class Driver Request Packet (SCDRP)
+- 1–19 SCSI Connection Descriptor Table (SCDT)
+- 1–20 SCSI Port Descriptor Table (SPDT)
+- 1–21 Spinlock Data Structure (SPL)
+- 1–22 Composition of Extended Unit Control Blocks
 
-1–23 Unit Control Block (UCB) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–85
+- 1–23 Unit Control Block (UCB)
 
-1–24 UCB Error-Log Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–95
-1–25 UCB Local Tape Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–96
+- 1–24 UCB Error-Log Extension
+- 1–25 UCB Local Tape Extension
 
-1–26 UCB Local Disk Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–97
+- 1–26 UCB Local Disk Extension
 
-1–27 UCB Terminal Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–99
+- 1–27 UCB Terminal Extension
 
-2–1 SCSI Bus Phase Longword Returned to SPI$SENSE_PHASE . . . . . . . 2–90
-2–2 SCSI Bus Phase Longword Supplied to SPI$SET_PHASE . . . . . . . . . . 2–94
-3–1 TURBOchannel Map Register Descriptor (TC_MD) . . . . . . . . . . . . . . . 3–74
-3–2 VME Map Register Descriptor (VME_MD) . . . . . . . . . . . . . . . . . . . . . . 3–78
+- 2–1 SCSI Bus Phase Longword Returned to SPI$SENSE_PHASE
+- 2–2 SCSI Bus Phase Longword Supplied to SPI$SET_PHASE
+- 3–1 TURBOchannel Map Register Descriptor (TC_MD)
+- 3–2 VME Map Register Descriptor (VME_MD)
 
 
 **Tables**
 
 
-1–1 Contents of Configuration Control Block . . . . . . . . . . . . . . . . . . . . . . . 1–4
-1–2 Contents of Adapter Control Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–7
+- 1–1 Contents of Configuration Control Block
+- 1–2 Contents of Adapter Control Block
 
-1–3 Contents of Channel Control Block . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–12
+- 1–3 Contents of Channel Control Block
 
-1–4 Contents of Per-CPU Database . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–16
+- 1–4 Contents of Per-CPU Database
 
-1–5 Contents of Control Register Access Mailbox . . . . . . . . . . . . . . . . . . . . 1–22
+- 1–5 Contents of Control Register Access Mailbox
 
-1–6 Contents of the Hardware Mailbox Structure . . . . . . . . . . . . . . . . . . . 1–24
+- 1–6 Contents of the Hardware Mailbox Structure
 
-1–7 Contents of the Control Register Access Mailbox Header . . . . . . . . . . . 1–25
-1–8 Contents of Channel Request Block . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–27
-1–9 Contents of Interrupt Transfer Vector Block (VEC) . . . . . . . . . . . . . . . 1–30
+- 1–7 Contents of the Control Register Access Mailbox Header
+- 1–8 Contents of Channel Request Block
+- 1–9 Contents of Interrupt Transfer Vector Block (VEC)
 
-1–10 Contents of Device Data Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–35
+- 1–10 Contents of Device Data Block
 
-1–11 Contents of Driver Dispatch Table . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–37
-1–12 Contents of Driver Prologue Table . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–40
-1–13 Contents of Interrupt Dispatch Block . . . . . . . . . . . . . . . . . . . . . . . . . 1–43
-1–14 Contents of an I/O Request Packet . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–45
-1–15 Contents of the I/O Request Packet Extension . . . . . . . . . . . . . . . . . . . 1–51
-1–16 Contents of Object Rights Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–53
-1–17 Contents of SCSI Class Driver Request Packet . . . . . . . . . . . . . . . . . . 1–58
-1–18 Contents of SCSI Connection Descriptor Table . . . . . . . . . . . . . . . . . . 1–68
-1–19 Contents of SCSI Port Descriptor Table . . . . . . . . . . . . . . . . . . . . . . . . 1–77
+- 1–11 Contents of Driver Dispatch Table
+- 1–12 Contents of Driver Prologue Table
+- 1–13 Contents of Interrupt Dispatch Block
+- 1–14 Contents of an I/O Request Packet
+- 1–15 Contents of the I/O Request Packet Extension
+- 1–16 Contents of Object Rights Block
+- 1–17 Contents of SCSI Class Driver Request Packet
+- 1–18 Contents of SCSI Connection Descriptor Table
+- 1–19 Contents of SCSI Port Descriptor Table
 
 
 x
 
 
-1–20 Contents of the Spinlock Data Structure . . . . . . . . . . . . . . . . . . . . . . . 1–82
-1–21 UCB Extensions and Sizes Defined in $UCBDEF . . . . . . . . . . . . . . . . 1–83
+- 1–20 Contents of the Spinlock Data Structure
+- 1–21 UCB Extensions and Sizes Defined in $UCBDEF
 
-1–22 Contents of Unit Control Block . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–87
+- 1–22 Contents of Unit Control Block
 
-1–23 UCB Error-Log Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–95
-1–24 UCB Local Tape Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–97
+- 1–23 UCB Error-Log Extension
+- 1–24 UCB Local Tape Extension
 
-1–25 UCB Local Disk Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–98
+- 1–25 UCB Local Disk Extension
 
-1–26 UCB Terminal Extension . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–101
+- 1–26 UCB Terminal Extension
 
-2–1 Selectable Adapter Characteristics . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2–2 VAX Systems and Their CPU Type . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–9
-2–3 VAX Systems and Their CPU Subtype . . . . . . . . . . . . . . . . . . . . . . . . . 2–10
-2–4 Values Returned by the SPI$CONNECT Macro . . . . . . . . . . . . . . . . . . 2–71
+- 2–1 Selectable Adapter Characteristics
+- 2–2 VAX Systems and Their CPU Type
+- 2–3 VAX Systems and Their CPU Subtype
+- 2–4 Values Returned by the SPI$CONNECT Macro
 
-2–5 SPI$GET_CONNECTION_CHAR Macro Buffer Characteristics . . . . . 2–76
+- 2–5 SPI$GET_CONNECTION_CHAR Macro Buffer Characteristics
 
-2–6 Inputs to the SPI$MAP_BUFFER Macro . . . . . . . . . . . . . . . . . . . . . . . 2–79
+- 2–6 Inputs to the SPI$MAP_BUFFER Macro
 
-2–7 SPI$MAP_BUFFER Macro Return Values to the Class Driver . . . . . . 2–80
+- 2–7 SPI$MAP_BUFFER Macro Return Values to the Class Driver
 
-2–8 Inputs to the SPI$QUEUE_COMMAND Macro . . . . . . . . . . . . . . . . . . 2–81
-2–9 SPI$QUEUE_COMMAND Macro Return Values . . . . . . . . . . . . . . . . . 2–82
+- 2–8 Inputs to the SPI$QUEUE_COMMAND Macro
+- 2–9 SPI$QUEUE_COMMAND Macro Return Values
 
-2–10 Inputs to the SPI$SEND_COMMAND Macro . . . . . . . . . . . . . . . . . . . 2–88
+- 2–10 Inputs to the SPI$SEND_COMMAND Macro
 
-2–11 SPI$SEND_COMMAND Macro Return Values . . . . . . . . . . . . . . . . . . 2–89
+- 2–11 SPI$SEND_COMMAND Macro Return Values
 
-2–12 SPI$SET_CONNECTION_CHAR Macro Settable Characteristics . . . . 2–91
+- 2–12 SPI$SET_CONNECTION_CHAR Macro Settable Characteristics
 
-4–1 Last FDT Routine Exit Mechanisms . . . . . . . . . . . . . . . . . . . . . . . . . . 4–12
+- 4–1 Last FDT Routine Exit Mechanisms
 
 
 xi

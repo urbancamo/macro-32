@@ -57,7 +57,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . xvii
+- [Preface](#preface)
 
 
 **1** **Introduction to Utility Routines**
@@ -66,270 +66,270 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **2** **Access Control List (ACL) Editor Routine**
 
 
-2.1 Introduction to the ACL Editor Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . ACL–1
-2.2 Using the ACL Editor Routine: An Example . . . . . . . . . . . . . . . . . . . . . . . ACL–1
-2.3 ACL Editor Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ACL–2
+- [2.1 Introduction to the ACL Editor Routine](#21-introduction-to-the-acl-editor-routine)
+- [2.2 Using the ACL Editor Routine: An Example](#22-using-the-acl-editor-routine-an-example)
+- [2.3 ACL Editor Routine](#23-acl-editor-routine)
 
-ACLEDIT$EDIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ACL–3
+- [ACLEDIT$EDIT](#aclediteditedit-access-control-list)
 
 
 **3** **Backup (BACKUP) Routine**
 
 
-3.1 Introduction to the Backup API . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–1
-3.2 Using the Backup API: An Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–2
-3.3 Backup API . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–3
-BACKUP$START . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–4
+- [3.1 Introduction to the Backup API](#31-introduction-to-the-backup-api)
+- [3.2 Using the Backup API: An Example](#32-using-the-backup-api-an-example)
+- [3.3 Backup API](#33-backup-api)
+- [BACKUP$START](#backupstartcall-backup-utility)
 
 
 **4** **Command Language Interface (CLI) Routines**
 
 
-4.1 Introduction to CLI Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–1
-4.2 Using the CLI Routines: An Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–2
-4.3 CLI Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–4
+- [4.1 Introduction to CLI Routines](#41-introduction-to-cli-routines)
+- [4.2 Using the CLI Routines: An Example](#42-using-the-cli-routines-an-example)
+- [4.3 CLI Routines](#43-cli-routines)
 
-CLI$DCL_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–5
-CLI$DISPATCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–8
-CLI$GET_VALUE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–9
-CLI$PRESENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–12
+- [CLI$DCL_PARSE](#clidcl_parseparse-dcl-command-string)
+- [CLI$DISPATCH](#clidispatchdispatch-to-action-routine)
+- [CLI$GET_VALUE](#cliget_valueget-value-of-entity-in-command-string)
+- [CLI$PRESENT](#clipresentdetermine-presence-of-entity-in-command-string)
 
 
 **5** **Common File Qualifier Routines**
 
 
-5.1 Introduction to the Common File Qualifier Routines . . . . . . . . . . . . . . . . . CQUAL–1
-5.2 Using the Common File Qualifier Routines . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–1
-5.2.1 Calling UTIL$CQUAL_FILE_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–2
-5.2.1.1 Specifying Times . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–3
-5.2.1.2 Specifying Exclude Pattern Strings . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–3
-5.2.2 Calling UTIL$CQUAL_FILE_MATCH . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–3
-5.2.2.1 Specifying Prompts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–4
-5.2.2.2 Ignoring Qualifiers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–4
-5.2.3 Calling UTIL$CQUAL_FILE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–5
-5.2.4 Calling UTIL$CQUAL_CONFIRM_ACT . . . . . . . . . . . . . . . . . . . . . . . CQUAL–5
-5.2.5 Creating a Command Language Definition File . . . . . . . . . . . . . . . . . . CQUAL–6
+- [5.1 Introduction to the Common File Qualifier Routines](#51-introduction-to-the-common-file-qualifier-routines)
+- [5.2 Using the Common File Qualifier Routines](#52-using-the-common-file-qualifier-routines)
+- 5.2.1 Calling UTIL$CQUAL_FILE_PARSE
+- 5.2.1.1 Specifying Times
+- 5.2.1.2 Specifying Exclude Pattern Strings
+- 5.2.2 Calling UTIL$CQUAL_FILE_MATCH
+- 5.2.2.1 Specifying Prompts
+- 5.2.2.2 Ignoring Qualifiers
+- 5.2.3 Calling UTIL$CQUAL_FILE_END
+- 5.2.4 Calling UTIL$CQUAL_CONFIRM_ACT
+- 5.2.5 Creating a Command Language Definition File
 
 
 iii
 
 
-5.3 UTIL$CQUAL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–10
-UTIL$CQUAL_FILE_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–11
-UTIL$CQUAL_FILE_MATCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–13
-UTIL$CQUAL_FILE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–17
-UTIL$CQUAL_CONFIRM_ACT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–18
+- [5.3 UTIL$CQUAL Routines](#53-utilcqual-routines)
+- [UTIL$CQUAL_FILE_PARSE](#utilcqual_file_parseparse-the-command-line)
+- [UTIL$CQUAL_FILE_MATCH](#utilcqual_file_matchmatch-a-file-with-selection-criteria)
+- [UTIL$CQUAL_FILE_END](#utilcqual_file_endend-processing)
+- [UTIL$CQUAL_CONFIRM_ACT](#utilcqual_confirm_actask-user-for-confirmation)
 
 
 **6** **Convert (CONVERT) Routines**
 
 
-6.1 Introduction to CONVERT Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–1
-6.2 Using the CONVERT Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . CONV–1
-6.3 CONVERT Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–7
+- [6.1 Introduction to CONVERT Routines](#61-introduction-to-convert-routines)
+- [6.2 Using the CONVERT Routines: Examples](#62-using-the-convert-routines-examples)
+- [6.3 CONVERT Routines](#63-convert-routines)
 
-CONV$CONVERT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–8
-CONV$PASS_FILES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–12
-CONV$PASS_OPTIONS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–15
-CONV$RECLAIM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–20
+- [CONV$CONVERT](#convconvertinitiate-conversion)
+- [CONV$PASS_FILES](#convpass_filesspecify-conversion-files)
+- [CONV$PASS_OPTIONS](#convpass_optionsspecify-processing-options)
+- [CONV$RECLAIM](#convreclaiminvoke-convertreclaim-utility)
 
 
 **7** **Data Compression/Expansion (DCX) Routines**
 
 
-7.1 Introduction to DCX Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–1
-7.1.1 Compression Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–1
-7.1.2 Expansion Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–3
-7.2 Using the DCX Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–3
-7.3 DCX Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–11
+- [7.1 Introduction to DCX Routines](#71-introduction-to-dcx-routines)
+- 7.1.1 Compression Routines
+- 7.1.2 Expansion Routines
+- [7.2 Using the DCX Routines: Examples](#72-using-the-dcx-routines-examples)
+- [7.3 DCX Routines](#73-dcx-routines)
 
-DCX$ANALYZE_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–12
-DCX$ANALYZE_DONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–14
-DCX$ANALYZE_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–15
-DCX$COMPRESS_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–18
-DCX$COMPRESS_DONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–20
-DCX$COMPRESS_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–21
-DCX$EXPAND_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–23
-DCX$EXPAND_DONE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–25
-DCX$EXPAND_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–26
-DCX$MAKE_MAP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DCX–28
+- [DCX$ANALYZE_DATA](#dcxanalyze_dataperform-statistical-analysis-on-a-data-record)
+- [DCX$ANALYZE_DONE](#dcxanalyze_donespecify-analysis-completed)
+- [DCX$ANALYZE_INIT](#dcxanalyze_initinitialize-analysis-context)
+- [DCX$COMPRESS_DATA](#dcxcompress_datacompress-a-data-record)
+- [DCX$COMPRESS_DONE](#dcxcompress_donespecify-compression-complete)
+- [DCX$COMPRESS_INIT](#dcxcompress_initinitialize-compression-context)
+- [DCX$EXPAND_DATA](#dcxexpand_dataexpand-a-compressed-data-record)
+- [DCX$EXPAND_DONE](#dcxexpand_donespecify-expansion-complete)
+- [DCX$EXPAND_INIT](#dcxexpand_initinitialize-expansion-context)
+- [DCX$MAKE_MAP](#dcxmake_mapcompute-the-compressionexpansion-function)
 
 
 **8** **DEC Text Processing Utility (DECTPU) Routines**
 
 
-8.1 Introduction to DECTPU Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–1
+- [8.1 Introduction to DECTPU Routines](#81-introduction-to-dectpu-routines)
 
-8.1.1 Interfaces to Callable DECTPU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–2
-8.1.1.1 Simplified Callable Interface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–2
-8.1.1.2 Full Callable Interface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–2
-8.1.2 The DECTPU Shareable Image . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–3
-8.1.3 Passing Parameters to Callable DECTPU Routines . . . . . . . . . . . . . . . DECTPU–3
-8.1.4 Error Handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–3
-8.1.5 Return Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–4
-8.2 Simplified Callable Interface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–4
-8.3 Full Callable Interface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–5
-8.3.1 Main Callable DECTPU Utility Routines . . . . . . . . . . . . . . . . . . . . . . . DECTPU–6
-8.3.2 Other DECTPU Utility Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–6
-8.3.3 User-Written Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–7
-8.4 Using the DECTPU Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–7
-8.5 Creating and Calling a USER Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–22
+- 8.1.1 Interfaces to Callable DECTPU
+- 8.1.1.1 Simplified Callable Interface
+- 8.1.1.2 Full Callable Interface
+- 8.1.2 The DECTPU Shareable Image
+- 8.1.3 Passing Parameters to Callable DECTPU Routines
+- 8.1.4 Error Handling
+- 8.1.5 Return Values
+- [8.2 Simplified Callable Interface](#82-simplified-callable-interface)
+- [8.3 Full Callable Interface](#83-full-callable-interface)
+- 8.3.1 Main Callable DECTPU Utility Routines
+- 8.3.2 Other DECTPU Utility Routines
+- 8.3.3 User-Written Routines
+- [8.4 Using the DECTPU Routines: Examples](#84-using-the-dectpu-routines-examples)
+- [8.5 Creating and Calling a USER Routine](#85-creating-and-calling-a-user-routine)
 
 
 iv
 
 
-8.5.1 The CALL_USER Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–23
-8.5.2 Linking the CALL_USER Image . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–25
-8.6 Accessing the USER Routine from DECTPU . . . . . . . . . . . . . . . . . . . . . . . DECTPU–26
-8.7 DECTPU Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–27
+- 8.5.1 The CALL_USER Code
+- 8.5.2 Linking the CALL_USER Image
+- [8.6 Accessing the USER Routine from DECTPU](#86-accessing-the-user-routine-from-dectpu)
+- [8.7 DECTPU Routines](#87-dectpu-routines)
 
-TPU$CLEANUP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–28
-TPU$CLIPARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–32
-TPU$CLOSE_TERMINAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–34
-TPU$CONTROL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–35
-TPU$EDIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–37
-TPU$EXECUTE_COMMAND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–39
-TPU$EXECUTE_INIFILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–40
-TPU$FILEIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–42
-TPU$FILE_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–46
-TPU$FILE_SEARCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–49
-TPU$HANDLER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–52
-TPU$INITIALIZE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–54
-TPU$MESSAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–61
-TPU$PARSEINFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–62
-TPU$SIGNAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–63
-TPU$SPECIFY_ASYNC_ACTION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–64
-TPU$TPU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–66
-TPU$TRIGGER_ASYNC_ACTION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–67
+- [TPU$CLEANUP](#tpucleanupfree-system-resources-used-during-dectpu-session)
+- [TPU$CLIPARSE](#tpucliparseparse-a-command-line)
+- [TPU$CLOSE_TERMINAL](#tpuclose_terminalclose-channel-to-terminal)
+- [TPU$CONTROL](#tpucontrolpass-control-to-dectpu)
+- [TPU$EDIT](#tpueditedit-a-file)
+- [TPU$EXECUTE_COMMAND](#tpuexecute_commandexecute-one-or-more-dectpu-statements)
+- [TPU$EXECUTE_INIFILE](#tpuexecute_inifileexecute-initialization-files)
+- [TPU$FILEIO](#tpufileioperform-file-operations)
+- [TPU$FILE_PARSE](#tpufile_parse-parse-the-given-file-specification)
+- [TPU$FILE_SEARCH](#tpufile_searchsearch-file-system-for-specified-file)
+- [TPU$HANDLER](#tpuhandlerdectpu-condition-handler)
+- [TPU$INITIALIZE](#tpuinitializeinitialize-dectpu-for-processing)
+- [TPU$MESSAGE](#tpumessagewrite-message-string)
+- [TPU$PARSEINFO](#tpuparseinfoparse-command-line-and-build-item-list)
+- [TPU$SIGNAL](#tpusignalsignal-a-tpu-status)
+- [TPU$SPECIFY_ASYNC_ACTION](#tpuspecify_async_actionregister-an-asynchronous-action)
+- [TPU$TPU](#tputpuinvoke-dectpu)
+- [TPU$TRIGGER_ASYNC_ACTION](#tputrigger_async_actionexecute-dectpu-command-at-asynchronous-level)
 
-FILEIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–68
+- [FILEIO](#fileiouser-written-routine-to-perform-file-operations)
 
-FILE_PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–70
+- [FILE_PARSE](#file_parseuser-written-routine-to-perform-file-parse-operations)
 
-FILE_SEARCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–72
+- [FILE_SEARCH](#file_searchuser-written-routine-to-perform-file-search-operations)
 
-HANDLER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–75
+- [HANDLER](#handleruser-written-condition-handling-routine)
 
-INITIALIZE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–76
+- [INITIALIZE](#initializeuser-written-initialization-routine)
 
-USER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . DECTPU–77
+- [USER](#useruser-written-routine-called-from-a-dectpu-editing-session)
 
 
 **9** **DECdts Portable Applications Programming Interface**
 
 
-9.1 DECdts Time Representation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–1
-9.1.1 Absolute Time Representation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–2
-9.1.2 Relative Time Representation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–3
-9.2 Time Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
+- [9.1 DECdts Time Representation](#91-decdts-time-representation)
+- 9.1.1 Absolute Time Representation
+- 9.1.2 Relative Time Representation
+- [9.2 Time Structures](#92-time-structures)
 
-9.2.1 The utc Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
+- 9.2.1 The utc Structure
 
-9.2.2 The tm Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–6
-9.2.3 The timespec Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.2.4 The reltimespec Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.2.5 The OpenVMS Time Structure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.3 DECdts API Header Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–7
-9.4 Linking Programs with the DECdts API . . . . . . . . . . . . . . . . . . . . . . . . . . 9–8
-9.5 DECdts API Routine Functions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–8
+- 9.2.2 The tm Structure
+- 9.2.3 The timespec Structure
+- 9.2.4 The reltimespec Structure
+- 9.2.5 The OpenVMS Time Structure
+- [9.3 DECdts API Header Files](#93-decdts-api-header-files)
+- [9.4 Linking Programs with the DECdts API](#94-linking-programs-with-the-decdts-api)
+- [9.5 DECdts API Routine Functions](#95-decdts-api-routine-functions)
 
-utc_abstime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–13
+- [utc_abstime](#utc_abstime)
 
-utc_addtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–15
+- [utc_addtime](#utc_addtime)
 
-utc_anytime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–17
+- [utc_anytime](#utc_anytime)
 
-utc_anyzone . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–20
+- [utc_anyzone](#utc_anyzone)
 
-utc_ascanytime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–22
+- [utc_ascanytime](#utc_ascanytime)
 
-utc_ascgmtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–24
+- [utc_ascgmtime](#utc_ascgmtime)
 
 
 v
 
 
-utc_asclocaltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–26
+- [utc_asclocaltime](#utc_asclocaltime)
 
-utc_ascreltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–28
+- [utc_ascreltime](#utc_ascreltime)
 
-utc_binreltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–29
+- [utc_binreltime](#utc_binreltime)
 
-utc_bintime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–31
+- [utc_bintime](#utc_bintime)
 
-utc_boundtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–33
+- [utc_boundtime](#utc_boundtime)
 
-utc_cmpintervaltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–35
-utc_cmpmidtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–38
+- [utc_cmpintervaltime](#utc_cmpintervaltime)
+- [utc_cmpmidtime](#utc_cmpmidtime)
 
-utc_gettime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–41
+- [utc_gettime](#utc_gettime)
 
-utc_getusertime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–42
+- [utc_getusertime](#utc_getusertime)
 
-utc_gmtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–43
+- [utc_gmtime](#utc_gmtime)
 
-utc_gmtzone . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–45
+- [utc_gmtzone](#utc_gmtzone)
 
-utc_localtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–48
+- [utc_localtime](#utc_localtime)
 
-utc_localzone . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–50
+- [utc_localzone](#utc_localzone)
 
-utc_mkanytime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–52
+- [utc_mkanytime](#utc_mkanytime)
 
-utc_mkascreltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–55
+- [utc_mkascreltime](#utc_mkascreltime)
 
-utc_mkasctime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–57
+- [utc_mkasctime](#utc_mkasctime)
 
-utc_mkbinreltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–59
+- [utc_mkbinreltime](#utc_mkbinreltime)
 
-utc_mkbintime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–60
+- [utc_mkbintime](#utc_mkbintime)
 
-utc_mkgmtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–62
+- [utc_mkgmtime](#utc_mkgmtime)
 
-utc_mklocaltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–64
+- [utc_mklocaltime](#utc_mklocaltime)
 
-utc_mkreltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–66
+- [utc_mkreltime](#utc_mkreltime)
 
-utc_mkvmsanytime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–68
-utc_mkvmsgmtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–70
+- [utc_mkvmsanytime](#utc_mkvmsanytime)
+- [utc_mkvmsgmtime](#utc_mkvmsgmtime)
 
-utc_mkvmslocaltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–71
+- [utc_mkvmslocaltime](#utc_mkvmslocaltime)
 
-utc_mulftime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–73
+- [utc_mulftime](#utc_mulftime)
 
-utc_multime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–75
+- [utc_multime](#utc_multime)
 
-utc_pointtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–76
+- [utc_pointtime](#utc_pointtime)
 
-utc_reltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–78
+- [utc_reltime](#utc_reltime)
 
-utc_spantime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–80
+- [utc_spantime](#utc_spantime)
 
-utc_subtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–82
+- [utc_subtime](#utc_subtime)
 
-utc_vmsanytime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–84
+- [utc_vmsanytime](#utc_vmsanytime)
 
-utc_vmsgmtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–85
+- [utc_vmsgmtime](#utc_vmsgmtime)
 
-utc_vmslocaltime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–87
-9.6 Example Using the DECdts API Routines . . . . . . . . . . . . . . . . . . . . . . . . . 9–88
+- [utc_vmslocaltime](#utc_vmslocaltime)
+- [9.6 Example Using the DECdts API Routines](#96-example-using-the-decdts-api-routines)
 
 
 **10** **EDT Routines**
 
 
-10.1 Introduction to EDT Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–1
-10.2 Using the EDT Routines: An Example . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–1
-10.3 EDT Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–2
+- [10.1 Introduction to EDT Routines](#101-introduction-to-edt-routines)
+- [10.2 Using the EDT Routines: An Example](#102-using-the-edt-routines-an-example)
+- [10.3 EDT Routines](#103-edt-routines)
 
-EDT$EDIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–3
+- [EDT$EDIT](#edteditedit-a-file)
 
-FILEIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–7
+- [FILEIO](#fileiouser-written-routine-to-perform-file-operations)
 
-WORKIO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–11
+- [WORKIO](#workio)
 
-XLATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . EDT–13
+- [XLATE](#xlate)
 
 
 vi
@@ -338,121 +338,121 @@ vi
 **11** **File Definition Language (FDL) Routines**
 
 
-11.1 Introduction to FDL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–1
-11.2 Using the FDL Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–2
-11.3 FDL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–6
+- [11.1 Introduction to FDL Routines](#111-introduction-to-fdl-routines)
+- [11.2 Using the FDL Routines: Examples](#112-using-the-fdl-routines-examples)
+- [11.3 FDL Routines](#113-fdl-routines)
 
-FDL$CREATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–7
-FDL$GENERATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–13
-FDL$PARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–16
-FDL$RELEASE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–19
+- [FDL$CREATE](#fdlcreatecreate-a-file-from-an-fdl-specification-and-close-the-file)
+- [FDL$GENERATE](#fdlgenerategenerate-an-fdl-specification)
+- [FDL$PARSE](#fdlparseparse-an-fdl-specification)
+- [FDL$RELEASE](#fdlreleasefree-virtual-memory-obtained-by-fdlparse)
 
 
 **12** **Librarian (LBR) Routines**
 
 
-12.1 Introduction to LBR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–1
-12.1.1 Types of Libraries . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–1
-12.1.2 Structure of Libraries . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–2
-12.1.2.1 Library Headers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–2
-12.1.2.2 Modules . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–2
-12.1.2.3 Indexes and Keys . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–2
-12.1.3 Summary of LBR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–5
-12.2 Using the LBR Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–6
-12.2.1 Creating, Opening, and Closing a Text Library . . . . . . . . . . . . . . . . . . LBR–8
-12.2.2 Inserting a Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–10
-12.2.3 Extracting a Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–14
-12.2.4 Deleting a Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–16
-12.2.5 Using Multiple Keys and Multiple Indexes . . . . . . . . . . . . . . . . . . . . . LBR–19
-12.2.6 Accessing Module Headers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–22
-12.2.7 Reading Library Headers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–23
-12.2.8 Displaying Help Text . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–25
-12.2.9 Listing and Processing Index Entries . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–26
-12.3 LBR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–27
+- [12.1 Introduction to LBR Routines](#121-introduction-to-lbr-routines)
+- 12.1.1 Types of Libraries
+- 12.1.2 Structure of Libraries
+- 12.1.2.1 Library Headers
+- 12.1.2.2 Modules
+- 12.1.2.3 Indexes and Keys
+- 12.1.3 Summary of LBR Routines
+- [12.2 Using the LBR Routines: Examples](#122-using-the-lbr-routines-examples)
+- 12.2.1 Creating, Opening, and Closing a Text Library
+- 12.2.2 Inserting a Module
+- 12.2.3 Extracting a Module
+- 12.2.4 Deleting a Module
+- 12.2.5 Using Multiple Keys and Multiple Indexes
+- 12.2.6 Accessing Module Headers
+- 12.2.7 Reading Library Headers
+- 12.2.8 Displaying Help Text
+- 12.2.9 Listing and Processing Index Entries
+- [12.3 LBR Routines](#123-lbr-routines)
 
-LBR$CLOSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–28
-LBR$DELETE_DATA . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–29
-LBR$DELETE_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–31
-LBR$FIND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–33
-LBR$FLUSH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–35
-LBR$GET_HEADER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–37
-LBR$GET_HELP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–39
-LBR$GET_HISTORY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–42
-LBR$GET_INDEX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–44
-LBR$GET_RECORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–46
-LBR$INI_CONTROL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–48
-LBR$INSERT_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–50
-LBR$LOOKUP_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–52
-LBR$OPEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–54
-LBR$OUTPUT_HELP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–58
-LBR$PUT_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–62
-LBR$PUT_HISTORY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–63
-LBR$PUT_RECORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–65
-LBR$REPLACE_KEY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–67
-LBR$RET_RMSSTV . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–69
-LBR$SEARCH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–70
+- [LBR$CLOSE](#lbrcloseclose-a-library)
+- [LBR$DELETE_DATA](#lbrdelete_datadelete-a-modules-data)
+- [LBR$DELETE_KEY](#lbrdelete_keydelete-a-key)
+- [LBR$FIND](#lbrfindlook-up-a-module-by-its-rfa)
+- [LBR$FLUSH](#lbrflushrecover-virtual-memory)
+- [LBR$GET_HEADER](#lbrget_headerretrieve-library-header-information)
+- [LBR$GET_HELP](#lbrget_helpretrieve-help-text)
+- [LBR$GET_HISTORY](#lbrget_historyretrieve-a-library-update-history-record)
+- [LBR$GET_INDEX](#lbrget_indexcall-a-routine-for-selected-index-keys)
+- [LBR$GET_RECORD](#lbrget_recordread-a-data-record)
+- [LBR$INI_CONTROL](#lbrini_controlinitialize-a-library-control-structure)
+- [LBR$INSERT_KEY](#lbrinsert_keyinsert-a-new-key)
+- [LBR$LOOKUP_KEY](#lbrlookup_keylook-up-a-library-key)
+- [LBR$OPEN](#lbropenopen-or-create-a-library)
+- [LBR$OUTPUT_HELP](#lbroutput_helpoutput-help-messages)
+- [LBR$PUT_END](#lbrput_endwrite-an-end-of-module-record)
+- [LBR$PUT_HISTORY](#lbrput_historywrite-an-update-history-record)
+- [LBR$PUT_RECORD](#lbrput_recordwrite-a-data-record)
+- [LBR$REPLACE_KEY](#lbrreplace_keyreplace-a-library-key)
+- [LBR$RET_RMSSTV](#lbrret_rmsstvreturn-openvms-rms-status-value)
+- [LBR$SEARCH](#lbrsearchsearch-an-index)
 
 
 vii
 
 
-LBR$SET_INDEX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–72
-LBR$SET_LOCATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–74
-LBR$SET_MODULE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–75
-LBR$SET_MOVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–77
+- [LBR$SET_INDEX](#lbrset_indexset-the-current-index-number)
+- [LBR$SET_LOCATE](#lbrset_locateset-record-access-to-locate-mode)
+- [LBR$SET_MODULE](#lbrset_moduleread-or-update-a-module-header)
+- [LBR$SET_MOVE](#lbrset_moveset-record-access-to-move-mode)
 
 
 **13** **Lightweight Directory Access Protocol (LDAP) Routines**
 
 
-13.1 Introduction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–1
+- [13.1 Introduction](#131-introduction)
 
-13.1.1 Overview of the LDAP Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–1
+- 13.1.1 Overview of the LDAP Model
 
-13.1.2 Overview of LDAP API Use . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–2
-13.1.3 LDAP API Use on OpenVMS Systems . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–2
-13.1.4 64-bit Addressing Support . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–3
-13.1.4.1 Background . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–3
-13.1.4.2 Implementation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–4
-13.1.4.2.1 Library Symbol Names . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–4
-13.1.4.2.2 LDAP Data Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–4
-13.1.4.3 Mixing Pointer Sizes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–6
-13.1.5 Multithreading Support . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–6
-13.2 Common Data Structures and Memory Handling . . . . . . . . . . . . . . . . . . . LDAP–7
-13.3 LDAP Error Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–8
-13.4 Initializing an LDAP Session . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–9
-13.5 LDAP Session Handle Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–10
-13.6 Working with Controls . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–13
-13.7 Authenticating to the Directory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–14
-13.8 Closing the Session . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–15
-13.9 Searching . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–16
-13.9.1 Reading and Listing the Children of an Entry . . . . . . . . . . . . . . . . . . . LDAP–18
-13.10 Comparing a Value Against an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–19
-13.11 Modifying an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–20
-13.12 Modifying the Name of an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–22
-13.13 Adding an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–23
-13.14 Deleting an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–24
-13.15 Extended Operations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–25
-13.16 Abandoning an Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–26
-13.17 Obtaining Results and Looking Inside LDAP Messages . . . . . . . . . . . . . . . LDAP–27
-13.18 Handling Errors and Parsing Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–28
-13.18.1 Stepping Through a List of Results . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–30
-13.19 Parsing Search Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–31
-13.19.1 Stepping Through a List of Entries . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–31
-13.19.2 Stepping Through the Attributes of an Entry . . . . . . . . . . . . . . . . . . . LDAP–32
-13.19.3 Retrieving the Values of an Attribute . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–33
-13.19.4 Retrieving the Name of an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–33
-13.19.5 Retrieving Controls from an Entry . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–34
-13.19.6 Parsing References . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–35
-13.20 Encoded ASN.1 Value Manipulation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–35
-13.20.1 Encoding . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–36
-13.20.1.1 Encoding Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–38
-13.20.2 Decoding . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–39
-13.20.2.1 Decoding Example . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–41
-13.21 Using LDAP with Compaq SSL for OpenVMS . . . . . . . . . . . . . . . . . . . . . LDAP–43
-13.21.1 Compaq SSL Certificate Options . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–43
-13.21.2 Obtaining a Key Pair . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–44
-13.22 Sample LDAP API Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LDAP–44
+- 13.1.2 Overview of LDAP API Use
+- 13.1.3 LDAP API Use on OpenVMS Systems
+- 13.1.4 64-bit Addressing Support
+- 13.1.4.1 Background
+- 13.1.4.2 Implementation
+- 13.1.4.2.1 Library Symbol Names
+- 13.1.4.2.2 LDAP Data Structures
+- 13.1.4.3 Mixing Pointer Sizes
+- 13.1.5 Multithreading Support
+- [13.2 Common Data Structures and Memory Handling](#132-common-data-structures-and-memory-handling)
+- [13.3 LDAP Error Codes](#133-ldap-error-codes)
+- [13.4 Initializing an LDAP Session](#134-initializing-an-ldap-session)
+- [13.5 LDAP Session Handle Options](#135-ldap-session-handle-options)
+- [13.6 Working with Controls](#136-working-with-controls)
+- [13.7 Authenticating to the Directory](#137-authenticating-to-the-directory)
+- [13.8 Closing the Session](#138-closing-the-session)
+- [13.9 Searching](#139-searching)
+- 13.9.1 Reading and Listing the Children of an Entry
+- [13.10 Comparing a Value Against an Entry](#1310-comparing-a-value-against-an-entry)
+- [13.11 Modifying an Entry](#1311-modifying-an-entry)
+- [13.12 Modifying the Name of an Entry](#1312-modifying-the-name-of-an-entry)
+- [13.13 Adding an Entry](#1313-adding-an-entry)
+- [13.14 Deleting an Entry](#1314-deleting-an-entry)
+- [13.15 Extended Operations](#1315-extended-operations)
+- [13.16 Abandoning an Operation](#1316-abandoning-an-operation)
+- [13.17 Obtaining Results and Looking Inside LDAP Messages](#1317-obtaining-results-and-looking-inside-ldap-messages)
+- [13.18 Handling Errors and Parsing Results](#1318-handling-errors-and-parsing-results)
+- 13.18.1 Stepping Through a List of Results
+- [13.19 Parsing Search Results](#1319-parsing-search-results)
+- 13.19.1 Stepping Through a List of Entries
+- 13.19.2 Stepping Through the Attributes of an Entry
+- 13.19.3 Retrieving the Values of an Attribute
+- 13.19.4 Retrieving the Name of an Entry
+- 13.19.5 Retrieving Controls from an Entry
+- 13.19.6 Parsing References
+- [13.20 Encoded ASN.1 Value Manipulation](#1320-encoded-asn1-value-manipulation)
+- 13.20.1 Encoding
+- 13.20.1.1 Encoding Example
+- 13.20.2 Decoding
+- 13.20.2.1 Decoding Example
+- [13.21 Using LDAP with Compaq SSL for OpenVMS](#1321-using-ldap-with-compaq-ssl-for-openvms)
+- 13.21.1 Compaq SSL Certificate Options
+- 13.21.2 Obtaining a Key Pair
+- [13.22 Sample LDAP API Code](#1322-sample-ldap-api-code)
 
 
 viii
@@ -461,269 +461,269 @@ viii
 **14** **LOGINOUT (LGI) Routines**
 
 
-14.1 Introduction to LOGINOUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–1
+- [14.1 Introduction to LOGINOUT](#141-introduction-to-loginout)
 
-14.1.1 The LOGINOUT Process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–1
-14.1.2 Using LOGINOUT with External Authentication . . . . . . . . . . . . . . . . LGI–2
-14.1.3 The LOGINOUT Data Flow . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–2
+- 14.1.1 The LOGINOUT Process
+- 14.1.2 Using LOGINOUT with External Authentication
+- 14.1.3 The LOGINOUT Data Flow
 
-14.2 LOGINOUT Callouts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–3
+- [14.2 LOGINOUT Callouts](#142-loginout-callouts)
 
-14.2.1 LOGINOUT Callout Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–3
+- 14.2.1 LOGINOUT Callout Routines
 
-14.2.2 LOGINOUT Callback Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–3
-14.3 Using Callout Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–4
-14.3.1 Calling Environment . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–4
-14.3.2 Callout Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–5
-14.3.3 Activating the Callout Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–6
-14.3.4 Callout Interface . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–7
-14.3.5 Sample Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–10
-14.4 LOGINOUT Callout Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–14
+- 14.2.2 LOGINOUT Callback Routines
+- [14.3 Using Callout Routines](#143-using-callout-routines)
+- 14.3.1 Calling Environment
+- 14.3.2 Callout Organization
+- 14.3.3 Activating the Callout Routines
+- 14.3.4 Callout Interface
+- 14.3.5 Sample Program
+- [14.4 LOGINOUT Callout Routines](#144-loginout-callout-routines)
 
-LGI$ICR_AUTHENTICATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–15
-LGI$ICR_CHKRESTRICT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–18
-LGI$ICR_DECWINIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–20
-LGI$ICR_FINISH . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–22
-LGI$ICR_IACT_START . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–24
-LGI$ICR_IDENTIFY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–26
-LGI$ICR_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–28
-LGI$ICR_JOBSTEP . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–30
-LGI$ICR_LOGOUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–32
-14.5 LOGINOUT Callback Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–34
+- [LGI$ICR_AUTHENTICATE](#lgiicr_authenticateauthenticate-the-password)
+- [LGI$ICR_CHKRESTRICT](#lgiicr_chkrestrictcheck-access-restrictions)
+- [LGI$ICR_DECWINIT](#lgiicr_decwinitdecwindows-initialization)
+- [LGI$ICR_FINISH](#lgiicr_finishfinal-site-action)
+- [LGI$ICR_IACT_START](#lgiicr_iact_startcharacter-cell-initialization)
+- [LGI$ICR_IDENTIFY](#lgiicr_identifyidentify-the-user)
+- [LGI$ICR_INIT](#lgiicr_initinitialization-callout-routine)
+- [LGI$ICR_JOBSTEP](#lgiicr_jobstepbatch-job-step)
+- [LGI$ICR_LOGOUT](#lgiicr_logoutinstallation-logout)
+- [14.5 LOGINOUT Callback Routines](#145-loginout-callback-routines)
 
-LGI$ICB_ACCTEXPIRED . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–35
-LGI$ICB_AUTOLOGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–36
-LGI$ICB_CHECK_PASS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–37
-LGI$ICB_DISUSER . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–38
-LGI$ICB_GET_INPUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–39
-LGI$ICB_GET_SYSPWD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–40
-LGI$ICB_MODALHOURS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–41
-LGI$ICB_PASSWORD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–42
-LGI$ICB_PWDEXPIRED . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–44
-LGI$ICB_USERPARSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–45
-LGI$ICB_USERPROMPT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–46
-LGI$ICB_VALIDATE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–47
+- [LGI$ICB_ACCTEXPIRED](#lgiicb_acctexpiredaccount-expiration)
+- [LGI$ICB_AUTOLOGIN](#lgiicb_autologincheck-for-autologin)
+- [LGI$ICB_CHECK_PASS](#lgiicb_check_passcheck-password)
+- [LGI$ICB_DISUSER](#lgiicb_disusercheck-for-disabled-user-account)
+- [LGI$ICB_GET_INPUT](#lgiicb_get_inputget-user-input)
+- [LGI$ICB_GET_SYSPWD](#lgiicb_get_syspwdget-system-password)
+- [LGI$ICB_MODALHOURS](#lgiicb_modalhoursperform-access-checks)
+- [LGI$ICB_PASSWORD](#lgiicb_passwordproduce-password-prompt)
+- [LGI$ICB_PWDEXPIRED](#lgiicb_pwdexpiredpassword-expiration)
+- [LGI$ICB_USERPARSE](#lgiicb_userparseparse-username)
+- [LGI$ICB_USERPROMPT](#lgiicb_userpromptprompt-for-username)
+- [LGI$ICB_VALIDATE](#lgiicb_validatevalidate-user-name-and-passwords)
 
 
 **15** **Mail Utility (MAIL) Routines**
 
 
-15.1 Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–1
-15.2 Folders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–2
+- [15.1 Messages](#151-messages)
+- [15.2 Folders](#152-folders)
 
-15.3 Mail Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–3
-15.4 User Profile Database . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–3
-15.5 Mail Utility Processing Contexts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–3
-15.5.1 Callable Mail Utility Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–4
-15.5.2 Single and Multiple Threads . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–5
-15.6 Programming Considerations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–5
-15.6.1 Condition Handling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–6
+- [15.3 Mail Files](#153-mail-files)
+- [15.4 User Profile Database](#154-user-profile-database)
+- [15.5 Mail Utility Processing Contexts](#155-mail-utility-processing-contexts)
+- 15.5.1 Callable Mail Utility Routines
+- 15.5.2 Single and Multiple Threads
+- [15.6 Programming Considerations](#156-programming-considerations)
+- 15.6.1 Condition Handling
 
 
 ix
 
 
-15.6.2 Item Lists and Item Descriptors . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–6
-15.6.2.1 Structure of an Item Descriptor . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–6
-15.6.2.2 Null Item Lists . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–7
-15.6.2.3 Declaring Item Lists and Item Descriptors . . . . . . . . . . . . . . . . . . MAIL–7
-15.6.2.4 Terminating an Item List . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–7
-15.6.3 Action Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–7
-15.7 Managing Mail Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–8
-15.7.1 Opening and Closing Mail Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–9
-15.7.1.1 Using the Default Specification for Mail Files . . . . . . . . . . . . . . . . MAIL–9
-15.7.1.2 Specifying an Alternate Mail File Specification . . . . . . . . . . . . . . . MAIL–10
-15.7.2 Displaying Folder Names . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–11
-15.7.3 Purging Mail Files Using the Wastebasket Folder . . . . . . . . . . . . . . . . MAIL–11
-15.7.3.1 Reclaiming Disk Space . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–11
-15.7.3.2 Compressing Mail Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–11
-15.8 Message Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–11
-15.8.1 Selecting Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–12
-15.8.2 Reading and Printing Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–13
-15.8.3 Modifying Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–13
-15.8.4 Copying and Moving Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–13
-15.8.4.1 Creating Folders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–14
-15.8.4.2 Deleting Folders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–14
-15.8.4.3 Creating Mail Files . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–14
-15.8.5 Deleting Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–14
-15.9 Send Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–14
-15.9.1 Sending New Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–15
-15.9.1.1 Creating a Message . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–15
-15.9.1.1.1 Constructing the Message Header . . . . . . . . . . . . . . . . . . . . . . MAIL–15
-15.9.1.1.2 Constructing the Body of the Message . . . . . . . . . . . . . . . . . . . MAIL–15
-15.9.1.2 Creating an Address List . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–16
-15.9.2 Sending Existing Messages . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–16
-15.9.3 Send Action Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–16
+- 15.6.2 Item Lists and Item Descriptors
+- 15.6.2.1 Structure of an Item Descriptor
+- 15.6.2.2 Null Item Lists
+- 15.6.2.3 Declaring Item Lists and Item Descriptors
+- 15.6.2.4 Terminating an Item List
+- 15.6.3 Action Routines
+- [15.7 Managing Mail Files](#157-managing-mail-files)
+- 15.7.1 Opening and Closing Mail Files
+- 15.7.1.1 Using the Default Specification for Mail Files
+- 15.7.1.2 Specifying an Alternate Mail File Specification
+- 15.7.2 Displaying Folder Names
+- 15.7.3 Purging Mail Files Using the Wastebasket Folder
+- 15.7.3.1 Reclaiming Disk Space
+- 15.7.3.2 Compressing Mail Files
+- [15.8 Message Context](#158-message-context)
+- 15.8.1 Selecting Messages
+- 15.8.2 Reading and Printing Messages
+- 15.8.3 Modifying Messages
+- 15.8.4 Copying and Moving Messages
+- 15.8.4.1 Creating Folders
+- 15.8.4.2 Deleting Folders
+- 15.8.4.3 Creating Mail Files
+- 15.8.5 Deleting Messages
+- [15.9 Send Context](#159-send-context)
+- 15.9.1 Sending New Messages
+- 15.9.1.1 Creating a Message
+- 15.9.1.1.1 Constructing the Message Header
+- 15.9.1.1.2 Constructing the Body of the Message
+- 15.9.1.2 Creating an Address List
+- 15.9.2 Sending Existing Messages
+- 15.9.3 Send Action Routines
 
-15.9.3.1 Success Action Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–16
-15.9.3.2 Error Handling Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–16
-15.9.3.3 Aborting a Send Operation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–17
-15.10 User Profile Context . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–17
-15.10.1 User Profile Entries . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–17
-15.10.1.1 Adding Entries to the User Profile Database . . . . . . . . . . . . . . . . . MAIL–18
-15.10.1.2 Modifying or Deleting User Profile Entries . . . . . . . . . . . . . . . . . . MAIL–18
-15.11 Input Item Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–18
-15.12 Output Item Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–21
-15.13 Using the MAIL Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–23
-15.14 MAIL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–31
+- 15.9.3.1 Success Action Routines
+- 15.9.3.2 Error Handling Routines
+- 15.9.3.3 Aborting a Send Operation
+- [15.10 User Profile Context](#1510-user-profile-context)
+- 15.10.1 User Profile Entries
+- 15.10.1.1 Adding Entries to the User Profile Database
+- 15.10.1.2 Modifying or Deleting User Profile Entries
+- [15.11 Input Item Codes](#1511-input-item-codes)
+- [15.12 Output Item Codes](#1512-output-item-codes)
+- [15.13 Using the MAIL Routines: Examples](#1513-using-the-mail-routines-examples)
+- [15.14 MAIL Routines](#1514-mail-routines)
 
-MAIL$MAILFILE_BEGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–32
-MAIL$MAILFILE_CLOSE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–34
-MAIL$MAILFILE_COMPRESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–36
-MAIL$MAILFILE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–39
-MAIL$MAILFILE_INFO_FILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–41
-MAIL$MAILFILE_MODIFY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–44
-MAIL$MAILFILE_OPEN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–47
-MAIL$MAILFILE_PURGE_WASTE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–50
-MAIL$MESSAGE_BEGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–53
-MAIL$MESSAGE_COPY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–55
-MAIL$MESSAGE_DELETE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–59
+- [MAIL$MAILFILE_BEGIN](#mailmailfile_beginstart-mail-file-processing)
+- [MAIL$MAILFILE_CLOSE](#mailmailfile_closeclose-the-current-mail-file)
+- [MAIL$MAILFILE_COMPRESS](#mailmailfile_compresscompress-mail-file)
+- [MAIL$MAILFILE_END](#mailmailfile_endend-mail-file-processing)
+- [MAIL$MAILFILE_INFO_FILE](#mailmailfile_info_fileget-information-about-a-mail-file)
+- [MAIL$MAILFILE_MODIFY](#mailmailfile_modifymodify-record-of-an-indexed-file)
+- [MAIL$MAILFILE_OPEN](#mailmailfile_openopen-a-mail-file-for-processing)
+- [MAIL$MAILFILE_PURGE_WASTE](#mailmailfile_purge_wastedelete-wastebasket-messages)
+- [MAIL$MESSAGE_BEGIN](#mailmessage_beginstart-message-processing)
+- [MAIL$MESSAGE_COPY](#mailmessage_copycopy-messages-to-another-file-or-folder)
+- [MAIL$MESSAGE_DELETE](#mailmessage_deletedelete-message-from-current-folder)
 
 
 
 x
 
 
-MAIL$MESSAGE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–61
-MAIL$MESSAGE_GET . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–63
-MAIL$MESSAGE_INFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–68
-MAIL$MESSAGE_MODIFY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–72
-MAIL$MESSAGE_SELECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–75
-MAIL$SEND_ABORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–78
-MAIL$SEND_ADD_ADDRESS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–80
-MAIL$SEND_ADD_ATTRIBUTE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–82
-MAIL$SEND_ADD_BODYPART . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–85
-MAIL$SEND_BEGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–88
-MAIL$SEND_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–91
-MAIL$SEND_MESSAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–93
-MAIL$USER_BEGIN . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–95
-MAIL$USER_DELETE_INFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–98
-MAIL$USER_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–100
-MAIL$USER_GET_INFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–102
-MAIL$USER_SET_INFO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–106
+- [MAIL$MESSAGE_END](#mailmessage_endend-message-processing)
+- [MAIL$MESSAGE_GET](#mailmessage_getget-message-from-a-set-of-messages)
+- [MAIL$MESSAGE_INFO](#mailmessage_infoget-information-about-a-message)
+- [MAIL$MESSAGE_MODIFY](#mailmessage_modifymodify-header-information)
+- [MAIL$MESSAGE_SELECT](#mailmessage_selectselect-message-from-current-mail-file)
+- [MAIL$SEND_ABORT](#mailsend_abortcancel-send-operation)
+- [MAIL$SEND_ADD_ADDRESS](#mailsend_add_addressadd-address-to-list)
+- [MAIL$SEND_ADD_ATTRIBUTE](#mailsend_add_attributeadd-attribute-to-the-current-message)
+- [MAIL$SEND_ADD_BODYPART](#mailsend_add_bodypartbuild-message-body)
+- [MAIL$SEND_BEGIN](#mailsend_beginstart-sending-message)
+- [MAIL$SEND_END](#mailsend_endend-sending-message)
+- [MAIL$SEND_MESSAGE](#mailsend_message)
+- [MAIL$USER_BEGIN](#mailuser_beginaccess-the-user-profile-database)
+- [MAIL$USER_DELETE_INFO](#mailuser_delete_infodelete-database-record)
+- [MAIL$USER_END](#mailuser_endend-access-to-the-user-profile-database)
+- [MAIL$USER_GET_INFO](#mailuser_get_infoget-user-profile-information)
+- [MAIL$USER_SET_INFO](#mailuser_set_infoadd-user-profile-information)
 
 
 **16** **National Character Set (NCS) Utility Routines**
 
 
-16.1 Introduction to NCS Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–1
+- [16.1 Introduction to NCS Routines](#161-introduction-to-ncs-routines)
 
-16.1.1 List of NCS Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–1
-16.1.2 Sample Application Process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–2
-16.2 Using the NCS Utility Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . NCS–2
-16.3 NCS Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–7
+- 16.1.1 List of NCS Routines
+- 16.1.2 Sample Application Process
+- [16.2 Using the NCS Utility Routines: Examples](#162-using-the-ncs-utility-routines-examples)
+- [16.3 NCS Routines](#163-ncs-routines)
 
-NCS$COMPARE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–8
-NCS$CONVERT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–10
-NCS$END_CF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–12
-NCS$END_CS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–13
-NCS$GET_CF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–14
-NCS$GET_CS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–16
-NCS$RESTORE_CF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–18
-NCS$RESTORE_CS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–20
-NCS$SAVE_CF . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–22
-NCS$SAVE_CS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–24
+- [NCS$COMPARE](#ncscomparecompare-strings)
+- [NCS$CONVERT](#ncsconvertconvert-string)
+- [NCS$END_CF](#ncsend_cfend-conversion-function)
+- [NCS$END_CS](#ncsend_csend-collating-sequence)
+- [NCS$GET_CF](#ncsget_cfget-conversion-function)
+- [NCS$GET_CS](#ncsget_csget-collating-sequence)
+- [NCS$RESTORE_CF](#ncsrestore_cfrestore-conversion-function)
+- [NCS$RESTORE_CS](#ncsrestore_csrestore-collating-sequence)
+- [NCS$SAVE_CF](#ncssave_cfsave-conversion-function)
+- [NCS$SAVE_CS](#ncssave_cssave-collating-sequence)
 
 
 **17** **Print Symbiont Modification (PSM) Routines**
 
 
-17.1 Introduction to PSM Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–1
-17.2 Print Symbiont Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–2
-17.2.1 Components of the Print Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–2
-17.2.2 Creation of the Print Symbiont Process . . . . . . . . . . . . . . . . . . . . . . . . PSM–2
-17.2.3 Symbiont Streams . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–3
-17.2.4 Symbiont and Job Controller Functions . . . . . . . . . . . . . . . . . . . . . . . . PSM–3
-17.2.5 Print Symbiont Internal Logic . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–4
-17.3 Symbiont Modification Procedure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–6
-17.3.1 Guidelines and Restrictions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–7
-17.3.2 Writing an Input Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–9
-17.3.2.1 Internal Logic of the Symbiont’s Main Input Routine . . . . . . . . . . PSM–9
-17.3.2.2 Symbiont Processing of Carriage Control . . . . . . . . . . . . . . . . . . . . PSM–10
+- [17.1 Introduction to PSM Routines](#171-introduction-to-psm-routines)
+- [17.2 Print Symbiont Overview](#172-print-symbiont-overview)
+- 17.2.1 Components of the Print Symbiont
+- 17.2.2 Creation of the Print Symbiont Process
+- 17.2.3 Symbiont Streams
+- 17.2.4 Symbiont and Job Controller Functions
+- 17.2.5 Print Symbiont Internal Logic
+- [17.3 Symbiont Modification Procedure](#173-symbiont-modification-procedure)
+- 17.3.1 Guidelines and Restrictions
+- 17.3.2 Writing an Input Routine
+- 17.3.2.1 Internal Logic of the Symbiont’s Main Input Routine
+- 17.3.2.2 Symbiont Processing of Carriage Control
 
 
 xi
 
 
-17.3.3 Writing a Format Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–11
-17.3.3.1 Internal Logic of the Symbiont’s Main Format Routine . . . . . . . . . PSM–12
-17.3.4 Writing an Output Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–12
-17.3.4.1 Internal Logic of the Symbiont’s Main Output Routine . . . . . . . . . PSM–13
-17.3.5 Other Function Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–13
-17.3.6 Writing a Symbiont Initialization Routine . . . . . . . . . . . . . . . . . . . . . . PSM–14
-17.3.7 Integrating a Modified Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–15
-17.4 Using the PSM Routines: An Example . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–16
-17.5 PSM Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–20
+- 17.3.3 Writing a Format Routine
+- 17.3.3.1 Internal Logic of the Symbiont’s Main Format Routine
+- 17.3.4 Writing an Output Routine
+- 17.3.4.1 Internal Logic of the Symbiont’s Main Output Routine
+- 17.3.5 Other Function Codes
+- 17.3.6 Writing a Symbiont Initialization Routine
+- 17.3.7 Integrating a Modified Symbiont
+- [17.4 Using the PSM Routines: An Example](#174-using-the-psm-routines-an-example)
+- [17.5 PSM Routines](#175-psm-routines)
 
-PSM$PRINT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–21
-PSM$READ_ITEM_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–23
-PSM$REPLACE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–25
-PSM$REPORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–30
+- [PSM$PRINT](#psmprintinvoke-openvms-supplied-print-symbiont)
+- [PSM$READ_ITEM_DX](#psmread_item_dxobtain-value-of-message-items)
+- [PSM$REPLACE](#psmreplacedeclare-user-service-routine)
+- [PSM$REPORT](#psmreportreport-completion-status)
 
-USER-FORMAT-ROUTINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–33
+- [USER-FORMAT-ROUTINE](#useruser-written-routine-called-from-a-dectpu-editing-session)
 
-USER-INPUT-ROUTINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–37
+- [USER-INPUT-ROUTINE](#useruser-written-routine-called-from-a-dectpu-editing-session)
 
-USER-OUTPUT-ROUTINE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–43
+- [USER-OUTPUT-ROUTINE](#useruser-written-routine-called-from-a-dectpu-editing-session)
 
 
 **18** **Symbiont/Job Controller Interface (SMB) Routines**
 
 
-18.1 Introduction to SMB Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–1
-18.1.1 Types of Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–1
-18.1.2 Symbionts Supplied with the Operating System . . . . . . . . . . . . . . . . . SMB–1
-18.1.3 Symbiont Behavior in the OpenVMS Environment . . . . . . . . . . . . . . . SMB–2
-18.1.4 Writing a Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–3
-18.1.5 Guidelines for Writing a Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–3
-18.1.6 The Symbiont/Job Controller Interface Routines . . . . . . . . . . . . . . . . . SMB–4
-18.1.7 Choosing the Symbiont Environment . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–5
-18.1.7.1 Synchronous Versus Asynchronous Delivery of Requests . . . . . . . . SMB–5
-18.1.7.2 Single-Streaming Versus Multistreaming . . . . . . . . . . . . . . . . . . . . SMB–9
-18.1.8 Reading Job Controller Requests . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–10
-18.1.9 Processing Job Controller Requests . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–10
-18.1.10 Responding to Job Controller Requests . . . . . . . . . . . . . . . . . . . . . . . . SMB–13
-18.2 SMB Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–13
+- [18.1 Introduction to SMB Routines](#181-introduction-to-smb-routines)
+- 18.1.1 Types of Symbiont
+- 18.1.2 Symbionts Supplied with the Operating System
+- 18.1.3 Symbiont Behavior in the OpenVMS Environment
+- 18.1.4 Writing a Symbiont
+- 18.1.5 Guidelines for Writing a Symbiont
+- 18.1.6 The Symbiont/Job Controller Interface Routines
+- 18.1.7 Choosing the Symbiont Environment
+- 18.1.7.1 Synchronous Versus Asynchronous Delivery of Requests
+- 18.1.7.2 Single-Streaming Versus Multistreaming
+- 18.1.8 Reading Job Controller Requests
+- 18.1.9 Processing Job Controller Requests
+- 18.1.10 Responding to Job Controller Requests
+- [18.2 SMB Routines](#182-smb-routines)
 
-SMB$CHECK_FOR_MESSAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–14
-SMB$INITIALIZE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–15
-SMB$READ_MESSAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–17
-SMB$READ_MESSAGE_ITEM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–20
-SMB$SEND_TO_JOBCTL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–30
+- [SMB$CHECK_FOR_MESSAGE](#smbcheck_for_messagecheck-for-message-from-job-controller)
+- [SMB$INITIALIZE](#smbinitializeinitialize-user-written-symbiont)
+- [SMB$READ_MESSAGE](#smbread_messageobtain-message-sent-by-job-controller)
+- [SMB$READ_MESSAGE_ITEM](#smbread_message_itemparse-next-item-from-message-buffer)
+- [SMB$SEND_TO_JOBCTL](#smbsend_to_jobctlsend-message-to-job-controller)
 
 
 **19** **Sort/Merge (SOR) Routines**
 
 
-19.1 High-Performance Sort/Merge (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . . SOR–1
-19.1.1 High-Performance SOR Routine Behavior . . . . . . . . . . . . . . . . . . . . . . SOR–2
-19.1.2 Using Threads with High-Performance Sort/Merge . . . . . . . . . . . . . . . SOR–3
-19.2 Introduction to SOR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–4
-19.2.1 Arguments to SOR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–4
-19.2.2 Interfaces to SOR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–5
-19.2.2.1 Sort Operation Using File Interface . . . . . . . . . . . . . . . . . . . . . . . . SOR–5
-19.2.2.2 Sort Operation Using Record Interface . . . . . . . . . . . . . . . . . . . . . SOR–6
-19.2.2.3 Merge Operation Using File Interface . . . . . . . . . . . . . . . . . . . . . . SOR–6
-19.2.2.4 Merge Operation Using Record Interface . . . . . . . . . . . . . . . . . . . . SOR–6
-19.2.3 Reentrancy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–6
+- [19.1 High-Performance Sort/Merge (Alpha Only)](#191-high-performance-sortmerge-alpha-only)
+- 19.1.1 High-Performance SOR Routine Behavior
+- 19.1.2 Using Threads with High-Performance Sort/Merge
+- [19.2 Introduction to SOR Routines](#192-introduction-to-sor-routines)
+- 19.2.1 Arguments to SOR Routines
+- 19.2.2 Interfaces to SOR Routines
+- 19.2.2.1 Sort Operation Using File Interface
+- 19.2.2.2 Sort Operation Using Record Interface
+- 19.2.2.3 Merge Operation Using File Interface
+- 19.2.2.4 Merge Operation Using Record Interface
+- 19.2.3 Reentrancy
 
 
 xii
 
 
-19.3 Using the SOR Routines: Examples . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–8
-19.4 SOR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–28
+- [19.3 Using the SOR Routines: Examples](#193-using-the-sor-routines-examples)
+- [19.4 SOR Routines](#194-sor-routines)
 
-SOR$BEGIN_MERGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–29
-SOR$BEGIN_SORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–36
-SOR$DTYPE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–42
-SOR$END_SORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–45
-SOR$PASS_FILES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–47
-SOR$RELEASE_REC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–52
-SOR$RETURN_REC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–54
-SOR$SORT_MERGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–56
-SOR$SPEC_FILE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–59
-SOR$STAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–61
+- [SOR$BEGIN_MERGE](#sorbegin_mergeinitialize-a-merge-operation)
+- [SOR$BEGIN_SORT](#sorbegin_sortbegin-a-sort-operation)
+- [SOR$DTYPE](#sordtypedefine-data-type)
+- [SOR$END_SORT](#sorend_sortend-a-sort-operation)
+- [SOR$PASS_FILES](#sorpass_filespass-file-name)
+- [SOR$RELEASE_REC](#sorrelease_recpass-one-record-to-sort)
+- [SOR$RETURN_REC](#sorreturn_recreturn-one-sorted-record)
+- [SOR$SORT_MERGE](#sorsort_mergesort)
+- [SOR$SPEC_FILE](#sorspec_filepass-a-specification-file-name)
+- [SOR$STAT](#sorstatobtain-a-statistic)
 
 
 **Index**
@@ -732,87 +732,87 @@ SOR$STAT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 **Examples**
 
 
-2–1 Calling the ACL Editor with a VAX BLISS Program . . . . . . . . . . . . . . ACL–2
-3–1 Calling the Backup API with a VAX C Program . . . . . . . . . . . . . . . . . BCK–2
+- 2–1 Calling the ACL Editor with a VAX BLISS Program
+- 3–1 Calling the Backup API with a VAX C Program
 4–1 Using the CLI Routines to Retrieve Information About Command
-Lines in a Fortran Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CLI–2
-5–1 Using UTIL$CQUAL Routines to Process Files . . . . . . . . . . . . . . . . . . CQUAL–7
-6–1 Using the CONVERT Routines in a Fortran Program . . . . . . . . . . . . . CONV–1
-6–2 Using the CONVERT Routines in a C Program . . . . . . . . . . . . . . . . . . CONV–3
-6–3 Using the CONV$RECLAIM Routine in a Fortran Program . . . . . . . . CONV–5
-6–4 Using the CONV$RECLAIM Routine in a C Program . . . . . . . . . . . . . CONV–6
-7–1 Compressing a File in a Compaq Fortran Program . . . . . . . . . . . . . . . DCX–4
-7–2 Expanding a Compressed File in a Compaq Fortran Program . . . . . . . DCX–8
-8–1 Sample VAX BLISS Template for Callable DECTPU . . . . . . . . . . . . . . DECTPU–7
-8–2 Normal DECTPU Setup in Compaq Fortran . . . . . . . . . . . . . . . . . . . . DECTPU–12
-8–3 Building a Callback Item List with Compaq Fortran . . . . . . . . . . . . . . DECTPU–14
-8–4 Specifying a User-Written File I/O Routine in VAX C . . . . . . . . . . . . . DECTPU–17
-10–1 Using the EDT Routines in a VAX BASIC Program . . . . . . . . . . . . . . . EDT–1
-11–1 Using FDL$CREATE in a Fortran Program . . . . . . . . . . . . . . . . . . . . FDL–3
-11–2 Using FDL$PARSE and FDL$RELEASE in a C Program . . . . . . . . . . FDL–3
+- Lines in a Fortran Program
+- 5–1 Using UTIL$CQUAL Routines to Process Files
+- 6–1 Using the CONVERT Routines in a Fortran Program
+- 6–2 Using the CONVERT Routines in a C Program
+- 6–3 Using the CONV$RECLAIM Routine in a Fortran Program
+- 6–4 Using the CONV$RECLAIM Routine in a C Program
+- 7–1 Compressing a File in a Compaq Fortran Program
+- 7–2 Expanding a Compressed File in a Compaq Fortran Program
+- 8–1 Sample VAX BLISS Template for Callable DECTPU
+- 8–2 Normal DECTPU Setup in Compaq Fortran
+- 8–3 Building a Callback Item List with Compaq Fortran
+- 8–4 Specifying a User-Written File I/O Routine in VAX C
+- 10–1 Using the EDT Routines in a VAX BASIC Program
+- 11–1 Using FDL$CREATE in a Fortran Program
+- 11–2 Using FDL$PARSE and FDL$RELEASE in a C Program
 11–3 Using FDL$PARSE and FDL$GENERATE in a Compaq Pascal
-Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . FDL–5
-12–1 Creating a New Library Using Compaq Pascal . . . . . . . . . . . . . . . . . . LBR–8
-12–2 Inserting a Module into a Library Using Compaq Pascal . . . . . . . . . . . LBR–11
-12–3 Extracting a Module from a Library Using Compaq Pascal . . . . . . . . . LBR–14
-12–4 Deleting a Module from a Library Using Compaq Pascal . . . . . . . . . . . LBR–17
-12–5 Associating Keys with Modules . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–19
-12–6 Listing Keys Associated with a Module . . . . . . . . . . . . . . . . . . . . . . . . LBR–21
-12–7 Displaying the Module Header . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–22
-12–8 Reading Library Headers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–24
-12–9 Displaying Text from a Help Library . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–25
-12–10 Displaying Index Entries . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–27
+- Program
+- 12–1 Creating a New Library Using Compaq Pascal
+- 12–2 Inserting a Module into a Library Using Compaq Pascal
+- 12–3 Extracting a Module from a Library Using Compaq Pascal
+- 12–4 Deleting a Module from a Library Using Compaq Pascal
+- 12–5 Associating Keys with Modules
+- 12–6 Listing Keys Associated with a Module
+- 12–7 Displaying the Module Header
+- 12–8 Reading Library Headers
+- 12–9 Displaying Text from a Help Library
+- 12–10 Displaying Index Entries
 
 
 xiii
 
 
-15–1 Sending a File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–24
-15–2 Displaying Folders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–26
-15–3 Displaying User Profile Information . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–28
+- 15–1 Sending a File
+- 15–2 Displaying Folders
+- 15–3 Displaying User Profile Information
 16–1 Using NCS Routines in a Compaq Fortran for OpenVMS Program . . . NCS–3
-16–2 Using NCS Routines in a Compaq C for OpenVMS VAX Program . . . . NCS–5
+- 16–2 Using NCS Routines in a Compaq C for OpenVMS VAX Program
 17–1 Using PSM Routines to Supply a Page Header Routine in a VAX
-MACRO Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–16
+- MACRO Program
 19–1 Using SOR Routines to Perform a Merge Using Record Interface in a
-Compaq Fortran Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–9
+- Compaq Fortran Program
 19–2 Using SOR Routines to Sort Using Mixed Interface in a Compaq
-Fortran Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–13
+- Fortran Program
 19–3 Using SOR Routines to Merge Three Input Files in a Compaq Pascal
-Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–16
+- Program
 19–4 Using SOR Routines to Sort Records from Two Input Files in a
-Compaq Pascal Program . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–20
+- Compaq Pascal Program
 19–5 Using SOR Routines to Sort Records Using the STABLE Option and
-Two Text Keys in a Compaq C Program . . . . . . . . . . . . . . . . . . . . . . . . SOR–24
+- Two Text Keys in a Compaq C Program
 
 
 **Figures**
 
 
-9–1 Time Display Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–2
-9–2 Time Display Format Variants . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–3
-9–3 Relative Time Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–4
-9–4 Time Period Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–4
-9–5 DTS Portable Interface Categories . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–9
-12–1 Structure of a Macro, Text, or Help Library . . . . . . . . . . . . . . . . . . . . . LBR–3
-12–2 Structure of an Object or Shareable Image Library . . . . . . . . . . . . . . . LBR–4
-12–3 Structure of a User-Developed Library . . . . . . . . . . . . . . . . . . . . . . . . LBR–5
+- 9–1 Time Display Format
+- 9–2 Time Display Format Variants
+- 9–3 Relative Time Syntax
+- 9–4 Time Period Syntax
+- 9–5 DTS Portable Interface Categories
+- 12–1 Structure of a Macro, Text, or Help Library
+- 12–2 Structure of an Object or Shareable Image Library
+- 12–3 Structure of a User-Developed Library
 
-14–1 LOGINOUT Callout Routines Data Flow . . . . . . . . . . . . . . . . . . . . . . . LGI–3
+- 14–1 LOGINOUT Callout Routines Data Flow
 
-14–2 Callout Organization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–6
-15–1 Standard Message Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–1
+- 14–2 Callout Organization
+- 15–1 Standard Message Format
 
-15–2 Item Descriptor . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–6
-17–1 Multithreaded Symbiont . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . PSM–3
-17–2 Symbiont Execution Sequence or Flow of Control . . . . . . . . . . . . . . . . PSM–5
-18–1 Symbionts in the OpenVMS Environment . . . . . . . . . . . . . . . . . . . . . . SMB–2
-18–2 Flowchart for a Single-Threaded, Synchronous Symbiont . . . . . . . . . . SMB–6
+- 15–2 Item Descriptor
+- 17–1 Multithreaded Symbiont
+- 17–2 Symbiont Execution Sequence or Flow of Control
+- 18–1 Symbionts in the OpenVMS Environment
+- 18–2 Flowchart for a Single-Threaded, Synchronous Symbiont
 18–3 Flowchart for a Single-Threaded, Asynchronous Symbiont (MAIN
-Routine) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–8
+- Routine)
 
 18–4 Flowchart for a Single-Threaded, Asynchronous Symbiont (AST
-Routine) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SMB–9
+- Routine)
 
 
 xiv
@@ -821,61 +821,61 @@ xiv
 **Tables**
 
 
-3–1 Backup API Language Definition Files . . . . . . . . . . . . . . . . . . . . . . . . BCK–2
-3–2 BACKUP Option Structure Types . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–4
+- 3–1 Backup API Language Definition Files
+- 3–2 BACKUP Option Structure Types
 
-3–3 bckEvent Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–19
+- 3–3 bckEvent Format
 
-3–4 Event Callback Buffer Formats . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–19
+- 3–4 Event Callback Buffer Formats
 
-3–5 Control Event Subtypes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–22
+- 3–5 Control Event Subtypes
 
-3–6 bckControl Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . BCK–23
+- 3–6 bckControl Format
 
-5–1 UTIL$CQUAL Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–1
-5–2 UTIL$CQUAL_FILE_PARSE Command Line Qualifiers . . . . . . . . . . . CQUAL–2
-5–3 UTIL$CQUAL_FILE_PARSE Flags and Masks . . . . . . . . . . . . . . . . . . CQUAL–11
-5–4 Prompting Form Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–19
-5–5 Prompt Responses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CQUAL–20
-6–1 Conversion Statistics Array . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–9
-6–2 CONVERT Qualifiers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–16
-6–3 Bucket Reclamation Statistics Array . . . . . . . . . . . . . . . . . . . . . . . . . . CONV–21
-8–1 Valid Masks for the TPU$K_OPTIONS Item Code . . . . . . . . . . . . . . . . DECTPU–58
+- 5–1 UTIL$CQUAL Routines
+- 5–2 UTIL$CQUAL_FILE_PARSE Command Line Qualifiers
+- 5–3 UTIL$CQUAL_FILE_PARSE Flags and Masks
+- 5–4 Prompting Form Values
+- 5–5 Prompt Responses
+- 6–1 Conversion Statistics Array
+- 6–2 CONVERT Qualifiers
+- 6–3 Bucket Reclamation Statistics Array
+- 8–1 Valid Masks for the TPU$K_OPTIONS Item Code
 
-9–1 Absolute Time Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
+- 9–1 Absolute Time Structures
 
-9–2 Relative Time Structures . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9–5
+- 9–2 Relative Time Structures
 
-12–1 LBR Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LBR–5
+- 12–1 LBR Routines
 
-14–1 LOGINOUT Callouts . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–3
+- 14–1 LOGINOUT Callouts
 
-14–2 LOGINOUT Callback Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . LGI–4
+- 14–2 LOGINOUT Callback Routines
 
-14–3 Useful LOGINOUT Internal Variables . . . . . . . . . . . . . . . . . . . . . . . . . LGI–8
+- 14–3 Useful LOGINOUT Internal Variables
 
-15–1 Default Mail Folders . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–2
+- 15–1 Default Mail Folders
 
-15–2 User Profile Information . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–3
-15–3 Levels of Mail Utility Processing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–4
-15–4 Callable Mail Utility Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–4
-15–5 Types of Action Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–8
+- 15–2 User Profile Information
+- 15–3 Levels of Mail Utility Processing
+- 15–4 Callable Mail Utility Routines
+- 15–5 Types of Action Routines
 
-15–6 Mail File Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–8
+- 15–6 Mail File Routines
 
-15–7 Message Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–11
+- 15–7 Message Routines
 
-15–8 Send Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–15
+- 15–8 Send Routines
 
-15–9 User Profile Context Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–17
-15–10 Input Item Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–19
-15–11 Output Item Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . MAIL–22
+- 15–9 User Profile Context Routines
+- 15–10 Input Item Codes
+- 15–11 Output Item Codes
 
-16–1 NCS Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . NCS–1
+- 16–1 NCS Routines
 
-17–1 Routine Codes for Specification to PSM$REPLACE . . . . . . . . . . . . . . . PSM–14
+- 17–1 Routine Codes for Specification to PSM$REPLACE
 19–1 High-Performance Sort/Merge: Differences in SOR$ Routine
-Behavior . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . SOR–2
+- Behavior
 
 
 xv

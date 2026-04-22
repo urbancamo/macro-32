@@ -62,7 +62,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ix
+- [Preface](#preface)
 
 
 **Part I** **Concepts and Methodology**
@@ -71,168 +71,168 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Preparing to Port VAX MACRO Code**
 
 
-1.1 Compiler Features . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.2 Differences Between the Compiler and the Assembler . . . . . . . . . . . . . . . 1–2
-1.2.1 Moving Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1.2.2 Replicating Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2.3 Removing Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2.4 Interleaving Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.2.5 Reserved Operand Faults . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1.3 Step-by-Step Porting Process . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–4
-1.4 Identifying Nonportable VAX MACRO Coding Practices . . . . . . . . . . . . . . 1–5
-1.5 Establishing Useful Coding Conventions . . . . . . . . . . . . . . . . . . . . . . . . . . 1–7
-1.6 Maintaining Common Sources for VAX and Alpha Systems . . . . . . . . . . . 1–7
-1.6.1 Including Compiler Directive Definitions . . . . . . . . . . . . . . . . . . . . . . . 1–7
-1.6.2 Removing VAX Dependencies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
-1.6.3 Using Architecture-Specific Symbols . . . . . . . . . . . . . . . . . . . . . . . . . . 1–8
-1.7 Using the MACRO-32 Compiler . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–9
+- [1.1 Compiler Features](#11-compiler-features)
+- [1.2 Differences Between the Compiler and the Assembler](#12-differences-between-the-compiler-and-the-assembler)
+- 1.2.1 Moving Code
+- 1.2.2 Replicating Code
+- 1.2.3 Removing Code
+- 1.2.4 Interleaving Instructions
+- 1.2.5 Reserved Operand Faults
+- [1.3 Step-by-Step Porting Process](#13-step-by-step-porting-process)
+- [1.4 Identifying Nonportable VAX MACRO Coding Practices](#14-identifying-nonportable-vax-macro-coding-practices)
+- [1.5 Establishing Useful Coding Conventions](#15-establishing-useful-coding-conventions)
+- [1.6 Maintaining Common Sources for VAX and Alpha Systems](#16-maintaining-common-sources-for-vax-and-alpha-systems)
+- 1.6.1 Including Compiler Directive Definitions
+- 1.6.2 Removing VAX Dependencies
+- 1.6.3 Using Architecture-Specific Symbols
+- [1.7 Using the MACRO-32 Compiler](#17-using-the-macro-32-compiler)
 
 
 **2** **How to Use the MACRO-32 Compiler**
 
 
-2.1 Using Alpha Registers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–1
-2.2 Routine Calls and Declarations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–2
-2.2.1 Linkage Section . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.2.2 Prologue and Epilogue Code . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–3
-2.2.3 When to Declare Entry Points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–4
-2.2.4 Directives for Designating Routine Entry Points . . . . . . . . . . . . . . . . . 2–4
-2.2.5 Code Generation for Routine Calls . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–5
-2.3 Declaring CALL Entry Points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.3.1 Homed Argument Lists . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–6
-2.3.2 Saving Modified Registers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.3.3 Modifying the Argument Pointer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–7
-2.3.4 Establishing Dynamic Condition Handlers in Called Routines . . . . . . 2–8
-2.4 Declaring JSB Routine Entry Points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–8
-2.4.1 Differences Between .JSB_ENTRY and .JSB32_ENTRY . . . . . . . . . . . 2–8
-2.4.2 Two General Cases for Using .JSB32_ENTRY . . . . . . . . . . . . . . . . . . . 2–9
-2.4.3 PUSHR and POPR Instructions Within JSB Routines . . . . . . . . . . . . . 2–9
-2.4.4 Establishing Dynamic Condition Handlers in JSB Routines . . . . . . . . 2–10
-2.5 Declaring a Routine’s Register Use . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–10
-2.5.1 Input Argument for Entry Point Register Declaration . . . . . . . . . . . . . 2–10
-2.5.2 Output Argument for Entry Point Register Declaration . . . . . . . . . . . . 2–11
+- [2.1 Using Alpha Registers](#21-using-alpha-registers)
+- [2.2 Routine Calls and Declarations](#22-routine-calls-and-declarations)
+- 2.2.1 Linkage Section
+- 2.2.2 Prologue and Epilogue Code
+- 2.2.3 When to Declare Entry Points
+- 2.2.4 Directives for Designating Routine Entry Points
+- 2.2.5 Code Generation for Routine Calls
+- [2.3 Declaring CALL Entry Points](#23-declaring-call-entry-points)
+- 2.3.1 Homed Argument Lists
+- 2.3.2 Saving Modified Registers
+- 2.3.3 Modifying the Argument Pointer
+- 2.3.4 Establishing Dynamic Condition Handlers in Called Routines
+- [2.4 Declaring JSB Routine Entry Points](#24-declaring-jsb-routine-entry-points)
+- 2.4.1 Differences Between .JSB_ENTRY and .JSB32_ENTRY
+- 2.4.2 Two General Cases for Using .JSB32_ENTRY
+- 2.4.3 PUSHR and POPR Instructions Within JSB Routines
+- 2.4.4 Establishing Dynamic Condition Handlers in JSB Routines
+- [2.5 Declaring a Routine’s Register Use](#25-declaring-a-routines-register-use)
+- 2.5.1 Input Argument for Entry Point Register Declaration
+- 2.5.2 Output Argument for Entry Point Register Declaration
 
 
 iii
 
 
-2.5.3 Scratch Argument for Entry Point Register Declaration . . . . . . . . . . . 2–11
-2.5.4 Preserve Argument for Entry Point Register Declaration . . . . . . . . . . 2–12
-2.5.5 Help for Specifying Register Sets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–12
-2.6 Branching Between Local Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–13
-2.7 Declaring Exception Entry Points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2.8 Using Packed Decimal Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–14
-2.8.1 Differences Between the VAX and Alpha Implementations . . . . . . . . . 2–14
-2.9 Using Floating-Point Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–16
-2.9.1 Differences Between the VAX and Alpha Implementations . . . . . . . . . 2–16
-2.9.2 Impact on Routines in Other Languages . . . . . . . . . . . . . . . . . . . . . . . 2–18
-2.10 Preserving the Atomicity and Granularity of VAX MACRO . . . . . . . . . . . . 2–18
-2.10.1 Preserving Atomicity . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–18
-2.10.2 Preserving Granularity . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–20
-2.10.3 Precedence of Atomicity Over Granularity . . . . . . . . . . . . . . . . . . . . . . 2–22
-2.10.4 Examples When Atomicity Cannot Be Guaranteed . . . . . . . . . . . . . . . 2–22
-2.10.5 Alignment Considerations for Atomicity . . . . . . . . . . . . . . . . . . . . . . . 2–23
-2.10.6 Interlocked Instructions and Atomicity . . . . . . . . . . . . . . . . . . . . . . . . 2–24
-2.11 Compiling and Linking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–25
-2.11.1 Line Numbering in Listing File . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–26
-2.11.2 Linking an Object Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–26
-2.12 Debugging . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–27
-2.12.1 Code Relocation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2–27
-2.12.2 Symbolic Variables for Routine Arguments . . . . . . . . . . . . . . . . . . . . . 2–27
-2.12.3 Locating Arguments Without $ARG _n_ Symbols . . . . . . . . . . . . . . . . . . . 2–28
-2.12.3.1 Additional Arguments That Are Easy to Locate . . . . . . . . . . . . . . . 2–28
-2.12.3.2 Additional Arguments That Are Not Easy to Locate . . . . . . . . . . . 2–28
-2.12.4 Debugging Code with Packed Decimal Data . . . . . . . . . . . . . . . . . . . . 2–29
-2.12.5 Debugging Code with Floating-Point Data . . . . . . . . . . . . . . . . . . . . . . 2–29
+- 2.5.3 Scratch Argument for Entry Point Register Declaration
+- 2.5.4 Preserve Argument for Entry Point Register Declaration
+- 2.5.5 Help for Specifying Register Sets
+- [2.6 Branching Between Local Routines](#26-branching-between-local-routines)
+- [2.7 Declaring Exception Entry Points](#27-declaring-exception-entry-points)
+- [2.8 Using Packed Decimal Instructions](#28-using-packed-decimal-instructions)
+- 2.8.1 Differences Between the VAX and Alpha Implementations
+- [2.9 Using Floating-Point Instructions](#29-using-floating-point-instructions)
+- 2.9.1 Differences Between the VAX and Alpha Implementations
+- 2.9.2 Impact on Routines in Other Languages
+- [2.10 Preserving the Atomicity and Granularity of VAX MACRO](#210-preserving-the-atomicity-and-granularity-of-vax-macro)
+- 2.10.1 Preserving Atomicity
+- 2.10.2 Preserving Granularity
+- 2.10.3 Precedence of Atomicity Over Granularity
+- 2.10.4 Examples When Atomicity Cannot Be Guaranteed
+- 2.10.5 Alignment Considerations for Atomicity
+- 2.10.6 Interlocked Instructions and Atomicity
+- [2.11 Compiling and Linking](#211-compiling-and-linking)
+- 2.11.1 Line Numbering in Listing File
+- 2.11.2 Linking an Object Module
+- [2.12 Debugging](#212-debugging)
+- 2.12.1 Code Relocation
+- 2.12.2 Symbolic Variables for Routine Arguments
+- 2.12.3 Locating Arguments Without $ARG _n_ Symbols
+- 2.12.3.1 Additional Arguments That Are Easy to Locate
+- 2.12.3.2 Additional Arguments That Are Not Easy to Locate
+- 2.12.4 Debugging Code with Packed Decimal Data
+- 2.12.5 Debugging Code with Floating-Point Data
 
 
 **3** **Recommended and Required Source Changes**
 
 
-3.1 Stack Usage . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–1
-3.1.1 References to the Procedure Stack Frame . . . . . . . . . . . . . . . . . . . . . . 3–1
+- [3.1 Stack Usage](#31-stack-usage)
+- 3.1.1 References to the Procedure Stack Frame
 
-3.1.2 References Outside the Current Stack Frame . . . . . . . . . . . . . . . . . . . 3–2
-3.1.3 Nonaligned Stack References . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–2
-3.1.4 Building Data Structures on the Stack . . . . . . . . . . . . . . . . . . . . . . . . 3–2
-3.1.5 Quadword Moves Into the VAX SP and PC . . . . . . . . . . . . . . . . . . . . . 3–3
-3.2 Instruction Stream . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–3
+- 3.1.2 References Outside the Current Stack Frame
+- 3.1.3 Nonaligned Stack References
+- 3.1.4 Building Data Structures on the Stack
+- 3.1.5 Quadword Moves Into the VAX SP and PC
+- [3.2 Instruction Stream](#32-instruction-stream)
 
-3.2.1 Data Embedded in the Instruction Stream . . . . . . . . . . . . . . . . . . . . . 3–3
+- 3.2.1 Data Embedded in the Instruction Stream
 
-3.2.2 Run-Time Code Generation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.3 Dependencies on Instruction Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.4 Incomplete Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.5 Untranslatable VAX Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.6 References to Internal Processor Registers . . . . . . . . . . . . . . . . . . . . . 3–4
-3.2.7 Use of Z and N Condition Codes with the BICPSW Instruction . . . . . . 3–5
-3.2.8 Interlocked Memory Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–5
-3.2.9 Use of the MOVPSL Instruction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–6
+- 3.2.2 Run-Time Code Generation
+- 3.2.3 Dependencies on Instruction Size
+- 3.2.4 Incomplete Instructions
+- 3.2.5 Untranslatable VAX Instructions
+- 3.2.6 References to Internal Processor Registers
+- 3.2.7 Use of Z and N Condition Codes with the BICPSW Instruction
+- 3.2.8 Interlocked Memory Instructions
+- 3.2.9 Use of the MOVPSL Instruction
 
-3.3 Flow Control Mechanisms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–6
-3.3.1 Communication by Condition Codes . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–7
-3.3.2 Branches from JSB Routines into CALL Routines . . . . . . . . . . . . . . . . 3–7
-3.3.3 Pushing an Address onto the Stack . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–8
-3.3.4 Removing the Return Address from the Stack . . . . . . . . . . . . . . . . . . . 3–8
-3.3.5 Modifying the Return Address . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–9
-3.3.6 Coroutine Calls . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–10
+- [3.3 Flow Control Mechanisms](#33-flow-control-mechanisms)
+- 3.3.1 Communication by Condition Codes
+- 3.3.2 Branches from JSB Routines into CALL Routines
+- 3.3.3 Pushing an Address onto the Stack
+- 3.3.4 Removing the Return Address from the Stack
+- 3.3.5 Modifying the Return Address
+- 3.3.6 Coroutine Calls
 
 
 iv
 
 
-3.3.7 Using REI to Change Modes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–12
-3.3.8 Loop Nesting Limit . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.4 Dynamic Image Relocation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.5 Overwriting Static Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–13
-3.6 Static Initialization Using External Symbols . . . . . . . . . . . . . . . . . . . . . . . 3–14
-3.7 Transfer Vectors . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–14
-3.8 Arithmetic Exceptions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–15
-3.9 Page Size . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–16
-3.10 Locking Pages into a Working Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–16
-3.11 Synchronization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–21
+- 3.3.7 Using REI to Change Modes
+- 3.3.8 Loop Nesting Limit
+- [3.4 Dynamic Image Relocation](#34-dynamic-image-relocation)
+- [3.5 Overwriting Static Data](#35-overwriting-static-data)
+- [3.6 Static Initialization Using External Symbols](#36-static-initialization-using-external-symbols)
+- [3.7 Transfer Vectors](#37-transfer-vectors)
+- [3.8 Arithmetic Exceptions](#38-arithmetic-exceptions)
+- [3.9 Page Size](#39-page-size)
+- [3.10 Locking Pages into a Working Set](#310-locking-pages-into-a-working-set)
+- [3.11 Synchronization](#311-synchronization)
 
 
 **4** **Improving the Performance of Ported Code**
 
 
-4.1 Aligning Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.1.1 Alignment Assumptions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–1
-4.1.2 Directives and Qualifier for Changing Alignment Assumptions . . . . . . 4–2
-4.1.3 Precedence of Alignment Controls . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.1.4 Recommendations for Aligning Data . . . . . . . . . . . . . . . . . . . . . . . . . . 4–2
-4.2 Code Flow and Branch Prediction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–3
+- [4.1 Aligning Data](#41-aligning-data)
+- 4.1.1 Alignment Assumptions
+- 4.1.2 Directives and Qualifier for Changing Alignment Assumptions
+- 4.1.3 Precedence of Alignment Controls
+- 4.1.4 Recommendations for Aligning Data
+- [4.2 Code Flow and Branch Prediction](#42-code-flow-and-branch-prediction)
 
-4.2.1 Default Code Flow and Branch Prediction . . . . . . . . . . . . . . . . . . . . . . 4–4
-4.2.2 Changing the Compiler’s Branch Prediction . . . . . . . . . . . . . . . . . . . . 4–5
-4.2.3 How to Use .BRANCH_LIKELY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
-4.2.4 How to Use .BRANCH_UNLIKELY . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–6
-4.2.5 Forward Jumps into Loops . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–7
-4.3 Code Optimization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–7
-4.3.1 Using the VAXREGS Optimization . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–8
-4.4 Common-Based Referencing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4–9
-4.4.1 Creating a Prefix File for Common-Based Referencing . . . . . . . . . . . . 4–9
+- 4.2.1 Default Code Flow and Branch Prediction
+- 4.2.2 Changing the Compiler’s Branch Prediction
+- 4.2.3 How to Use .BRANCH_LIKELY
+- 4.2.4 How to Use .BRANCH_UNLIKELY
+- 4.2.5 Forward Jumps into Loops
+- [4.3 Code Optimization](#43-code-optimization)
+- 4.3.1 Using the VAXREGS Optimization
+- [4.4 Common-Based Referencing](#44-common-based-referencing)
+- 4.4.1 Creating a Prefix File for Common-Based Referencing
 
 
 **5** **MACRO-32 Programming Support for 64-Bit Addressing**
 
 
-5.1 Guidelines for 64-Bit Addressing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–1
-5.2 New and Changed Components for 64-Bit Addressing . . . . . . . . . . . . . . . . 5–1
-5.3 Passing 64-Bit Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–2
-5.3.1 Calls with a Fixed-Size Argument List . . . . . . . . . . . . . . . . . . . . . . . . 5–2
+- [5.1 Guidelines for 64-Bit Addressing](#51-guidelines-for-64-bit-addressing)
+- [5.2 New and Changed Components for 64-Bit Addressing](#52-new-and-changed-components-for-64-bit-addressing)
+- [5.3 Passing 64-Bit Values](#53-passing-64-bit-values)
+- 5.3.1 Calls with a Fixed-Size Argument List
 5.3.1.1 Usage Notes for $SETUP_CALL64, $PUSH_ARG64, and
-$CALL64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–3
-5.3.2 Calls with a Variable-Size Argument List . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.4 Declaring 64-Bit Arguments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.4.1 Usage Notes for QUAD_ARGS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–4
-5.5 Specifying 64-Bit Address Arithmetic . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–5
-5.5.1 Dependence on Wrapping Behavior of Longword Operations . . . . . . . . 5–6
-5.6 Sign Extending and Checking . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–6
-5.7 Alpha Instruction Built-ins . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–7
-5.8 Calculating Page-Size Dependent Values . . . . . . . . . . . . . . . . . . . . . . . . . 5–7
-5.9 Creating and Using Buffers in 64-Bit Address Space . . . . . . . . . . . . . . . . . 5–7
-5.10 Coding for Moves Longer Than 64 KB . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5–7
+- [$CALL64](#call64)
+- 5.3.2 Calls with a Variable-Size Argument List
+- [5.4 Declaring 64-Bit Arguments](#54-declaring-64-bit-arguments)
+- 5.4.1 Usage Notes for QUAD_ARGS
+- [5.5 Specifying 64-Bit Address Arithmetic](#55-specifying-64-bit-address-arithmetic)
+- 5.5.1 Dependence on Wrapping Behavior of Longword Operations
+- [5.6 Sign Extending and Checking](#56-sign-extending-and-checking)
+- [5.7 Alpha Instruction Built-ins](#57-alpha-instruction-built-ins)
+- [5.8 Calculating Page-Size Dependent Values](#58-calculating-page-size-dependent-values)
+- [5.9 Creating and Using Buffers in 64-Bit Address Space](#59-creating-and-using-buffers-in-64-bit-address-space)
+- [5.10 Coding for Moves Longer Than 64 KB](#510-coding-for-moves-longer-than-64-kb)
 
 
 v
@@ -245,85 +245,85 @@ v
 **Compiler Qualifiers**
 
 
-MACRO/MIGRATION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–1
+- [MACRO/MIGRATION](#macro-32-programming-support-for-64-bit-addressing)
 
 
 **B** **Compiler Directives**
 
 
-B.1 Support of VAX MACRO Assembler Directives . . . . . . . . . . . . . . . . . . . . . B–1
-B.2 Compiler Directives . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–1
+- [B.1 Support of VAX MACRO Assembler Directives](#b1-support-of-vax-macro-assembler-directives)
+- [B.2 Compiler Directives](#b2-compiler-directives)
 
-.BRANCH_LIKELY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–2
+- [.BRANCH_LIKELY](#branch_likely)
 
-.BRANCH_UNLIKELY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–3
+- [.BRANCH_UNLIKELY](#branch_unlikely)
 
-.CALL_ENTRY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–3
+- [.CALL_ENTRY](#call_entry)
 
-.DEFINE_PAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–6
+- [.DEFINE_PAL](#define_pal)
 
-.DISABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–7
+- [.DISABLE](#disable)
 
-.ENABLE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–8
+- [.ENABLE](#enable)
 
-.EXCEPTION_ENTRY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–8
+- [.EXCEPTION_ENTRY](#exception_entry)
 
-.GLOBAL_LABEL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–10
+- [.GLOBAL_LABEL](#global_label)
 
-.JSB_ENTRY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–10
+- [.JSB_ENTRY](#jsb_entry)
 
-.JSB32_ENTRY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–12
+- [.JSB32_ENTRY](#jsb32_entry)
 
-.LINKAGE_PSECT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–14
+- [.LINKAGE_PSECT](#linkage_psect)
 
-.PRESERVE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–15
+- [.PRESERVE](#preserve)
 
-.SET_REGISTERS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–16
+- [.SET_REGISTERS](#set_registers)
 
-.SYMBOL_ALIGNMENT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–18
+- [.SYMBOL_ALIGNMENT](#symbol_alignment)
 
 
 **C** **Compiler Built-Ins**
 
 
-C.1 Alpha Instruction Built-Ins . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . C–1
-C.2 Alpha PALcode Built-Ins . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . C–5
+- [C.1 Alpha Instruction Built-Ins](#c1-alpha-instruction-built-ins)
+- [C.2 Alpha PALcode Built-Ins](#c2-alpha-palcode-built-ins)
 
 
 **D** **Macros for Porting to OpenVMS Alpha**
 
 
-D.1 Page-Related Calculations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–1
+- [D.1 Page-Related Calculations](#d1-page-related-calculations)
 
-$BYTES_TO_PAGES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–2
+- [$BYTES_TO_PAGES](#bytes_to_pages)
 
-$NEXT_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–3
+- [$NEXT_PAGE](#next_page)
 
-$PAGES_TO_BYTES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–4
+- [$PAGES_TO_BYTES](#pages_to_bytes)
 
-$PREVIOUS_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–4
+- [$PREVIOUS_PAGE](#previous_page)
 
-$ROUND_RETADR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–5
+- [$ROUND_RETADR](#round_retadr)
 
-$START_OF_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–6
-D.2 Saving and Restoring Alpha Registers . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–6
+- [$START_OF_PAGE](#start_of_page)
+- [D.2 Saving and Restoring Alpha Registers](#d2-saving-and-restoring-alpha-registers)
 
-$POP64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–6
+- [$POP64](#pop64)
 
-$PUSH64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–7
-D.3 Locking Pages into a Working Set . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–7
-D.3.1 Image Initialization-Time Lockdown . . . . . . . . . . . . . . . . . . . . . . . . . . D–8
+- [$PUSH64](#push64)
+- [D.3 Locking Pages into a Working Set](#d3-locking-pages-into-a-working-set)
+- D.3.1 Image Initialization-Time Lockdown
 
-$LOCK_PAGE_INIT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–8
+- [$LOCK_PAGE_INIT](#lock_page_init)
 
-$LOCKED_PAGE_END . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–9
+- [$LOCKED_PAGE_END](#locked_page_end)
 
-$LOCKED_PAGE_START . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–9
-D.3.2 On-the-Fly Lockdown . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–9
+- [$LOCKED_PAGE_START](#locked_page_start)
+- D.3.2 On-the-Fly Lockdown
 
-$LOCK_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–10
+- [$LOCK_PAGE](#lock_page)
 
-$UNLOCK_PAGE . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–10
+- [$UNLOCK_PAGE](#unlock_page)
 
 
 vi
@@ -332,18 +332,18 @@ vi
 **E** **MACRO-32 Macros for 64-Bit Addressing**
 
 
-E.1 Macros for Manipulating 64-Bit Addresses . . . . . . . . . . . . . . . . . . . . . . . . E–1
+- [E.1 Macros for Manipulating 64-Bit Addresses](#e1-macros-for-manipulating-64-bit-addresses)
 
-$SETUP_CALL64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E–1
+- [$SETUP_CALL64](#setup_call64)
 
-$PUSH_ARG64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E–2
+- [$PUSH_ARG64](#push_arg64)
 
-$CALL64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E–3
-E.2 Macros for Checking Sign Extension and Descriptor Format . . . . . . . . . . . E–4
+- [$CALL64](#call64)
+- [E.2 Macros for Checking Sign Extension and Descriptor Format](#e2-macros-for-checking-sign-extension-and-descriptor-format)
 
-$IS_32BITS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E–4
+- [$IS_32BITS](#is_32bits)
 
-$IS_DESC64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . E–5
+- [$IS_DESC64](#is_desc64)
 
 
 **Index**
@@ -352,17 +352,17 @@ $IS_DESC64 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 **Tables**
 
 
-3–1 Image Initialization-Time Lockdown . . . . . . . . . . . . . . . . . . . . . . . . . . 3–19
-3–2 On-the-Fly Lockdown . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3–20
-3–3 Image Initialization-Time Lockdown with the Same Code . . . . . . . . . . 3–21
-5–1 New and Changed Components for 64-Bit Addressing . . . . . . . . . . . . . 5–1
-5–2 Passing 64-Bit Values with a Fixed-Size Argument List . . . . . . . . . . . 5–2
-A–1 Compiler Qualifiers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A–2
-B–1 Operand Descriptors . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . B–6
-C–1 Alpha Instruction Built-Ins . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . C–3
-C–2 Alpha PALcode Built-Ins . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . C–5
+- 3–1 Image Initialization-Time Lockdown
+- 3–2 On-the-Fly Lockdown
+- 3–3 Image Initialization-Time Lockdown with the Same Code
+- 5–1 New and Changed Components for 64-Bit Addressing
+- 5–2 Passing 64-Bit Values with a Fixed-Size Argument List
+- [A–1 Compiler Qualifiers](#a)
+- [B–1 Operand Descriptors](#b)
+- [C–1 Alpha Instruction Built-Ins](#c)
+- [C–2 Alpha PALcode Built-Ins](#c)
 
-D–1 Shift Values . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . D–2
+- [D–1 Shift Values](#d)
 
 
 vii

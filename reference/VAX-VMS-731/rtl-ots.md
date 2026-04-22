@@ -61,7 +61,7 @@ This document was prepared using DECdocument, Version 3.3-1b.
 
 ### **Contents**
 
-**Preface** . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . v
+- [Preface](#preface)
 
 
 **Part I** **OTS$ Overview**
@@ -70,98 +70,98 @@ This document was prepared using DECdocument, Version 3.3-1b.
 **1** **Run-Time Library General Purpose (OTS$) Facility**
 
 
-1.1 Overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–1
-1.2 Linking OTS$ Routines on an Alpha System . . . . . . . . . . . . . . . . . . . . . . . 1–4
-1.2.1 64-Bit Addressing Support (Alpha Only) . . . . . . . . . . . . . . . . . . . . . . . 1–4
+- [1.1 Overview](#11-overview)
+- [1.2 Linking OTS$ Routines on an Alpha System](#12-linking-ots-routines-on-an-alpha-system)
+- 1.2.1 64-Bit Addressing Support (Alpha Only)
 
 
 **Part II** **OTS$ Reference Section**
 
 
-OTS$CNVOUT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–3
+- [OTS$CNVOUT](#otscnvout-convert-d-floating-g-floating-or-h-floating-number-to-character-string)
 
-OTS$CVT_L_TB . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–5
+- [OTS$CVT_L_TB](#otscvt_l_tb-convert-an-unsigned-integer-to-binary-text)
 
-OTS$CVT_L_TI . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–7
+- [OTS$CVT_L_TI](#otscvt_l_ti-convert-signed-integer-to-decimal-text)
 
-OTS$CVT_L_TL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–9
+- [OTS$CVT_L_TL](#otscvt_l_tl-convert-integer-to-logical-text)
 
-OTS$CVT_L_TO . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–11
+- [OTS$CVT_L_TO](#otscvt_l_to-convert-unsigned-integer-to-octal-text)
 
-OTS$CVT_L_TU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–13
+- [OTS$CVT_L_TU](#otscvt_l_tu-convert-unsigned-integer-to-decimal-text)
 
-OTS$CVT_L_TZ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–15
+- [OTS$CVT_L_TZ](#otscvt_l_tz-convert-integer-to-hexadecimal-text)
 
-OTS$CVT_T_x . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–17
+- [OTS$CVT_T_x](#otscvt_t_x-convert-numeric-text-to-d-f-g-or-h-floating-value)
 
-OTS$CVT_TB_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–22
+- [OTS$CVT_TB_L](#otscvt_tb_l-convert-binary-text-to-unsigned-integer)
 
-OTS$CVT_TI_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–25
+- [OTS$CVT_TI_L](#otscvt_ti_l-convert-signed-integer-text-to-integer)
 
-OTS$CVT_TL_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–27
+- [OTS$CVT_TL_L](#otscvt_tl_l-convert-logical-text-to-integer)
 
-OTS$CVT_TO_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–29
+- [OTS$CVT_TO_L](#otscvt_to_l-convert-octal-text-to-unsigned-integer)
 
-OTS$CVT_TU_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–32
+- [OTS$CVT_TU_L](#otscvt_tu_l-convert-unsigned-decimal-text-to-integer)
 
-OTS$CVT_TZ_L . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–34
+- [OTS$CVT_TZ_L](#otscvt_tz_l-convert-hexadecimal-text-to-unsigned-integer)
 
-OTS$DIVCx . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–37
+- [OTS$DIVCx](#otsdivcx-complex-division)
 
-OTS$DIV_PK_LONG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–40
+- [OTS$DIV_PK_LONG](#otsdiv_pk_long-packed-decimal-division-with-long-divisor)
 
-OTS$DIV_PK_SHORT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–44
+- [OTS$DIV_PK_SHORT](#otsdiv_pk_short-packed-decimal-division-with-short-divisor)
 
-OTS$MOVE3 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–46
+- [OTS$MOVE3](#otsmove3-move-data-without-fill)
 
-OTS$MOVE5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–48
+- [OTS$MOVE5](#otsmove5-move-data-with-fill)
 
-OTS$MULCx . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–50
+- [OTS$MULCx](#otsmulcx-complex-multiplication)
 
-OTS$POWCxCx . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–52
+- [OTS$POWCxCx](#otspowcxcx-raise-a-complex-base-to-a-complex-floating-point-exponent)
 
-OTS$POWCxJ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–55
+- [OTS$POWCxJ](#otspowcxj-raise-a-complex-base-to-a-signed-longword-integer-exponent)
 
-OTS$POWDD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–57
+- [OTS$POWDD](#otspowdd-raise-a-d-floating-base-to-a-d-floating-exponent)
 
-OTS$POWDJ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–59
+- [OTS$POWDJ](#otspowdj-raise-a-d-floating-base-to-a-longword-exponent)
 
-OTS$POWDR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–61
+- [OTS$POWDR](#otspowdr-raise-a-d-floating-base-to-an-f-floating-exponent)
 
-OTS$POWGG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–63
+- [OTS$POWGG](#otspowgg-raise-a-g-floating-base-to-a-g-floating-exponent)
 
-OTS$POWGJ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–66
+- [OTS$POWGJ](#otspowgj-raise-a-g-floating-base-to-a-longword-exponent)
 
 
 iii
 
 
-OTS$POWHH_R3 (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–68
-OTS$POWHJ_R3 (VAX Only) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–70
+- [OTS$POWHH_R3 (VAX Only)](#otspowhh_r3-vax-only-raise-an-h-floating-base-to-an-h-floating-exponent)
+- [OTS$POWHJ_R3 (VAX Only)](#otspowhj_r3-vax-only-raise-an-h-floating-base-to-a-longword-exponent)
 
-OTS$POWII . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–72
+- [OTS$POWII](#otspowii-raise-a-word-base-to-a-word-exponent)
 
-OTS$POWJJ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–74
+- [OTS$POWJJ](#otspowjj-raise-a-longword-base-to-a-longword-exponent)
 
-OTS$POWLULU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–76
+- [OTS$POWLULU](#otspowlulu-raise-an-unsigned-longword-base-to-an-unsigned-longword-exponent)
 
-OTS$POWRD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–78
+- [OTS$POWRD](#otspowrd-raise-an-f-floating-base-to-a-d-floating-exponent)
 
-OTS$POWRJ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–80
+- [OTS$POWRJ](#otspowrj-raise-an-f-floating-base-to-a-longword-exponent)
 
-OTS$POWRR . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–82
+- [OTS$POWRR](#otspowrr-raise-an-f-floating-base-to-an-f-floating-exponent)
 
-OTS$POWxLU . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–84
+- [OTS$POWxLU](#otspowxlu-raise-a-floating-point-base-to-an-unsigned-longword-integer-exponent)
 
-OTS$SCOPY_DXDX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–86
+- [OTS$SCOPY_DXDX](#otsscopy_dxdx-copy-a-source-string-passed-by-descriptor-to-a-destination-string)
 
-OTS$SCOPY_R_DX . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–88
+- [OTS$SCOPY_R_DX](#otsscopy_r_dx-copy-a-source-string-passed-by-reference-to-a-destination-string)
 
-OTS$SFREE1_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–91
+- [OTS$SFREE1_DD](#otssfree1_dd-strings-free-one-dynamic)
 
-OTS$SFREEN_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–92
+- [OTS$SFREEN_DD](#otssfreen_dd-strings-free-n-dynamic)
 
-OTS$SGET1_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . OTS–93
+- [OTS$SGET1_DD](#otssget1_dd-strings-get-one-dynamic)
 
 
 **Index**
@@ -170,17 +170,17 @@ OTS$SGET1_DD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
 **Tables**
 
 
-1–1 OTS$ Conversion Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–1 OTS$ Conversion Routines
 
-1–2 OTS$ Division Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–2 OTS$ Division Routines
 
-1–3 OTS$ Move Data Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
+- 1–3 OTS$ Move Data Routines
 
-1–4 OTS$ Multiplication Routine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–2
-1–5 OTS$ Exponentiation Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1–6 OTS$ Copy Source String Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1–7 OTS$ Return String Area Routines . . . . . . . . . . . . . . . . . . . . . . . . . . . 1–3
-1–8 OTS$ and Equivalent Math$ Entry Points . . . . . . . . . . . . . . . . . . . . . 1–4
+- 1–4 OTS$ Multiplication Routine
+- 1–5 OTS$ Exponentiation Routines
+- 1–6 OTS$ Copy Source String Routines
+- 1–7 OTS$ Return String Area Routines
+- 1–8 OTS$ and Equivalent Math$ Entry Points
 
 
 iv
