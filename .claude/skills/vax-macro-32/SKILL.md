@@ -110,6 +110,14 @@ Callable interfaces to OpenVMS utilities: SOR (SORT/MERGE), DCX (data compressio
 ### VAX Device Support — `../../../reference/VAX-VMS-731/vax-device-support-ref.md`
 Reference companion to the Device Support Manual. Use only when writing or reading VAX device drivers — data structures (UCB, CRB, IRP), driver entry points, IOC routines.
 
+### OpenVMS Programming Concepts — `../../../reference/VAX-VMS-731/programming-concepts-vol{1,2}.md`
+Two-volume concept manual. These are prose references, not routine dictionaries — use for background when the per-routine manuals don't explain *how the pieces fit together*. Best grepped directly on the topic word.
+
+| Volume | Coverage |
+|---|---|
+| `programming-concepts-vol1.md` | Process creation and control, SMP synchronization, ASTs and condition handling, memory management, 64-bit addressing on Alpha, alignment |
+| `programming-concepts-vol2.md` | **OpenVMS calling standard** (Ch. 17–18), calling RTL / system services (Ch. 19–20), RTL and system-service I/O, time operations, file ops, logical names, DECdtm, user-written system services, system security, ACM authentication |
+
 ### Example programs — `../../../reference/samples/`
 Real-world MACRO-32 source code, kept as optional reading for idiomatic patterns. Use these to see how features are *actually used together*, not as authoritative references — if a sample disagrees with the manual, the manual wins.
 
