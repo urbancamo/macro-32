@@ -56,6 +56,31 @@ consulted and the exact `MACRO` / `LINK` / `RUN` commands needed on
 OpenVMS. Building requires either a real VAX / Alpha / Itanium system
 running OpenVMS, or SIMH with an OpenVMS hobbyist installation.
 
+## JetBrains syntax highlighting
+
+`tools/jetbrains/VAX_MACRO_32.xml` is a ready-to-import Custom File Type
+for JetBrains IDEs (IntelliJ IDEA, WebStorm, CLion, PyCharm, ...) that
+highlights `.mar` / `.mac` / `.macro` files: 383 mnemonics, 88 directives,
+16 registers, and 234 commonly-used RTL / RMS / SMG / SYS symbols.
+
+**Install** (IDE must be closed):
+
+```
+macOS     ~/Library/Application Support/JetBrains/<PRODUCT><VERSION>/filetypes/
+Linux     ~/.config/JetBrains/<PRODUCT><VERSION>/filetypes/
+Windows   %APPDATA%\JetBrains\<PRODUCT><VERSION>\filetypes\
+```
+
+Copy `VAX_MACRO_32.xml` into that directory (create `filetypes/` if it
+doesn't exist), then restart the IDE and open any `.mar` file. Colours
+are controlled by *Settings -> Editor -> Color Scheme -> Custom File
+Types*.
+
+See `tools/jetbrains/README.md` for the full rundown: a UI-based
+fallback install, colour-category breakdown, the known `$`-tokenizer
+caveat, and how the keyword lists were generated from the reference
+corpus.
+
 ## License
 
 GPL-3.0 -- see `LICENSE`.
