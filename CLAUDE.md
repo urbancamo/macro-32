@@ -18,6 +18,7 @@ The skill's core rule: **grep the reference files before answering**. Base-model
   - **RMS:** `rms-reference.md`, `file-applications-guide.md`
   - **Utilities:** `utility-routines.md`
   - **Device drivers:** `vax-device-support-ref.md`
+  - **Programming concepts (prose):** `programming-concepts-vol1.md` (process/AST/condition handling/memory), `programming-concepts-vol2.md` (**calling standard**, calling RTL/system services, I/O, time, files, logical names, security/ACM)
 - `reference/macro-made-easy/part-*.md` — Hunter Goatley's 12-part tutorial series
 - `reference/samples/` — real-world MACRO-32 source (standalone tools, VMS utilities, a Smalltalk-80 VM, SMP kernel code, a disassembler) — for idiomatic patterns, not authoritative
 
