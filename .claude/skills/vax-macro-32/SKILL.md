@@ -110,6 +110,14 @@ Callable interfaces to OpenVMS utilities: SOR (SORT/MERGE), DCX (data compressio
 ### VAX Device Support — `../../../reference/VAX-VMS-731/vax-device-support-ref.md`
 Reference companion to the Device Support Manual. Use only when writing or reading VAX device drivers — data structures (UCB, CRB, IRP), driver entry points, IOC routines.
 
+### OpenVMS System Manager's Manual — `../../../reference/VAX-VMS-731/system-manager-vol{1,2}.md`
+Two-volume system administration reference for OpenVMS V7.3-1. Use when the question is *how to operate or configure the OpenVMS system itself* -- starting/stopping the system, managing devices and disks, setting up print and batch queues, system tuning, clusters, networking. Particularly important for this repo: chapters 13-14 of vol1 cover the print queue manager (`INITIALIZE/QUEUE`, `START/QUEUE`, `/PROCESSOR=`, characteristics, forms) which is what every custom symbiont (`src/macro32/symbiont/`) plugs into.
+
+| Volume | Coverage |
+|---|---|
+| `system-manager-vol1.md` (Essentials) | Startup/shutdown (Ch.4), system time (Ch.6), storage media (Ch.9), files & directories (Ch.10), BACKUP (Ch.11), **queue manager** (Ch.13), **setting up + maintaining queues** (Ch.14) |
+| `system-manager-vol2.md` (Tuning, Monitoring, Complex Systems) | File system data caches (Ch.18), UETP system test (Ch.19), resource tracking (Ch.21), OpenVMS Cluster (Ch.22), networking (Ch.23), LAN software (Ch.24), InfoServer (Ch.25), DECdtm (Ch.27), special envs (Ch.28), **Files-11 on-disk structure** (App.A), TDF tables (App.B), Compaq MIB subagents (App.C), OpenVMS Registry (App.D) |
+
 ### OpenVMS User's Manual — `../../../reference/VAX-VMS-731/users-manual.md`
 End-user reference for OpenVMS V7.3-1: how to log in, work at the DCL prompt, manage files, and write command procedures. Use when the question is *how to drive the system* rather than *how to write code that runs on it* -- e.g. "what does `$ SHOW SYMBOL` do", "how does logical-name resolution interact with `SYS$LOGIN`", "what's the syntax for a `COPY` over DECnet". Many MACRO-32 build / link / run / debug recipes ultimately go through DCL, so this is the reference for the surrounding command flow.
 
