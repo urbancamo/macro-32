@@ -110,6 +110,38 @@ Callable interfaces to OpenVMS utilities: SOR (SORT/MERGE), DCX (data compressio
 ### VAX Device Support — `../../../reference/VAX-VMS-731/vax-device-support-ref.md`
 Reference companion to the Device Support Manual. Use only when writing or reading VAX device drivers — data structures (UCB, CRB, IRP), driver entry points, IOC routines.
 
+### OpenVMS User's Manual — `../../../reference/VAX-VMS-731/users-manual.md`
+End-user reference for OpenVMS V7.3-1: how to log in, work at the DCL prompt, manage files, and write command procedures. Use when the question is *how to drive the system* rather than *how to write code that runs on it* -- e.g. "what does `$ SHOW SYMBOL` do", "how does logical-name resolution interact with `SYS$LOGIN`", "what's the syntax for a `COPY` over DECnet". Many MACRO-32 build / link / run / debug recipes ultimately go through DCL, so this is the reference for the surrounding command flow.
+
+| Looking for… | Go to |
+|---|---|
+| **Logging in / out**, password rules, login classes, terminal characteristics | Chapter 1 |
+| File specifications, wildcards, versions, network paths | Chapter 3 |
+| Directory structure, default directories, search lists | Chapter 4 |
+| EVE editor (text editing) | Chapter 8 |
+| SORT and MERGE | Chapter 9 |
+| **Symbols** (`$ x = …`), **defining DCL commands**, expressions | Chapter 12 |
+| **Command procedures** (`.COM` scripts) -- intro | Chapter 13 |
+| **Advanced DCL programming**: control flow, parameters, error handling | Chapter 14 |
+| Processes, subprocesses, batch jobs, `SUBMIT` / `STOP` | Chapter 16 |
+| ASCII / DEC Multinational / ISO-Latin-1 character sets | Appendix A |
+| **Annotated example command procedures** | Appendix B |
+
+### OpenVMS Debugger — `../../../reference/VAX-VMS-731/debugger-manual.md`
+Full reference for the OpenVMS Debugger (DBG / RUN/DEBUG). Covers both command-line and screen modes, with extensive content on debugging assembly-language programs (instruction-stream stepping, register/memory examination, breakpoints, watchpoints, traceback). Use when the question is *how to debug* a MACRO-32 program, not *what does this instruction do*.
+
+| Looking for… | Go to |
+|---|---|
+| Getting started, command format, sessions | Chapters 1–2 |
+| Breakpoints, watchpoints, stepping, execution control | Chapter 3 |
+| EXAMINE / DEPOSIT / EVALUATE / type-aware data inspection | Chapter 4 |
+| Symbols and symbol resolution (SET/CANCEL MODULE, SET SCOPE) | Chapter 5 |
+| Screen mode (windowed source/register/output displays) | Chapter 7 |
+| Heap analyser, watchpoints on dynamic memory | Chapter 12 |
+| Special cases: optimised code, traceback, exceptions | Chapter 14 |
+| Multiprocess and threaded programs | Chapters 15, 17 |
+| **Full DBG command dictionary (alphabetical)** | Part VI (large) |
+
 ### OpenVMS Programming Concepts — `../../../reference/VAX-VMS-731/programming-concepts-vol{1,2}.md`
 Two-volume concept manual. These are prose references, not routine dictionaries — use for background when the per-routine manuals don't explain *how the pieces fit together*. Best grepped directly on the topic word.
 
@@ -132,6 +164,23 @@ Real-world MACRO-32 source code, kept as optional reading for idiomatic patterns
 | `samples/smalltalk/` | A full VAX/Smalltalk-80 VM — 21 modules showing non-trivial MACRO-32 architecture: arithmetic primitives, memory, graphics, I/O, file system |
 | `samples/vax_mp/src/VMS_VSMP/` | Kernel-mode loadable code (SIMH VMS SMP support) — advanced: `startcpu.mar`, `smpcore.mar`, `dynpatch.mar`, `timesync.mar`. Only relevant for privileged/system work. |
 | `samples/vmsdisasm/` | VMS image disassembler — shows how to decode VAX instruction streams in MACRO-32 |
+
+### Textbook — `../../../reference/vax-assembly-language/baase-1992.md`
+Sara Baase, *VAX Assembly Language* (Prentice Hall, 2nd ed., 1992). 534-page university textbook treating MACRO-32 as a learning vehicle for assembly-language programming on the VAX. Use for *pedagogical* explanations of why things work the way they do (the manuals tell you *what*; this tells you *why*). OCR'd from a scan via `marker-pdf` -- prose is reliable, but code listings can have OCR errors (parentheses, `+` postfix on `(Rn)+`, subscripts) and should be checked against the source PDF before being trusted as exact.
+
+| Looking for… | Go to |
+|---|---|
+| Memory model, registers, addressing modes, basic ISA | Chapters 1–4 |
+| Integer arithmetic, conversion (CVTSP/CVTPL/etc.) | Chapters 5–6 |
+| Procedure calls (CALLS / CALLG, calling standard) | Chapter 9 |
+| Program sections (PSECT), expressions, symbols | Chapter 10 |
+| Macros (`.MACRO`, conditional assembly, string functions) | Chapter 11 |
+| Bit and bit-field operations, sets | Chapter 12 |
+| Floating point and packed decimal | Chapter 13 |
+| Character strings (MOVC, CMPC, MOVTC, EDIT) | Chapter 14 |
+| Interrupts and exceptions, condition handling | Chapter 15 |
+| RMS-based I/O for assembly-language programs | Chapter 16 |
+| Instruction summary appendix | Appendix A |
 
 ### Tutorial — `../../../reference/macro-made-easy/part-*.md`
 Hunter Goatley's 12-part series. Use for conceptual grounding and idiomatic examples, not as an authoritative reference.

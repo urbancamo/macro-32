@@ -18,7 +18,10 @@ The skill's core rule: **grep the reference files before answering**. Base-model
   - **RMS:** `rms-reference.md`, `file-applications-guide.md`
   - **Utilities:** `utility-routines.md`
   - **Device drivers:** `vax-device-support-ref.md`
+  - **User's manual / DCL:** `users-manual.md` (logging in, file specs, **DCL symbols and command procedures** Ch. 12-14, processes/batch Ch. 16, annotated `.COM` examples in App. B)
+  - **Debugger:** `debugger-manual.md` (DBG command reference, breakpoints, screen mode, full DBG command dictionary in Part VI)
   - **Programming concepts (prose):** `programming-concepts-vol1.md` (process/AST/condition handling/memory), `programming-concepts-vol2.md` (**calling standard**, calling RTL/system services, I/O, time, files, logical names, security/ACM)
+- `reference/vax-assembly-language/baase-1992.md` — Sara Baase, *VAX Assembly Language* (Prentice Hall, 2nd ed., 1992). University textbook -- pedagogical companion to the manuals. OCR'd from a scan; prose is reliable, code listings should be verified against the source PDF before being trusted as exact.
 - `reference/macro-made-easy/part-*.md` — Hunter Goatley's 12-part tutorial series
 - `reference/samples/` — real-world MACRO-32 source (standalone tools, VMS utilities, a Smalltalk-80 VM, SMP kernel code, a disassembler) — for idiomatic patterns, not authoritative
 
