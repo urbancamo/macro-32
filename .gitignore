@@ -10,3 +10,4 @@ __pycache__/
 src/macro32/**/*.lis
 src/macro32/**/*.log
 src/macro32/**/*.txt
+src/macro32/**/*.prn

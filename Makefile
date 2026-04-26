@@ -22,8 +22,8 @@ LOG      := $(OUT_DIR)$(NAME).log
 VMSDRIVE := tools/vmsdrive/vmsdrive.py
 VMSFTP   := tools/vmsftp/vmsftp.py
 
-.PHONY: vms-up vms-down vms-status vms-push vms-build vms-fetch-lis \
-        vms-run vms-run-input vms-debug vms-clean help
+.PHONY: vms-up vms-down vms-status vms-push vms-build vms-build-release \
+        vms-fetch-lis vms-run vms-run-input vms-debug vms-clean help
 
 help:
 	@echo "VAX/VMS round-trip targets (override PROG=<dir>/<base>):"
@@ -32,6 +32,8 @@ help:
 	@echo "  make vms-status              # show daemon health"
 	@echo "  make vms-push PROG=...       # push source to VMS working dir"
 	@echo "  make vms-build PROG=...      # push + MACRO/LIST/DEBUG + LINK/DEBUG + fetch .lis"
+	@echo "  make vms-build-release PROG=...  # same but MACRO/LIST + LINK/NOTRACEBACK/NODEBUG"
+	@echo "                               # required for symbionts and other detached-process images"
 	@echo "  make vms-run PROG=...        # build + RUN + capture stdout to .log + fetch .lis"
 	@echo "  make vms-run-input PROG=... INPUT=N PROMPT='text: ' [OUTFILE=NAME.TXT]"
 	@echo "                               # build + RUN + answer one program prompt"
@@ -66,6 +68,19 @@ vms-build: vms-push
 	@$(VMSDRIVE) cmd 'MACRO/LIST/DEBUG $(NAME_UC)'
 	@echo ">>> LINK/DEBUG $(NAME_UC)"
 	@$(VMSDRIVE) cmd 'LINK/DEBUG $(NAME_UC)'
+	@$(MAKE) --no-print-directory vms-fetch-lis
+
+# Release build -- no debugger stub. Required for any image that runs
+# as a detached process (e.g. a print symbiont via INITIALIZE/QUEUE
+# /PROCESSOR=...): a /DEBUG-linked image will try to attach the
+# debugger at activation time, find no DBG$INPUT/DBG$OUTPUT, and the
+# job controller reports %QMAN-E-SYMDEL with a -DEBUG-S- continuation
+# line. Use this target for symbionts, ACPs, and detached servers.
+vms-build-release: vms-push
+	@echo ">>> MACRO/LIST $(NAME_UC)"
+	@$(VMSDRIVE) cmd 'MACRO/LIST $(NAME_UC)'
+	@echo ">>> LINK/NOTRACEBACK/NODEBUG $(NAME_UC)"
+	@$(VMSDRIVE) cmd 'LINK/NOTRACEBACK/NODEBUG $(NAME_UC)'
 	@$(MAKE) --no-print-directory vms-fetch-lis
 
 vms-fetch-lis:

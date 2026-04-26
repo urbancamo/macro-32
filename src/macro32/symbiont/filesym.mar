@@ -1,0 +1,279 @@
+	.TITLE	FILESYM	User-modified print symbiont -- captures formatted output to a file
+	.IDENT	/V1.0/
+
+;++
+; FILESYM.MAR
+;
+;   A user-modified OpenVMS print symbiont (PSM-based) that intercepts
+;   the formatted output stream the standard print symbiont (PRTSMB)
+;   would otherwise have sent to a line printer, and writes it to a
+;   sequential RMS file under SYS$LOGIN: instead. The captured stream
+;   includes everything PRTSMB would have produced -- job and file
+;   burst pages, file headers, the file's contents, file trailers,
+;   form-feeds, embedded carriage-control, line wrapping at the form's
+;   width -- so the captured file reads as if it were the line
+;   printer's output spool.
+;
+;   Architecture (see reference/VAX-VMS-731/utility-routines.md
+;   chapter 17 for the full PSM API):
+;
+;       Job controller -- starts our image as the queue's processor.
+;
+;            v
+;
+;       FILESYM main routine
+;            calls PSM$REPLACE(PSM$K_OUTPUT, OUR_OUTPUT) to install
+;            our output service routine in place of PRTSMB's default,
+;            then calls PSM$PRINT() which enters the standard symbiont
+;            event loop. PSM$PRINT does not return until the queue is
+;            stopped.
+;
+;            v
+;
+;       Standard symbiont
+;            handles the input side -- reads the spool file, generates
+;            burst / flag / header / trailer pages, applies the queue's
+;            FORM characteristics (wrapping, carriage control), and
+;            calls our OUR_OUTPUT once per buffered record with one
+;            of:
+;
+;              PSM$K_OPEN              - establish "device" connection
+;              PSM$K_WRITE             - emit a formatted record
+;              PSM$K_WRITE_NOFORMAT    - emit a record verbatim
+;                                        (PASSALL / DCS sequences)
+;              PSM$K_CLOSE             - tear down
+;              other                   - return PSM$_FUNNOTSUP and let
+;                                        the symbiont apply its default
+;
+;            v
+;
+;       OUR_OUTPUT
+;            translates each PSM$K_WRITE into a sequential RMS $PUT
+;            against DISK$USERS:[MSW.CLAUDE]CAPTURED.PRN, opens the file on
+;            PSM$K_OPEN and closes it on PSM$K_CLOSE.
+;
+; Build:
+;   $ MACRO FILESYM
+;   $ LINK  FILESYM
+;
+; Install (typically once, after building -- requires OPER):
+;   $ COPY FILESYM.EXE SYS$SYSTEM:                   ! /PROCESSOR= only
+;                                                    ! looks in SYS$SYSTEM:
+;   $ INITIALIZE/QUEUE/PROCESSOR=FILESYM/ON=NL: FILEQ
+;   $ START/QUEUE FILEQ
+;
+; Use:
+;   $ PRINT/QUEUE=FILEQ/HEADER/FLAG MYFILE.LIS
+;   $ STOP/QUEUE/RESET FILEQ          ! flushes pending jobs + closes file
+;
+;   The captured output appears at DISK$USERS:[MSW.CLAUDE]CAPTURED.PRN
+;   -- a new file version each time the queue is started ($CREATE
+;   bumps ;ver).
+;
+;   Why a hardcoded SYSTEM-table path rather than SYS$LOGIN:?
+;   The symbiont runs as a SYSTEM-owned detached process which has
+;   no per-process logical name table from a normal login -- so
+;   SYS$LOGIN, SYS$SCRATCH, etc. do not exist there and $CREATE
+;   against them returns %RMS-F-SYN, killing the symbiont on
+;   PSM$K_OPEN. DISK$USERS: is in LNM$SYSTEM_TABLE and resolves the
+;   same in every process. SYSTEM has SYSPRV so writes into
+;   [MSW.CLAUDE] succeed even though MSW owns the directory.
+;
+;   Future enhancement: $TRNLNM("FILESYM$OUTPUT") at PSM$K_OPEN
+;   so the output path is configurable per install without rebuild.
+;
+; Notes:
+;   - /ON=NL: gives the queue a placeholder device. Our output routine
+;     never actually writes to it; we hijack PSM$K_WRITE before any
+;     device I/O happens.
+;   - The file is created with RFM=VAR and RAT=CR so each formatted
+;     record from the symbiont becomes one variable-length record in
+;     the captured file with conventional CR/LF carriage control.
+;     Form-feed bytes (^L, ^X0C) emitted by the symbiont survive
+;     intact inside the records.
+;   - We claim DEV_LOWERCASE in the device-status longword on
+;     PSM$K_OPEN so the symbiont preserves case in formatted output
+;     instead of folding to upper case (default for an unspecified
+;     line printer).
+;   - Single-threaded (1 stream) is sufficient for capturing one
+;     queue at a time.
+;
+; References consulted (all in this repo):
+;   reference/VAX-VMS-731/utility-routines.md
+;       Section 17.4 -- canonical user-modified-symbiont MACRO example
+;           (page-header replacement; same skeleton used here)
+;       USER-OUTPUT-ROUTINE -- 5 args (request_id, work_area, func,
+;           funcdesc, funcarg); function codes PSM$K_OPEN / WRITE /
+;           WRITE_NOFORMAT / CLOSE / CANCEL / unsupported; OPEN's
+;           funcarg receives the device-status longword
+;       PSM$REPLACE -- (code-by-ref, routine-addr) installs a service
+;       PSM$PRINT   -- ([streams-by-ref], [bufsiz-by-ref], ...) blocks
+;   reference/VAX-VMS-731/rms-reference.md
+;       $FAB FAC=PUT, ORG=SEQ, RFM=VAR, RAT=CR for sequential output
+;       $RAB FAB=...; RAB$L_RBF / RAB$W_RSZ patched per-record
+;       $CREATE / $CONNECT / $PUT / $CLOSE
+;   reference/VAX-VMS-731/vax-macro-ref-2001.md
+;       Chapter 5 -- @disp(AP) deferred-displacement to dereference
+;           a longword pointed to by an arg slot in one instruction
+;       Chapter 9 -- CMPL / BEQL / MOVL / MOVW operand semantics
+;--
+
+	.LIBRARY	/SYS$LIBRARY:LIB.MLB/
+
+	$PSMDEF			; PSM$K_OUTPUT, PSM$K_OPEN, PSM$K_WRITE,
+				; PSM$K_WRITE_NOFORMAT, PSM$K_CLOSE,
+				; PSM$_FUNNOTSUP
+	$DSCDEF			; descriptor field offsets (used implicitly)
+	$FABDEF			; FAB$L_* field offsets (referenced by $FAB)
+	$RABDEF			; RAB$L_* / RAB$W_* offsets (referenced by $RAB)
+	$SSDEF			; SS$_NORMAL
+
+;
+; Stack-arg offsets in OUR_OUTPUT (call signature is documented in
+; reference/VAX-VMS-731/utility-routines.md under USER-OUTPUT-ROUTINE).
+;
+	REQUEST_ID	= 4
+	WORK_AREA	= 8
+	FUNC		= 12
+	FUNC_DESC	= 16
+	FUNC_ARG	= 20
+
+;
+; Bit set in the device-status longword on PSM$K_OPEN. Bit 0 = device
+; can print lowercase letters; setting it stops the symbiont from
+; folding output to upper case. The PSM symbol for this isn't in the
+; reference manual's text -- we set bit 0 by convention (matches the
+; behaviour described under PSM$K_OPEN in utility-routines.md).
+;
+	DEV_LOWERCASE	= ^X01
+
+;
+; External entry points
+;
+	.EXTRN	PSM$REPLACE, PSM$PRINT
+
+;
+; Read/write data
+;
+	.PSECT	FILESYM_DATA, NOEXE, WRT, LONG
+
+; Code-by-reference longwords. PSM$REPLACE and PSM$PRINT all take their
+; arguments by reference, so we keep the values in static longwords
+; and PUSHAL their addresses.
+SVC_CODE:	.LONG	PSM$K_OUTPUT		; service we replace
+STREAMS:	.LONG	1			; one stream is enough
+BUFSIZ:		.LONG	2048			; per-record output buffer
+
+; RMS control blocks. Both must be longword-aligned (the assembler
+; will warn loudly otherwise). The output file is RFM=VAR with RAT=CR
+; so each formatted PSM record becomes one variable-length record
+; with default CR/LF carriage control, which TYPE / EDIT / PRINT all
+; handle naturally.
+	.ALIGN	LONG
+LOG_FAB:
+	$FAB	FNM = <DISK$USERS:[MSW.CLAUDE]CAPTURED.PRN>,	-
+		FAC = PUT,				-
+		ORG = SEQ,				-
+		RFM = VAR,				-
+		RAT = CR
+
+	.ALIGN	LONG
+LOG_RAB:
+	$RAB	FAB = LOG_FAB
+
+;
+; Code
+;
+	.PSECT	FILESYM_CODE, EXE, NOWRT, LONG
+
+;++
+; FILESYM -- main entry, invoked by the job controller when our image
+; is started as a queue processor. Replaces the standard symbiont's
+; OUTPUT routine with ours and then runs the symbiont event loop.
+;-
+	.ENTRY	FILESYM, ^M<>
+
+	; PSM$REPLACE (code, routine)
+	PUSHAL	OUR_OUTPUT			; arg 2: routine address
+	PUSHAL	SVC_CODE			; arg 1: service code (by ref)
+	CALLS	#2, G^PSM$REPLACE
+	BLBS	R0, 1$
+	RET					; replace failed -- propagate R0
+
+1$:	; PSM$PRINT ([streams], [bufsiz], ...)
+	PUSHAL	BUFSIZ				; arg 2: max output buffer size
+	PUSHAL	STREAMS				; arg 1: stream count
+	CALLS	#2, G^PSM$PRINT
+	RET					; symbiont's exit status -> R0
+
+;++
+; OUR_OUTPUT (request_id, work_area, func, funcdesc, funcarg)
+;
+;   Called by the standard symbiont once per output operation. We
+;   dispatch on the function code and either:
+;     - PSM$K_OPEN              create + connect the capture file
+;     - PSM$K_WRITE / WRITE_NF  $PUT one record from funcdesc
+;     - PSM$K_CLOSE             close the capture file
+;     - any other code          return PSM$_FUNNOTSUP and let the
+;                               symbiont apply its default behaviour
+;   Status returned in R0 is propagated to the symbiont; an
+;   error-severity status on PSM$K_OPEN aborts the queue.
+;-
+	.ENTRY	OUR_OUTPUT, ^M<R2>
+
+	; Dispatch on the function code (one MOVL via deferred disp).
+	CMPL	#PSM$K_WRITE, @FUNC(AP)
+	BEQL	DO_WRITE
+	CMPL	#PSM$K_WRITE_NOFORMAT, @FUNC(AP)
+	BEQL	DO_WRITE
+	CMPL	#PSM$K_OPEN, @FUNC(AP)
+	BEQL	DO_OPEN
+	CMPL	#PSM$K_CLOSE, @FUNC(AP)
+	BEQL	DO_CLOSE
+
+	; Anything else: tell the symbiont we don't handle this code so
+	; it falls back to its default behaviour for the function.
+	MOVL	#PSM$_FUNNOTSUP, R0
+	RET
+
+;
+; PSM$K_OPEN: open the capture file and report device capability.
+;
+DO_OPEN:
+	$CREATE	FAB = LOG_FAB
+	BLBS	R0, 11$
+	RET					; create failed -- propagate
+11$:	$CONNECT RAB = LOG_RAB
+	BLBS	R0, 12$
+	RET					; connect failed -- propagate
+12$:	; Set device-status bits in the longword pointed to by funcarg
+	; so the symbiont knows we accept lowercase output.
+	MOVL	#DEV_LOWERCASE, @FUNC_ARG(AP)
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; PSM$K_WRITE / PSM$K_WRITE_NOFORMAT: $PUT the record described by
+; funcdesc. funcdesc points to a string descriptor whose first word
+; is the byte count and whose 4-byte pointer (offset 4) addresses
+; the data. We patch the RAB's RBF (record buffer ptr) and RSZ (size)
+; fields, then $PUT.
+;
+DO_WRITE:
+	MOVL	FUNC_DESC(AP), R2		; R2 -> descriptor
+	MOVW	(R2), LOG_RAB+RAB$W_RSZ		; size  (word) <- DSC$W_LENGTH
+	MOVL	4(R2), LOG_RAB+RAB$L_RBF	; addr  (long) <- DSC$A_POINTER
+	$PUT	RAB = LOG_RAB
+	RET					; $PUT status -> R0
+
+;
+; PSM$K_CLOSE: flush + close. We always report SS$_NORMAL so the
+; queue stops cleanly even if $CLOSE has nothing to do (e.g. on a
+; queue restart that calls CLOSE before OPEN has succeeded).
+;
+DO_CLOSE:
+	$CLOSE	FAB = LOG_FAB
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+	.END	FILESYM

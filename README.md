@@ -220,6 +220,20 @@ fallback install, colour-category breakdown, the known `$`-tokenizer
 caveat, and how the keyword lists were generated from the reference
 corpus.
 
+## Custom print symbiont (PRINT.md)
+
+`src/macro32/symbiont/filesym.mar` is a working OpenVMS print symbiont
+built on the PSM (Print Symbiont Modification) API: it looks like a
+normal print queue but writes the formatted output stream -- burst
+pages, flag pages, file headers, form-feeds, the lot -- to an RMS
+file on disk instead of to a printer. See [`PRINT.md`](PRINT.md) for
+the design walk-through, the OPER-required install steps from SYSTEM,
+day-to-day use, customization (output path, record format, multi-
+queue support), the rebuild cycle, and the gotcha index from
+debugging the install (most importantly: use `make vms-build-release`,
+not `make vms-build` -- a `/DEBUG`-linked symbiont dies on activation
+in the detached process).
+
 ## License
 
 GPL-3.0 -- see `LICENSE`.
