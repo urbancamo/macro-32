@@ -4,3 +4,9 @@
 .claude/scheduled_tasks.lock
 .venv/
 __pycache__/
+.env
+.env.local
+# build artifacts pulled back from VMS
+src/macro32/**/*.lis
+src/macro32/**/*.log
+src/macro32/**/*.txt
