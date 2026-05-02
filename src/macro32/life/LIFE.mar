@@ -1,0 +1,653 @@
+	.TITLE	LIFE	Conway's Game of Life via SMG$
+	.IDENT	/V1.0/
+
+;++
+; LIFE.MAR
+;
+;   Animates Conway's Game of Life on the controlling terminal using
+;   the OpenVMS Screen Management run-time library.  A Gosper glider
+;   gun is seeded into a 78x22 toroidal grid; each generation is
+;   recomputed and rendered as a single batched pasteboard update at
+;   ~10 frames per second.
+;
+;   Input is fully decoupled from the render loop.  An async $QIO
+;   read on SYS$INPUT with an AST handler lets the user press 'q'
+;   to quit or SPACE to pause/resume *between* frames -- the main
+;   loop never blocks on a keyboard read.
+;
+; Flow:
+;   1. SMG$CREATE_PASTEBOARD on SYS$OUTPUT.
+;   2. SMG$CREATE_VIRTUAL_DISPLAY (rows=22, cols=78, SMG$M_BORDER).
+;   3. SMG$PASTE_VIRTUAL_DISPLAY at (2,2) -- border hugs screen edges.
+;   4. SMG$LABEL_BORDER bottom: "[ q=quit  space=pause ]".
+;   5. SYS$ASSIGN a private channel to SYS$INPUT for raw byte reads.
+;   6. Zero both grid buffers, seed the glider gun into CURR.
+;   7. QUEUE_READ: arm the first async $QIO with KEY_AST.
+;   8. Main loop (~10 fps):
+;        a. RENDER: SMG$BEGIN_PASTEBOARD_UPDATE, write each grid row
+;           as one SMG$PUT_CHARS call (live -> '*', dead -> ' '),
+;           SMG$END_PASTEBOARD_UPDATE -- screen flushes atomically.
+;        b. If PAUSE_FLAG == 0:  STEP (CURR -> NEXT) + SWAP_BUFS.
+;        c. LIB$WAIT 0.1 seconds.  ASTs may fire during the wait.
+;        d. If QUIT_FLAG != 0, leave the loop.
+;   9. SYS$DASSGN, SMG$DELETE_VIRTUAL_DISPLAY, SMG$DELETE_PASTEBOARD;
+;      return SS$_NORMAL.
+;
+;   KEY_AST runs at AST level when one byte arrives on the input
+;   channel.  It examines the byte, sets QUIT_FLAG / toggles
+;   PAUSE_FLAG, and (unless quitting) re-arms the next $QIO so the
+;   following keystroke is also caught.
+;
+; Conway rules (toroidal):
+;   - alive cell with 2 or 3 live neighbours stays alive
+;   - dead cell with exactly 3 live neighbours becomes alive
+;   - all other cells die / stay dead
+;   "Toroidal" means edges wrap: the cell to the left of column 0 is
+;   column 77, etc. -- avoids special-casing the boundary.
+;
+; References consulted (all in this repo):
+;   reference/VAX-VMS-731/rtl-smg.md
+;       SMG$CREATE_PASTEBOARD, SMG$CREATE_VIRTUAL_DISPLAY,
+;       SMG$CREATE_VIRTUAL_KEYBOARD, SMG$PASTE_VIRTUAL_DISPLAY,
+;       SMG$LABEL_BORDER, SMG$BEGIN_PASTEBOARD_UPDATE,
+;       SMG$END_PASTEBOARD_UPDATE, SMG$PUT_CHARS, SMG$READ_KEYSTROKE,
+;       SMG$DELETE_VIRTUAL_DISPLAY, SMG$DELETE_PASTEBOARD
+;   reference/VAX-VMS-731/vax-macro-ref-2001.md
+;       Chapter 9 -- ADDL3, MULL3, MOVZBL, MOVB, indexed addressing
+;       (Rb)[Rx], MNEGL, SOBGTR, BLSS/BGEQ byte-range workaround.
+;   src/macro32/smg/SMGHELLO.mar -- canonical SMG$ MACRO-32 calling
+;       template; this file extends that pattern with batched output
+;       and a timed read.
+;
+; Build / run:
+;   $ make vms-build PROG=life/life
+;   $ make vms-run   PROG=life/life
+;--
+
+	$SMGDEF					; SMG$M_BORDER, SMG$K_BOTTOM
+	$SSDEF					; SS$_NORMAL
+	$DSCDEF					; DSC$K_DTYPE_T, DSC$K_CLASS_S
+	$IODEF					; IO$_READVBLK, IO$_SENSEMODE,
+						; IO$_SETMODE, IO$M_NOECHO,
+						; IO$M_NOFILTR
+	$TTDEF					; TT$M_PASSALL
+
+	ROWS    = 22				; cells tall
+	COLS    = 78				; cells wide
+	CELLS   = ROWS*COLS			; 1716 cells per buffer
+
+	LIVE_CH = ^A/*/				; live-cell glyph
+	DEAD_CH = ^A/ /				; dead-cell glyph
+
+;
+; External run-time library routines (resolved from IMAGELIB)
+;
+	.EXTRN	SMG$CREATE_PASTEBOARD
+	.EXTRN	SMG$CREATE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$PASTE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$LABEL_BORDER
+	.EXTRN	SMG$BEGIN_PASTEBOARD_UPDATE
+	.EXTRN	SMG$END_PASTEBOARD_UPDATE
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SMG$DELETE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$DELETE_PASTEBOARD
+	.EXTRN	SYS$ASSIGN
+	.EXTRN	SYS$QIO
+	.EXTRN	SYS$QIOW
+	.EXTRN	SYS$DASSGN
+	.EXTRN	LIB$WAIT
+
+
+;
+; Read/write data
+;
+	.PSECT	LIFE_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+PB_ID:		.BLKL	1			; pasteboard id
+PB_ROWS:	.BLKL	1			; terminal rows  (SMG$CREATE_PASTEBOARD out)
+PB_COLS:	.BLKL	1			; terminal cols  (SMG$CREATE_PASTEBOARD out)
+DISP_ID:	.BLKL	1			; virtual display id
+
+NUM_ROWS:	.LONG	ROWS
+NUM_COLS:	.LONG	COLS
+DISP_ATTR:	.LONG	SMG$M_BORDER
+PASTE_ROW:	.LONG	2
+PASTE_COL:	.LONG	2
+
+BOT_POS:	.LONG	SMG$K_BOTTOM
+HELP_DSC:	.ASCID	/[ q=quit  space=pause ]/
+
+;
+; Async-input plumbing: a private channel on SYS$INPUT, an IOSB,
+; a 1-byte read buffer, and the AST-set flags the main loop watches.
+;
+INPUT_DEV:	.ASCID	/SYS$INPUT/
+
+	.ALIGN	LONG
+INPUT_CHAN:	.BLKL	1			; $ASSIGN writes the channel
+						; in the low word; high word
+						; stays 0 from BSS init so the
+						; whole longword is safe to
+						; PUSHL into $QIO's chan arg.
+	.ALIGN	LONG
+INPUT_IOSB:	.BLKQ	1			; longword alignment is fine
+						; for $QIO IOSB on VAX
+	.ALIGN	LONG
+INPUT_BUF:	.BLKB	4			; 1-byte read; padded to long
+
+;
+; Terminal characteristics buffers for IO$_SENSEMODE / IO$_SETMODE.
+; Layout (12 bytes): class+type+page-width (4), TT$M_* basic (4),
+; TT2$M_* extended (4).  We sense the current state into TT_CHAR,
+; flip TT$M_PASSALL on our copy and re-apply it (so $QIO READVBLK
+; completes after one byte), and on exit restore TT_ORIG verbatim.
+;
+	.ALIGN	LONG
+TT_CHAR:	.BLKB	12
+	.ALIGN	LONG
+TT_ORIG:	.BLKB	12
+TT_BUF_LEN:	.LONG	12
+
+	.ALIGN	LONG
+QUIT_FLAG:	.LONG	0			; KEY_AST sets this on q/Q
+PAUSE_FLAG:	.LONG	0			; KEY_AST flips bit 0 on space
+
+;
+; LIB$WAIT seconds (F-floating, rounded to hundredths).
+;
+	.ALIGN	LONG
+WAIT_TIME:	.F_FLOATING 0.1
+
+;
+; Generation counter -- visible at the debugger prompt; not rendered.
+;
+GEN:		.LONG	0
+
+;
+; Grid buffers and the swappable CURR / NEXT pointers.
+; A byte == 0 means dead, 1 means alive.
+;
+	.ALIGN	LONG
+CURR_PTR:	.ADDRESS GRID0
+NEXT_PTR:	.ADDRESS GRID1
+
+	.ALIGN	LONG
+GRID0:		.BLKB	CELLS
+	.ALIGN	LONG
+GRID1:		.BLKB	CELLS
+
+;
+; Render scratch: a single 78-byte ASCII row passed to SMG$PUT_CHARS.
+; The descriptor points at ROW_BUF and is reused every iteration.
+;
+	.ALIGN	LONG
+ROW_BUF:	.BLKB	COLS
+	.ALIGN	LONG
+ROW_DSC:	.WORD	COLS			; dsc$w_length
+		.BYTE	DSC$K_DTYPE_T		; dsc$b_dtype  (text)
+		.BYTE	DSC$K_CLASS_S		; dsc$b_class  (static)
+		.ADDRESS ROW_BUF		; dsc$a_pointer
+
+SROW:		.LONG	1			; SMG start-row,    set per row
+SCOL:		.LONG	1			; SMG start-column, always 1
+
+;
+; Initial pattern: Gosper glider gun.  (row, col) byte pairs in
+; pattern-local coordinates, terminated by 255,255.  Plotted into
+; CURR offset by (PAT_ROW_OFF, PAT_COL_OFF).  Pattern bounding box
+; is 9 rows x 36 cols, so it fits comfortably in the 22 x 78 grid.
+;
+GLIDER_GUN:
+	.BYTE	0,24
+	.BYTE	1,22, 1,24
+	.BYTE	2,12, 2,13, 2,20, 2,21, 2,34, 2,35
+	.BYTE	3,11, 3,15, 3,20, 3,21, 3,34, 3,35
+	.BYTE	4, 0, 4, 1, 4,10, 4,16, 4,20, 4,21
+	.BYTE	5, 0, 5, 1, 5,10, 5,14, 5,16, 5,17, 5,22, 5,24
+	.BYTE	6,10, 6,16, 6,24
+	.BYTE	7,11, 7,15
+	.BYTE	8,12, 8,13
+	.BYTE	255,255
+
+PAT_ROW_OFF:	.LONG	5
+PAT_COL_OFF:	.LONG	2
+
+
+;
+; Code
+;
+	.PSECT	LIFE_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  MAIN ENTRY POINT
+; ===========================================================
+;
+	.ENTRY	LIFE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+;
+; --- 1. Create pasteboard on SYS$OUTPUT.  CLRL -(SP) for the
+;        output-device argument selects the controlling terminal.
+;
+	PUSHAL	PB_COLS
+	PUSHAL	PB_ROWS
+	CLRL	-(SP)
+	PUSHAL	PB_ID
+	CALLS	#4, G^SMG$CREATE_PASTEBOARD
+	BLBS	R0, 10$
+	RET
+10$:
+
+;
+; --- 2. Create the bordered virtual display (interior ROWS x COLS).
+;
+	PUSHAL	DISP_ATTR
+	PUSHAL	DISP_ID
+	PUSHAL	NUM_COLS
+	PUSHAL	NUM_ROWS
+	CALLS	#4, G^SMG$CREATE_VIRTUAL_DISPLAY
+	BLBS	R0, 20$
+	RET
+20$:
+
+;
+; --- 3. Paste display so its border sits on the outer ring of an
+;        80x24 terminal.
+;
+	PUSHAL	PASTE_COL
+	PUSHAL	PASTE_ROW
+	PUSHAL	PB_ID
+	PUSHAL	DISP_ID
+	CALLS	#4, G^SMG$PASTE_VIRTUAL_DISPLAY
+	BLBS	R0, 30$
+	RET
+30$:
+
+;
+; --- 4. Decorative bottom-border label.  Best-effort: a failure
+;        here is not fatal, so we ignore the return status.
+;
+	PUSHAL	BOT_POS
+	PUSHAL	HELP_DSC
+	PUSHAL	DISP_ID
+	CALLS	#3, G^SMG$LABEL_BORDER
+
+;
+; --- 5. Assign a private I/O channel to SYS$INPUT.  We will read
+;        single bytes from this channel via async $QIO with an AST,
+;        decoupling input handling from the render/step loop.
+;
+	CLRL	-(SP)				; flags
+	CLRL	-(SP)				; mbxnam
+	CLRL	-(SP)				; acmode (caller mode)
+	PUSHAL	INPUT_CHAN
+	PUSHAL	INPUT_DEV
+	CALLS	#5, G^SYS$ASSIGN
+	BLBS	R0, 40$
+	RET
+40$:
+
+;
+; --- 5b. Switch our channel to PASSALL so IO$_READVBLK with P2=1
+;         returns each keystroke immediately, instead of waiting
+;         for the line terminator (CR) that line-mode editing
+;         requires.  We sense first, save the original state into
+;         TT_ORIG, then OR in TT$M_PASSALL and SETMODE the result.
+;
+	$QIOW_S	chan=INPUT_CHAN, -
+		func=#IO$_SENSEMODE, -
+		iosb=INPUT_IOSB, -
+		p1=TT_CHAR, p2=#12
+	BLBS	R0, 41$
+	RET
+41$:
+	MOVC3	#12, TT_CHAR, TT_ORIG
+	BISL2	#TT$M_PASSALL, TT_CHAR+4
+
+	$QIOW_S	chan=INPUT_CHAN, -
+		func=#IO$_SETMODE, -
+		iosb=INPUT_IOSB, -
+		p1=TT_CHAR, p2=#12
+	BLBS	R0, 42$
+	RET
+42$:
+
+;
+; --- 6. Zero both grids, then seed the glider gun into GRID0.
+;
+	MOVAB	GRID0, R0
+	MOVL	#CELLS, R1
+50$:	CLRB	(R0)+
+	SOBGTR	R1, 50$
+
+	MOVAB	GRID1, R0
+	MOVL	#CELLS, R1
+60$:	CLRB	(R0)+
+	SOBGTR	R1, 60$
+
+	BSBW	SEED_GUN
+
+;
+; --- 7. Arm the first async keystroke read.  KEY_AST will fire
+;        when a byte arrives and either set QUIT_FLAG / toggle
+;        PAUSE_FLAG, then re-arm itself.
+;
+	BSBW	QUEUE_READ
+
+;
+; --- 8. Main animation loop (~10 fps).  ASTs are delivered during
+;        LIB$WAIT, so by the time we recheck the flags below the
+;        latest keystroke has already been processed.
+;
+LOOP:
+	BSBW	RENDER				; paint CURR
+	TSTL	PAUSE_FLAG
+	BNEQ	80$				; paused: skip step + swap
+	BSBW	STEP				; CURR -> NEXT
+	BSBW	SWAP_BUFS			; CURR <-> NEXT pointers
+	INCL	GEN
+80$:
+	PUSHAL	WAIT_TIME
+	CALLS	#1, G^LIB$WAIT			; ~0.1 s; ASTs may fire here
+
+	TSTL	QUIT_FLAG
+	BNEQ	EXIT_OK
+	BRW	LOOP
+
+EXIT_OK:
+	; Restore the original terminal characteristics, then drop
+	; the channel.  Best-effort: if the restore fails we still
+	; want to tear down the rest of the SMG state.
+	PUSHL	TT_BUF_LEN
+	PUSHAL	TT_ORIG
+	CLRL	-(SP)
+	CLRL	-(SP)
+	PUSHAL	INPUT_IOSB
+	PUSHL	#IO$_SETMODE
+	PUSHL	INPUT_CHAN
+	CLRL	-(SP)
+	CALLS	#8, G^SYS$QIOW
+
+	PUSHL	INPUT_CHAN
+	CALLS	#1, G^SYS$DASSGN		; tear down our input channel
+	PUSHAL	DISP_ID
+	CALLS	#1, G^SMG$DELETE_VIRTUAL_DISPLAY
+	PUSHAL	PB_ID
+	CALLS	#1, G^SMG$DELETE_PASTEBOARD
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  SEED_GUN -- plot GLIDER_GUN bytes into CURR with a
+;              (PAT_ROW_OFF, PAT_COL_OFF) translation.
+;              Walks (row, col) pairs until the 255,255 terminator.
+;              Clobbers R0-R5.
+; ===========================================================
+;
+SEED_GUN:
+	MOVAB	GLIDER_GUN, R0			; pattern walker
+	MOVL	CURR_PTR, R1			; grid base
+1$:
+	MOVZBL	(R0)+, R2			; row byte
+	CMPL	R2, #255
+	BEQL	2$
+	MOVZBL	(R0)+, R3			; col byte
+	ADDL2	PAT_ROW_OFF, R2
+	ADDL2	PAT_COL_OFF, R3
+	MULL3	#COLS, R2, R4			; idx = row*COLS + col
+	ADDL2	R3, R4
+	MOVB	#1, (R1)[R4]
+	BRB	1$
+2$:
+	RSB
+
+
+;
+; ===========================================================
+;  RENDER -- paint CURR onto the virtual display, batched.
+;            Builds one ASCII row at a time and emits it via
+;            SMG$PUT_CHARS so that the terminal sees a single
+;            atomic update for the whole frame.
+;            Clobbers R0-R5, R8, R9.
+; ===========================================================
+;
+RENDER:
+	PUSHAL	PB_ID
+	CALLS	#1, G^SMG$BEGIN_PASTEBOARD_UPDATE
+
+	MOVL	CURR_PTR, R8			; grid base
+	CLRL	R9				; row index 0..ROWS-1
+R_RLOOP:
+	; Build ROW_BUF from grid row R9.
+	MOVAB	ROW_BUF, R0			; dst pointer
+	MULL3	#COLS, R9, R1			; src offset = R9 * COLS
+	ADDL2	R8, R1				; src pointer
+	MOVL	#COLS, R2			; remaining cols
+1$:	TSTB	(R1)+
+	BEQL	2$
+	MOVB	#LIVE_CH, (R0)+
+	BRB	3$
+2$:	MOVB	#DEAD_CH, (R0)+
+3$:	SOBGTR	R2, 1$
+
+	; SMG row index = grid row + 1 (SMG is 1-based)
+	ADDL3	#1, R9, SROW
+
+	PUSHAL	SCOL
+	PUSHAL	SROW
+	PUSHAL	ROW_DSC
+	PUSHAL	DISP_ID
+	CALLS	#4, G^SMG$PUT_CHARS
+	; ignore failure -- if a single row fails to paint we still
+	; want to advance and try the rest of the frame
+
+	INCL	R9
+	CMPL	R9, #ROWS
+	BGEQ	R_RDONE				; long-jump-friendly inverted test
+	BRW	R_RLOOP
+R_RDONE:
+
+	PUSHAL	PB_ID
+	CALLS	#1, G^SMG$END_PASTEBOARD_UPDATE
+	RSB
+
+
+;
+; ===========================================================
+;  STEP -- compute one Conway generation: CURR -> NEXT.
+;          Toroidal: row/column indices wrap modulo ROWS/COLS.
+;          Outer registers across the full nest:
+;            R6 = CURR base, R7 = NEXT base,
+;            R8 = r, R9 = c, R10 = dr, R11 = dc.
+;          Inner working: R0 = neighbour count, R1 = rn, R2 = cn,
+;                         R3 = idx, R4 = scratch.
+;          Backward branches that span the nested body are written
+;          as inverted-condition + BRW (BLSS/BGEQ are byte-range).
+; ===========================================================
+;
+STEP:
+	MOVL	CURR_PTR, R6
+	MOVL	NEXT_PTR, R7
+	CLRL	R8				; r = 0
+S_RLOOP:
+	CLRL	R9				; c = 0
+S_CLOOP:
+	CLRL	R0				; neighbour count
+	MNEGL	#1, R10				; dr = -1
+S_DRLOOP:
+	; rn = r + dr  with toroidal wrap into [0, ROWS)
+	ADDL3	R10, R8, R1
+	BGEQ	1$
+	ADDL2	#ROWS, R1
+	BRB	2$
+1$:	CMPL	R1, #ROWS
+	BLSS	2$
+	SUBL2	#ROWS, R1
+2$:
+	MNEGL	#1, R11				; dc = -1
+S_DCLOOP:
+	; skip the centre cell (dr == 0 && dc == 0)
+	TSTL	R10
+	BNEQ	5$
+	TSTL	R11
+	BNEQ	5$
+	BRB	S_INCDC
+5$:
+	; cn = c + dc  with toroidal wrap into [0, COLS)
+	ADDL3	R11, R9, R2
+	BGEQ	6$
+	ADDL2	#COLS, R2
+	BRB	7$
+6$:	CMPL	R2, #COLS
+	BLSS	7$
+	SUBL2	#COLS, R2
+7$:
+	; idx = rn * COLS + cn ; count += CURR[idx]
+	MULL3	#COLS, R1, R3
+	ADDL2	R2, R3
+	MOVZBL	(R6)[R3], R4
+	ADDL2	R4, R0
+
+S_INCDC:
+	INCL	R11
+	CMPL	R11, #2
+	BGEQ	S_DCDONE			; inverted -- DCLOOP body is large
+	BRW	S_DCLOOP
+S_DCDONE:
+
+	INCL	R10
+	CMPL	R10, #2
+	BGEQ	S_DRDONE
+	BRW	S_DRLOOP
+S_DRDONE:
+
+	; Apply Conway B3/S23.  alive = CURR[r*COLS + c]
+	MULL3	#COLS, R8, R3
+	ADDL2	R9, R3
+	MOVZBL	(R6)[R3], R4
+	TSTL	R4
+	BEQL	S_DEAD
+	; alive: stays alive iff count in {2, 3}
+	CMPL	R0, #2
+	BEQL	S_LIVE
+	CMPL	R0, #3
+	BEQL	S_LIVE
+	BRB	S_KILL
+S_DEAD:
+	; dead: becomes alive iff count == 3
+	CMPL	R0, #3
+	BEQL	S_LIVE
+S_KILL:
+	CLRB	(R7)[R3]
+	BRB	S_INCC
+S_LIVE:
+	MOVB	#1, (R7)[R3]
+S_INCC:
+	INCL	R9
+	CMPL	R9, #COLS
+	BGEQ	S_CDONE
+	BRW	S_CLOOP
+S_CDONE:
+
+	INCL	R8
+	CMPL	R8, #ROWS
+	BGEQ	S_RDONE
+	BRW	S_RLOOP
+S_RDONE:
+	RSB
+
+
+;
+; ===========================================================
+;  SWAP_BUFS -- swap the CURR and NEXT pointers.
+;               The previous "next" generation becomes the new
+;               "current" for the upcoming render.
+; ===========================================================
+;
+SWAP_BUFS:
+	MOVL	CURR_PTR, R0
+	MOVL	NEXT_PTR, CURR_PTR
+	MOVL	R0, NEXT_PTR
+	RSB
+
+
+;
+; ===========================================================
+;  QUEUE_READ -- arm one asynchronous single-byte read on
+;                INPUT_CHAN.  When the byte arrives, KEY_AST
+;                runs at AST level.
+;
+;  We use the $QIO_S system-service macro from STARLET.MLB
+;  rather than a hand-rolled PUSHAL / CALLS sequence.  The macro
+;  builds the full 12-slot system-service argument list (filling
+;  unused slots with zero) and issues CHMK directly, which is
+;  what the kernel's argument-count check actually wants -- a
+;  short CALLS #N with N < 12 returns SS$_INSFARG.
+;
+;  IO$M_NOFILTR by itself is not enough to bypass terminal line
+;  editing -- the channel must also be in TT$M_PASSALL mode,
+;  which step 5b of the main entry sets up via SENSEMODE/SETMODE.
+;
+;  Clobbers R0 (status), and any registers $QIO_S spills.
+; ===========================================================
+;
+QUEUE_READ:
+	$QIO_S	chan=INPUT_CHAN, -
+		func=#<IO$_READVBLK!IO$M_NOECHO!IO$M_NOFILTR>, -
+		iosb=INPUT_IOSB, -
+		astadr=KEY_AST, -
+		p1=INPUT_BUF, p2=#1
+	RSB
+
+
+;
+; ===========================================================
+;  KEY_AST -- I/O completion AST.  Invoked at AST level when one
+;             byte has been read into INPUT_BUF.
+;
+;             Standard VAX AST argument list at (AP):
+;               4(AP)  AST parameter (we passed 0)
+;               8(AP)  saved R0
+;              12(AP)  saved R1
+;              16(AP)  PC at AST delivery
+;              20(AP)  PSL at AST delivery
+;             We only care about INPUT_BUF[0].
+;
+;             Recognised keys:
+;               'q' / 'Q'  -> set QUIT_FLAG, do not re-arm
+;               ' '        -> XOR PAUSE_FLAG bit 0, re-arm
+;               anything else  -> re-arm to catch the next key
+;
+;             Setting QUIT_FLAG and skipping the re-arm guarantees
+;             the loop exits on its next LIB$WAIT cycle without
+;             leaving a pending I/O on the channel for $DASSGN to
+;             cancel.
+; ===========================================================
+;
+	.ENTRY	KEY_AST, ^M<>
+
+	MOVZBL	INPUT_BUF, R0
+	CMPL	R0, #^A/q/
+	BEQL	K_QUIT
+	CMPL	R0, #^A/Q/
+	BEQL	K_QUIT
+	CMPL	R0, #^A/ /
+	BEQL	K_PAUSE
+	BRB	K_REARM
+
+K_QUIT:
+	MOVL	#1, QUIT_FLAG
+	RET
+
+K_PAUSE:
+	XORL2	#1, PAUSE_FLAG				; toggle 0 <-> 1
+	; fall through
+
+K_REARM:
+	BSBW	QUEUE_READ
+	RET
+
+	.END	LIFE
