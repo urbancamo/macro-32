@@ -1,0 +1,480 @@
+	.TITLE	STRANGER  W/A/T encounter menu, leader priority, reaction test
+	.IDENT	/V0.1/
+
+;++
+; STRANGER.MAR
+;
+; Public:
+;   STRANGER_ENCOUNTER  --  no args.  Reads CHAMBER's SLOT_S/NS,
+;                           runs the full W/A/T loop until the
+;                           encounter is resolved.
+;
+; Resolution paths:
+;   W -- Withdraw: move party back to SCAVE_MAP_PP, leave the
+;        strangers + treasure in the chamber, end turn.
+;   A -- Attack:  call DO_ATTACK (simplified single-round combat).
+;        Surprise = +1 to us.
+;   T -- Test:    roll die for the leader, look up reaction table.
+;                 hostile  -> DO_ATTACK with surprise = -1
+;                 indiff   -> end turn (Stage 4 v1: simple counter)
+;                 friendly -> add all strangers to party as allies
+;                             and pick up treasure
+;--
+
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$PUT_CHARS
+
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	PAINT_AT_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	ROLL_DIE
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
+	.EXTRN	SCAVE_PARTY_PT
+	.EXTRN	SCAVE_STATE_NC
+	.EXTRN	SCAVE_FIGHT_FS
+
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_CR_LEADER_PRI
+	.EXTRN	SCAVE_DATA_CR_HOSTILE_MAX
+	.EXTRN	SCAVE_DATA_CR_INDIFF_MAX
+
+;
+; STATE.MAR per-chamber working set (filled by CHAMBER.MAR).
+;
+	.EXTRN	SCAVE_CHAMBER_NS
+	.EXTRN	SCAVE_CHAMBER_CS
+	.EXTRN	SCAVE_STATE_GS
+
+
+	.PSECT	SCAVE_STRANGER_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+ROW_TMP:	.BLKL	1
+LEADER_IDX:	.LONG	0			; index of strongest stranger leader
+
+;
+; Static prompts/messages.
+;
+DSC_PROMPT_WAT:		.ASCID	/[W]ithdraw    [A]ttack    [T]est reaction/
+DSC_TESTING:		.ASCID	/Testing the leader's reaction.../
+DSC_HOSTILE:		.ASCID	/HOSTILE!  They attack with surprise./
+DSC_INDIFF:		.ASCID	/Indifferent.  They watch you warily./
+DSC_FRIENDLY:		.ASCID	/Friendly!  They join your party./
+DSC_WITHDRAW:		.ASCID	/You withdraw the way you came./
+
+
+	.PSECT	SCAVE_STRANGER_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  STRANGER_ENCOUNTER  --  loops until the encounter is resolved
+;                          (withdraw / attack / friendly recruit
+;                          / indifferent end-of-turn).
+; ===========================================================
+;
+	.ENTRY	STRANGER_ENCOUNTER, ^M<R2,R3,R4,R5,R6,R7,R8>
+
+	BSBW	FIND_LEADER
+
+E_LOOP:
+	; The chamber-intro screen has already painted the strangers;
+	; just paint the prompt at row 17 and wait.
+	MOVL	#17, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_WAT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^READ_KEY
+	MOVL	R0, R6				; key
+
+	CMPL	R6, #^A/W/
+	BEQL	E_WITHDRAW
+	CMPL	R6, #^A/w/
+	BEQL	E_WITHDRAW
+	CMPL	R6, #^A/A/
+	BEQL	E_ATTACK
+	CMPL	R6, #^A/a/
+	BEQL	E_ATTACK
+	CMPL	R6, #^A/T/
+	BEQL	E_TEST
+	CMPL	R6, #^A/t/
+	BEQL	E_TEST
+	BRB	E_LOOP
+
+E_WITHDRAW:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_WITHDRAW
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+
+	; Move party back to PP.  PP was set by TRY_MOVE before the
+	; chamber dispatch.  Keep level as-is (PP is on the same level
+	; for normal moves; for stairs the level update is more involved
+	; and we simplify Stage 4).
+	MOVL	SCAVE_MAP_PP, R0
+	BEQL	1$				; no PP -- shouldn't happen
+	MOVL	R0, SCAVE_MAP_PA
+1$:	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+E_ATTACK:
+	MOVL	#1, SCAVE_FIGHT_FS		; we have surprise
+	BSBW	DO_ATTACK
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+E_TEST:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_TESTING
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6 raw roll
+	MOVL	R0, R5				; R5 = roll
+
+	; Modifiers per the rules: +1 if any HERO or W-HERO in party,
+	; -NC for curses.  A raw 1 always counts as 1 (hostile) -- we
+	; check that AFTER applying the modifiers.
+	BSBW	HAS_CHARISMA
+	TSTL	R0
+	BEQL	1$
+	INCL	R5
+1$:
+	SUBL2	SCAVE_STATE_NC, R5
+	; Clamp to [1..6]
+	CMPL	R5, #1
+	BGEQ	2$
+	MOVL	#1, R5
+2$:	CMPL	R5, #6
+	BLEQ	3$
+	MOVL	#6, R5
+3$:
+	; If the raw roll was 1 the result is hostile regardless.
+	CMPL	R0, #1
+	BNEQ	4$
+	MOVL	#1, R5				; force result roll to 1 (hostile)
+4$:
+
+	; Look up tables[leader].
+	MOVL	LEADER_IDX, R2
+	MOVAB	SCAVE_DATA_CR_HOSTILE_MAX, R3
+	MOVL	(R3)[R2], R3			; R3 = hostile_max
+	MOVAB	SCAVE_DATA_CR_INDIFF_MAX, R4
+	MOVL	(R4)[R2], R4			; R4 = indiff_max
+
+	CMPL	R5, R3
+	BGTR	NOT_HOSTILE
+	; Hostile path
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HOSTILE
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	MNEGL	#1, SCAVE_FIGHT_FS		; strangers have surprise
+	BSBW	DO_ATTACK
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+NOT_HOSTILE:
+	CMPL	R5, R4
+	BGTR	FRIENDLY
+	; Indifferent path
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_INDIFF
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	; End turn -- strangers stay in the chamber.  In Stage 4 v1 we
+	; don't track the indifference counter (Stage 5 will); the
+	; player can just choose another action next turn.
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+FRIENDLY:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FRIENDLY
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+
+	BSBW	ADD_FRIENDLIES_TO_PARTY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  FIND_LEADER  --  fills LEADER_IDX with the priority-winning
+;                   creature index from SLOT_S[0..NS-1].
+; ===========================================================
+;
+FIND_LEADER:
+	MOVAB	SCAVE_CHAMBER_NS, R0
+	MOVL	(R0), R3			; R3 = NS
+	MOVAB	SCAVE_CHAMBER_CS, R4			; R4 = SLOT_S base
+	MOVAB	SCAVE_DATA_CR_LEADER_PRI, R5
+
+	; Default: LEADER_IDX = SLOT_S[0]; best_pri = pri[that]
+	MOVL	(R4), R0			; first stranger creature index
+	MOVL	R0, LEADER_IDX
+	MOVL	(R5)[R0], R6			; R6 = best priority
+
+	MOVL	#1, R2				; iter index
+FL_LOOP:
+	CMPL	R2, R3
+	BLSS	FL_BODY
+	RSB
+FL_BODY:
+	MOVL	(R4)[R2], R0			; creature index of slot R2
+	MOVL	(R5)[R0], R1			; its priority
+	CMPL	R1, R6
+	BLEQ	FL_NEXT
+	MOVL	R1, R6				; new best
+	MOVL	R0, LEADER_IDX
+FL_NEXT:
+	INCL	R2
+	BRB	FL_LOOP
+
+
+;
+; HAS_CHARISMA -- R0 = 1 if any party member is HERO (0) or
+;                 W-HERO (1) and PS != STONE/DEAD; 0 otherwise.
+;
+HAS_CHARISMA:
+	CLRL	R0				; default no
+	CLRL	R2				; party slot
+HC_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	HC_BODY
+	RSB
+HC_BODY:
+	MOVL	SCAVE_PARTY_PS[R2], R1
+	CMPL	R1, #2				; STONE
+	BGEQ	HC_NEXT
+	MOVL	SCAVE_PARTY_PC[R2], R1
+	CMPL	R1, #1
+	BGTR	HC_NEXT				; not HERO/W-HERO
+	MOVL	#1, R0
+	RSB
+HC_NEXT:
+	INCL	R2
+	BRB	HC_LOOP
+
+
+;
+; ADD_FRIENDLIES_TO_PARTY -- append each entry of SLOT_S to the
+; party with PS=ALLY.  Also clear NS so the chamber treats the
+; strangers as gone.
+;
+ADD_FRIENDLIES_TO_PARTY:
+	MOVAB	SCAVE_CHAMBER_NS, R0
+	MOVL	(R0), R3			; R3 = NS
+	BEQL	AF_DONE
+	MOVAB	SCAVE_CHAMBER_CS, R4
+	CLRL	R2
+AF_LOOP:
+	CMPL	R2, R3
+	BLSS	AF_BODY
+	BRB	AF_DONE
+AF_BODY:
+	MOVL	SCAVE_PARTY_NP, R5
+	CMPL	R5, #12				; party-size cap
+	BGEQ	AF_DONE				; party full
+	MOVL	(R4)[R2], R6			; creature index
+	MOVL	R6, SCAVE_PARTY_PC[R5]
+	MOVL	#1, SCAVE_PARTY_PS[R5]		; ALLY
+	CLRL	SCAVE_PARTY_PK[R5]
+	; Clear treasure slots
+	MULL3	#4, R5, R0
+	MNEGL	#1, R1
+	MOVL	R1, SCAVE_PARTY_PT[R0]
+	INCL	R0
+	MOVL	R1, SCAVE_PARTY_PT[R0]
+	INCL	R0
+	MOVL	R1, SCAVE_PARTY_PT[R0]
+	INCL	R0
+	MOVL	R1, SCAVE_PARTY_PT[R0]
+	INCL	SCAVE_PARTY_NP
+	INCL	R2
+	BRB	AF_LOOP
+AF_DONE:
+	; Clear stranger count.
+	MOVAB	SCAVE_CHAMBER_NS, R0
+	CLRL	(R0)
+	RSB
+
+
+;
+; ===========================================================
+;  DO_ATTACK  --  simplified Stage 4 v1 combat.
+;
+;     Sums party total fight strength (FS+MP for living, non-stone
+;     members), sums stranger total fight strength.  Each side
+;     rolls a die.  Surprise (+1 in round 1) for the side that has
+;     SCAVE_FIGHT_FS == +1 / -1.  Higher total wins -- on a party
+;     win every stranger is slain (cleared).  On a stranger win
+;     every party creature is killed (PS=DEAD), and game state
+;     drops to DEAD.  A tie leaves both alive.
+; ===========================================================
+;
+	.EXTRN	SCAVE_DATA_CR_FS
+	.EXTRN	SCAVE_DATA_CR_MP
+
+DO_ATTACK:
+	; Compute party_total = sum(FS+MP) for PS<2
+	CLRL	R3				; party total
+	CLRL	R2
+DA_PT:
+	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	DA_PT_BODY
+	BRB	DA_HAVE_PT
+DA_PT_BODY:
+	MOVL	SCAVE_PARTY_PS[R2], R0
+	CMPL	R0, #2
+	BGEQ	DA_PT_NEXT			; STONE or DEAD
+	MOVL	SCAVE_PARTY_PC[R2], R0		; creature index
+	MOVAB	SCAVE_DATA_CR_FS, R1
+	ADDL2	(R1)[R0], R3
+	MOVAB	SCAVE_DATA_CR_MP, R1
+	ADDL2	(R1)[R0], R3
+DA_PT_NEXT:
+	INCL	R2
+	BRB	DA_PT
+DA_HAVE_PT:
+
+	; Compute stranger_total
+	CLRL	R4
+	MOVAB	SCAVE_CHAMBER_NS, R0
+	MOVL	(R0), R5
+	MOVAB	SCAVE_CHAMBER_CS, R6
+	CLRL	R2
+DA_ST:
+	CMPL	R2, R5
+	BLSS	DA_ST_BODY
+	BRB	DA_HAVE_ST
+DA_ST_BODY:
+	MOVL	(R6)[R2], R0
+	MOVAB	SCAVE_DATA_CR_FS, R1
+	ADDL2	(R1)[R0], R4
+	MOVAB	SCAVE_DATA_CR_MP, R1
+	ADDL2	(R1)[R0], R4
+	INCL	R2
+	BRB	DA_ST
+DA_HAVE_ST:
+
+	; Apply surprise modifier.
+	MOVL	SCAVE_FIGHT_FS, R0
+	BLSS	DA_THEM_SURPRISE		; -1: their surprise
+	BGTR	DA_US_SURPRISE			; +1: our surprise
+	BRB	DA_NO_SURPRISE
+DA_US_SURPRISE:
+	INCL	R3
+	BRB	DA_NO_SURPRISE
+DA_THEM_SURPRISE:
+	INCL	R4
+DA_NO_SURPRISE:
+
+	; Subtract curses from our roll.
+	; (We apply -NC to party total.)
+	SUBL2	SCAVE_STATE_NC, R3
+
+	; Roll dice
+	CALLS	#0, G^ROLL_DIE
+	MOVL	R0, R6				; party die
+	CALLS	#0, G^ROLL_DIE
+	MOVL	R0, R7				; stranger die
+
+	ADDL2	R6, R3				; party total + die
+	ADDL2	R7, R4				; stranger total + die
+
+	CMPL	R3, R4
+	BEQL	DA_TIE
+	BGTR	DA_PARTY_WIN
+	BRB	DA_PARTY_LOSE
+
+DA_TIE:
+	; No casualties on a tie.
+	BSBW	PAINT_FIGHT_TIE
+	RSB
+
+DA_PARTY_WIN:
+	; Wipe strangers; mark dragon kills (Stage 4 simplification: any
+	; party member who fought gets credit if exactly one stranger
+	; was a dragon).  For Stage 4 v1 we just wipe and skip the
+	; dragon-slayer bonus.
+	MOVAB	SCAVE_CHAMBER_NS, R0
+	CLRL	(R0)				; NS = 0
+	BSBW	PAINT_FIGHT_WIN
+	RSB
+
+DA_PARTY_LOSE:
+	; Mark every living party member as dead (Stage 4 v1
+	; simplification: the whole party perishes if it loses).
+	CLRL	R2
+DPL_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	DPL_BODY
+	BRB	DPL_DONE
+DPL_BODY:
+	MOVL	SCAVE_PARTY_PS[R2], R0
+	CMPL	R0, #2				; STONE
+	BGEQ	DPL_NEXT
+	MOVL	#3, SCAVE_PARTY_PS[R2]		; DEAD
+DPL_NEXT:
+	INCL	R2
+	BRB	DPL_LOOP
+DPL_DONE:
+	; Mark game state DEAD.
+	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
+	BSBW	PAINT_FIGHT_LOSE
+	RSB
+
+
+	.ALIGN	LONG
+DSC_FIGHT_WIN:		.ASCID	/Victory!  All strangers slain./
+DSC_FIGHT_LOSE:		.ASCID	/DEFEAT.  Your party is no more./
+DSC_FIGHT_TIE:		.ASCID	/A draw.  Both sides fall back./
+
+
+PAINT_FIGHT_WIN:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FIGHT_WIN
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+PAINT_FIGHT_LOSE:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FIGHT_LOSE
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+PAINT_FIGHT_TIE:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FIGHT_TIE
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+	.END

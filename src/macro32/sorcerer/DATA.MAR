@@ -1,0 +1,349 @@
+	.TITLE	DATA	Static game data for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; DATA.MAR
+;
+;   All read-only game data:
+;     - 61 area cards (bit-packed exit / chamber / stair / type)
+;     - 14 creature definitions (parallel arrays of FS, MP, carry,
+;       selection-value, point-value, flags) plus name descriptors
+;     - 15 treasure definitions (points, weight, count) plus names
+;     - 5 hazard names plus per-hazard counts
+;     - Cave-creature reaction tables (hostile-max, indifferent-max)
+;     - Pre-built small-pack template (52 cards encoded as type*100+index)
+;     - Starting-pack creature counts (for party selection)
+;
+;   Encoding:
+;
+;     Area-card longword bits:
+;       0   N exit
+;       1   E exit
+;       2   S exit
+;       3   W exit
+;       4   chamber (otherwise tunnel/corridor)
+;       5   stair up
+;       6   stair down
+;       7-9 special type: 0=none, 1=Gateway, 2=Deep Pool, 3=Viper Pit,
+;                          4=Tomb of Kings, 5=Great Hall (shifted *128)
+;
+;     Small-pack card longword:
+;       100 + creature_index   (creatures 0..13)
+;       200 + treasure_index   (treasures 0..14)
+;       300 + hazard_index     (hazards 0..4)
+;
+; References:
+;   reference/sorcerors-cave/casio-vx4-implementation/area-card-encoding.md
+;   reference/sorcerors-cave/casio-vx4-implementation/SORCERER.BAS lines 6280-6660
+;   reference/sorcerors-cave/sorcerers-cave-rules.md
+;--
+
+
+;
+; Per-creature flag bits.  These mirror the definitions in STATE.MAR.
+; MACRO-32 `=` symbols are file-local, so we must redeclare any
+; constant we want to use in a `.LONG <... ! ...>` expression below.
+;
+	SCAVE$M_CR_HUMAN              = ^X01
+	SCAVE$M_CR_CHARISMA           = ^X02
+	SCAVE$M_CR_BEFRIENDS_UNICORN  = ^X04
+	SCAVE$M_CR_GUIDES_PAST_TRAP   = ^X08
+	SCAVE$M_CR_INHUMAN            = ^X10
+
+
+	.PSECT	SCAVE_DATA, NOEXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  Area cards (61 entries, indices 0..60).  Index 21 is the GATEWAY.
+;  Values verified against area-card-encoding.md.
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DATA_AREA_CARDS::
+	.LONG	111, 23, 77, 23, 79			; 0..4
+	.LONG	543, 671, 287, 31, 15			; 5..9    Tomb, Hall, Pool
+	.LONG	29, 23, 9, 7, 11			; 10..14
+	.LONG	415, 9, 43, 75, 9			; 15..19  Viper at 15
+	.LONG	9, 175, 39, 71, 14			; 20..24  Gateway at 21
+	.LONG	31, 27, 29, 67, 30			; 25..29
+	.LONG	14, 5, 69, 31, 23			; 30..34
+	.LONG	29, 30, 47, 46, 11			; 35..39
+	.LONG	3, 74, 31, 3, 78			; 40..44
+	.LONG	27, 10, 76, 15, 7			; 45..49
+	.LONG	27, 45, 23, 13, 13			; 50..54
+	.LONG	12, 78, 10, 5, 12			; 55..59
+	.LONG	29					; 60
+
+;
+; ===========================================================
+;  Creature data -- parallel longword arrays, indices 0..13.
+;
+;     0 HERO         8 WIZARD
+;     1 W-HERO       9 SPECTRE
+;     2 OGRE        10 DRAGON
+;     3 TROLL       11 SORCERER
+;     4 PRIEST      12 GIANT
+;     5 MAN         13 UNICORN
+;     6 WOMAN
+;     7 DWARF
+;
+;  Reaction tables apply only to cave creatures.  For non-cave types
+;  the reaction values are 0 (unused).  UNICORN is special-cased in
+;  STRANGER.MAR (friendly to women, otherwise indifferent).
+; ===========================================================
+;
+	.ALIGN	LONG
+
+; Fighting strength per creature
+SCAVE_DATA_CR_FS::
+	.LONG	5, 4, 5, 4, 2, 3, 2, 1
+	.LONG	2, 0, 6, 4, 7, 0
+
+; Magical power per creature
+SCAVE_DATA_CR_MP::
+	.LONG	0, 0, 0, 0, 2, 0, 0, 0
+	.LONG	5, 5, 0, 9, 0, 4
+
+; Carry capacity in kg per creature
+SCAVE_DATA_CR_CARRY::
+	.LONG	75, 50, 100, 75, 25, 50, 25, 25
+	.LONG	0, 0, 0, 0, 150, 0
+
+; Selection value (party-pick cost).  0 for cave-only creatures.
+SCAVE_DATA_CR_SEL::
+	.LONG	6, 5, 5, 4, 4, 3, 2, 1
+	.LONG	0, 0, 0, 0, 0, 0
+
+; Point value
+SCAVE_DATA_CR_PTS::
+	.LONG	10, 10, 5, 4, 8, 5, 5, 2
+	.LONG	15, 0, 0, 0, 7, 4
+
+; Flags (SCAVE$M_CR_*)
+SCAVE_DATA_CR_FLAGS::
+	.LONG	<SCAVE$M_CR_HUMAN!SCAVE$M_CR_CHARISMA>		; 0  HERO
+	.LONG	<SCAVE$M_CR_HUMAN!SCAVE$M_CR_CHARISMA!SCAVE$M_CR_BEFRIENDS_UNICORN>
+								; 1  W-HERO
+	.LONG	SCAVE$M_CR_INHUMAN				; 2  OGRE
+	.LONG	SCAVE$M_CR_INHUMAN				; 3  TROLL
+	.LONG	SCAVE$M_CR_HUMAN				; 4  PRIEST
+	.LONG	SCAVE$M_CR_HUMAN				; 5  MAN
+	.LONG	<SCAVE$M_CR_HUMAN!SCAVE$M_CR_BEFRIENDS_UNICORN>	; 6  WOMAN
+	.LONG	<SCAVE$M_CR_INHUMAN!SCAVE$M_CR_GUIDES_PAST_TRAP>; 7  DWARF
+	.LONG	SCAVE$M_CR_HUMAN				; 8  WIZARD
+	.LONG	0						; 9  SPECTRE
+	.LONG	SCAVE$M_CR_INHUMAN				; 10 DRAGON
+	.LONG	0						; 11 SORCERER
+	.LONG	SCAVE$M_CR_INHUMAN				; 12 GIANT
+	.LONG	0						; 13 UNICORN
+
+;
+; Reaction tables: hostile_max, indifferent_max per creature index.
+; A roll <= hostile_max is hostile; <= indifferent_max is indifferent;
+; otherwise friendly.  Values verified against the cave-creature
+; reaction table in the rules.
+;
+SCAVE_DATA_CR_HOSTILE_MAX::
+	.LONG	0, 3, 4, 3, 0, 0, 0, 0
+	.LONG	1, 5, 6, 6, 3, 0
+SCAVE_DATA_CR_INDIFF_MAX::
+	.LONG	0, 3, 5, 4, 0, 0, 0, 0
+	.LONG	5, 6, 6, 6, 5, 0
+
+;
+; Number of each starting creature available during party selection
+; (indices 0..7 only -- W-HERO and HERO are exclusively starters; the
+; cave-pack counts are encoded in the small-pack template below).
+;
+SCAVE_DATA_CR_START_COUNT::
+	.LONG	1, 1, 3, 3, 3, 6, 3, 3
+
+;
+; Leader-priority table.  Indexed by creature index 0..13.  Higher
+; numbers are higher priority leaders.  Per the rule book:
+;   SORCERER > SPECTRE > DRAGON > WIZARD > HERO/W-HERO > PRIEST
+;   > MAN/WOMAN > GIANT > OGRE > TROLL > DWARF
+;
+; UNICORN is intentionally lowest -- it is special-cased in the
+; encounter logic anyway.
+;
+SCAVE_DATA_CR_LEADER_PRI::
+	.LONG	7			; 0  HERO
+	.LONG	7			; 1  W-HERO
+	.LONG	3			; 2  OGRE
+	.LONG	2			; 3  TROLL
+	.LONG	6			; 4  PRIEST
+	.LONG	5			; 5  MAN
+	.LONG	5			; 6  WOMAN
+	.LONG	1			; 7  DWARF
+	.LONG	8			; 8  WIZARD
+	.LONG	10			; 9  SPECTRE
+	.LONG	9			; 10 DRAGON
+	.LONG	11			; 11 SORCERER
+	.LONG	4			; 12 GIANT
+	.LONG	0			; 13 UNICORN
+
+;
+; Creature names -- table of pointers to ASCID descriptors so other
+; modules can index by creature number to get a descriptor address.
+;
+	.ALIGN	LONG
+SCAVE_DATA_CR_NAME_PTR::
+	.ADDRESS DSC_CR_HERO,    DSC_CR_WHERO,   DSC_CR_OGRE,    DSC_CR_TROLL
+	.ADDRESS DSC_CR_PRIEST,  DSC_CR_MAN,     DSC_CR_WOMAN,   DSC_CR_DWARF
+	.ADDRESS DSC_CR_WIZARD,  DSC_CR_SPECTRE, DSC_CR_DRAGON,  DSC_CR_SORCERER
+	.ADDRESS DSC_CR_GIANT,   DSC_CR_UNICORN
+
+DSC_CR_HERO:		.ASCID	/Hero/
+DSC_CR_WHERO:		.ASCID	/W-Hero/
+DSC_CR_OGRE:		.ASCID	/Ogre/
+DSC_CR_TROLL:		.ASCID	/Troll/
+DSC_CR_PRIEST:		.ASCID	/Priest/
+DSC_CR_MAN:		.ASCID	/Man/
+DSC_CR_WOMAN:		.ASCID	/Woman/
+DSC_CR_DWARF:		.ASCID	/Dwarf/
+DSC_CR_WIZARD:		.ASCID	/Wizard/
+DSC_CR_SPECTRE:		.ASCID	/Spectre/
+DSC_CR_DRAGON:		.ASCID	/Dragon/
+DSC_CR_SORCERER:	.ASCID	/Sorcerer/
+DSC_CR_GIANT:		.ASCID	/Giant/
+DSC_CR_UNICORN:		.ASCID	/Unicorn/
+
+
+;
+; ===========================================================
+;  Treasure data -- parallel longword arrays, indices 0..14.
+;
+;    0 SILVER          8 STR POTION
+;    1 GOLD            9 MAGIC STAFF
+;    2 GEMS           10 RING
+;    3 MAGIC SWORD    11 LOST RUBY
+;    4 MAGIC CARPET   12 CHARMED FLUTE
+;    5 LOTUS DUST     13 EYE OF GOD
+;    6 HEALING BALM   14 TREASURE CHEST
+;    7 TALISMAN
+; ===========================================================
+;
+	.ALIGN	LONG
+
+; Point values
+SCAVE_DATA_TR_PTS::
+	.LONG	5, 10, 20, 15, 5, 5, 5, 10
+	.LONG	5, 15, 30, 20, 10, 0, 0
+
+; Weight in kg (only heavy treasure has non-zero; CHEST = 100kg)
+SCAVE_DATA_TR_WT::
+	.LONG	25, 25, 25, 0, 0, 0, 0, 0
+	.LONG	0, 0, 0, 0, 0, 0, 100
+
+; Treasure-name pointer table
+	.ALIGN	LONG
+SCAVE_DATA_TR_NAME_PTR::
+	.ADDRESS DSC_TR_SILVER,   DSC_TR_GOLD,    DSC_TR_GEMS,    DSC_TR_SWORD
+	.ADDRESS DSC_TR_CARPET,   DSC_TR_DUST,    DSC_TR_BALM,    DSC_TR_TALISMAN
+	.ADDRESS DSC_TR_POTION,   DSC_TR_STAFF,   DSC_TR_RING,    DSC_TR_RUBY
+	.ADDRESS DSC_TR_FLUTE,    DSC_TR_EYE,     DSC_TR_CHEST
+
+DSC_TR_SILVER:		.ASCID	/Silver/
+DSC_TR_GOLD:		.ASCID	/Gold/
+DSC_TR_GEMS:		.ASCID	/Gems/
+DSC_TR_SWORD:		.ASCID	/M.Sword/
+DSC_TR_CARPET:		.ASCID	/M.Carpet/
+DSC_TR_DUST:		.ASCID	/L.Dust/
+DSC_TR_BALM:		.ASCID	/H.Balm/
+DSC_TR_TALISMAN:	.ASCID	/Talisman/
+DSC_TR_POTION:		.ASCID	/S.Potion/
+DSC_TR_STAFF:		.ASCID	/M.Staff/
+DSC_TR_RING:		.ASCID	/Ring/
+DSC_TR_RUBY:		.ASCID	/L.Ruby/
+DSC_TR_FLUTE:		.ASCID	/C.Flute/
+DSC_TR_EYE:		.ASCID	/Eye/
+DSC_TR_CHEST:		.ASCID	/Chest/
+
+
+;
+; ===========================================================
+;  Hazards (5 types).  Names + pointer table.
+;
+;    0 MUTINY    1 TRAP    2 EARTHQUAKE    3 MEDUSA    4 GHOULS
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DATA_HZ_NAME_PTR::
+	.ADDRESS DSC_HZ_MUTINY, DSC_HZ_TRAP, DSC_HZ_QUAKE, DSC_HZ_MEDUSA, DSC_HZ_GHOULS
+
+DSC_HZ_MUTINY:		.ASCID	/Mutiny/
+DSC_HZ_TRAP:		.ASCID	/Trap/
+DSC_HZ_QUAKE:		.ASCID	/Earthquake/
+DSC_HZ_MEDUSA:		.ASCID	/Medusa/
+DSC_HZ_GHOULS:		.ASCID	/Ghouls/
+
+
+;
+; ===========================================================
+;  Special area names (for status/log display).
+;     0 none    1 Gateway    2 Deep Pool    3 Viper Pit
+;     4 Tomb of Kings    5 Great Hall
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DATA_SP_NAME_PTR::
+	.ADDRESS DSC_SP_NONE
+	.ADDRESS DSC_SP_GATEWAY
+	.ADDRESS DSC_SP_POOL
+	.ADDRESS DSC_SP_VIPER
+	.ADDRESS DSC_SP_TOMB
+	.ADDRESS DSC_SP_HALL
+
+DSC_SP_NONE:		.ASCID	//
+DSC_SP_GATEWAY:		.ASCID	/Gateway/
+DSC_SP_POOL:		.ASCID	/Deep Pool/
+DSC_SP_VIPER:		.ASCID	/Viper Pit/
+DSC_SP_TOMB:		.ASCID	/Tomb of Kings/
+DSC_SP_HALL:		.ASCID	/Great Hall/
+
+
+;
+; ===========================================================
+;  Small-pack template -- 52 cards, used as the master to be copied
+;  into SCAVE_DECK_SP and shuffled.
+;
+;     19 cave creatures: 1 W-HERO, 3 OGRE, 2 TROLL, 3 WIZARD,
+;                        3 SPECTRE, 3 DRAGON, 1 SORCERER, 2 GIANT,
+;                        1 UNICORN
+;     27 treasures:      6 SILVER, 6 GOLD, 3 GEMS, 1 each of the
+;                        12 artifacts
+;      6 hazards:        1 MUTINY, 2 TRAP, 1 QUAKE, 1 MEDUSA, 1 GHOULS
+;
+;   Note: the Casio implementation includes 3 extra Priest cave-creature
+;   cards bringing its pack to 55; the rules give 52 with no cave
+;   priests, which is what we use here.
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DATA_SMALL_PACK::
+	; Creatures (19)
+	.LONG	101					; 1x W-HERO
+	.LONG	102, 102, 102				; 3x OGRE
+	.LONG	103, 103				; 2x TROLL
+	.LONG	108, 108, 108				; 3x WIZARD
+	.LONG	109, 109, 109				; 3x SPECTRE
+	.LONG	110, 110, 110				; 3x DRAGON
+	.LONG	111					; 1x SORCERER
+	.LONG	112, 112				; 2x GIANT
+	.LONG	113					; 1x UNICORN
+	; Treasures (27)
+	.LONG	200, 200, 200, 200, 200, 200		; 6x SILVER
+	.LONG	201, 201, 201, 201, 201, 201		; 6x GOLD
+	.LONG	202, 202, 202				; 3x GEMS
+	.LONG	203, 204, 205, 206, 207, 208		; 6 artifacts
+	.LONG	209, 210, 211, 212, 213, 214		; 6 artifacts
+	; Hazards (6)
+	.LONG	300					; 1x MUTINY
+	.LONG	301, 301				; 2x TRAP
+	.LONG	302					; 1x EARTHQUAKE
+	.LONG	303					; 1x MEDUSA
+	.LONG	304					; 1x GHOULS
+
+	.END

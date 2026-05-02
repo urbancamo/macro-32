@@ -1,0 +1,215 @@
+	.TITLE	STATE	Shared global state for The Sorcerer's Cave
+	.IDENT	/V0.2/
+
+;++
+; STATE.MAR
+;
+;   The single source of truth for runtime game state.  Every other
+;   SCAVE module declares the symbols it touches with .EXTRN; storage
+;   lives here so each piece of state has exactly one location.
+;
+; Naming convention:
+;   SCAVE_STATE_xx     top-level game state
+;   SCAVE_MAP_xx       map / movement
+;   SCAVE_PARTY_xx     party / inventory
+;   SCAVE_DECK_xx      deck draw positions and arrays
+;   SCAVE_FIGHT_xx     combat working state
+;   SCAVE_CHAMBER_xx   per-chamber working state
+;   SCAVE_AREA_xx      per-area persistent contents
+;   SCAVE_RNG_xx       RNG seed
+;   SCAVE_UI_xx        SMG$ pasteboard / virtual-display ids
+;
+;   SCAVE$_xx          named offset / immediate constant (no storage)
+;   SCAVE$M_xx         bit mask (no storage)
+;
+;   The double-colon (::) at definition makes the symbol global so
+;   other modules can .EXTRN it.
+;--
+
+;
+; -- top-level game-state values --
+;
+	SCAVE$_GS_PLAYING = 0
+	SCAVE$_GS_ESCAPED = 1
+	SCAVE$_GS_DEAD    = 2
+	SCAVE$_GS_QUIT    = 3
+
+;
+; -- party-creature status values --
+;
+	SCAVE$_PS_ORIG    = 0			; chosen during party selection
+	SCAVE$_PS_ALLY    = 1			; recruited from a stranger encounter
+	SCAVE$_PS_STONE   = 2			; turned to stone by Medusa
+	SCAVE$_PS_DEAD    = 3			; killed in combat or hazard
+
+;
+; -- bits in the per-area flags longword (SCAVE_AREA_AF) --
+;
+	SCAVE$M_AF_TRAP       = ^X01		; chamber's trap is still armed
+	SCAVE$M_AF_MEDUSA     = ^X02		; medusa still in chamber
+	SCAVE$M_AF_DESTROYED  = ^X04		; earthquake-collapsed
+	SCAVE$M_AF_HOSTILE    = ^X08		; strangers tested hostile
+	SCAVE$M_AF_PERMINDIFF = ^X10		; strangers permanently indifferent
+	SCAVE$M_AF_STATUE     = ^X20		; lost-ruby statue is aroused
+
+;
+; -- bits in the per-creature flags table (CR_FLAGS in DATA.MAR) --
+;
+	SCAVE$M_CR_HUMAN              = ^X01
+	SCAVE$M_CR_CHARISMA           = ^X02	; hero charisma bonus on stranger test
+	SCAVE$M_CR_BEFRIENDS_UNICORN  = ^X04	; women befriend unicorns
+	SCAVE$M_CR_GUIDES_PAST_TRAP   = ^X08	; dwarves guide past traps
+	SCAVE$M_CR_INHUMAN            = ^X10
+
+;
+; -- container sizes --
+;
+	SCAVE$_AREA_COUNT  = 61			; 61 area cards in the large pack
+	SCAVE$_SMALL_COUNT = 52			; 52 chamber cards in the small pack
+	SCAVE$_PARTY_MAX   = 12			; max creatures in party
+	SCAVE$_TREAS_PER   = 4			; max treasure slots per creature
+	SCAVE$_AREA_ITEMS  = 4			; max persistent items per area
+	SCAVE$_CHAMBER_MAX = 8			; max strangers / treasure per chamber
+	SCAVE$_HAZARD_MAX  = 4			; max hazards per chamber draw
+
+
+	.PSECT	SCAVE_STATE, NOEXE, WRT, LONG
+
+;
+; ===========================================================
+;  Top-level game state
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_STATE_GS::	.LONG	SCAVE$_GS_PLAYING	; game state value
+SCAVE_STATE_TN::	.LONG	1			; turn counter
+SCAVE_STATE_SC::	.LONG	0			; current/final score
+SCAVE_STATE_NC::	.LONG	0			; curse count
+SCAVE_STATE_SK::	.LONG	0			; sorcerer-killed flag
+
+;
+; ===========================================================
+;  Map / movement
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_MAP_NM::		.LONG	0			; areas placed so far
+SCAVE_MAP_PA::		.LONG	1			; current party area index (1-based)
+SCAVE_MAP_PL::		.LONG	1			; current party level
+SCAVE_MAP_PP::		.LONG	0			; previous area (for earthquake)
+
+	.ALIGN	LONG
+SCAVE_MAP_MP::		.BLKL	SCAVE$_AREA_COUNT	; area-card value at each placed slot
+SCAVE_MAP_ML::		.BLKL	SCAVE$_AREA_COUNT	; coords (level*10000 + y*100 + x)
+SCAVE_MAP_MS::		.BLKL	SCAVE$_AREA_COUNT	; stair links
+SCAVE_MAP_MV::		.BLKL	SCAVE$_AREA_COUNT	; visited-state per area
+
+;
+; ===========================================================
+;  Per-area persistent contents (leftover from prior visits)
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_AREA_AC::		.BLKL	<SCAVE$_AREA_COUNT*SCAVE$_AREA_ITEMS>
+							; encoded creature=100+i, treasure=200+i
+SCAVE_AREA_AF::		.BLKL	SCAVE$_AREA_COUNT	; per-area flag bits
+
+;
+; ===========================================================
+;  Party
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_PARTY_NP::	.LONG	0			; living count (incl. allies)
+SCAVE_PARTY_PC::	.BLKL	SCAVE$_PARTY_MAX	; creature index per slot
+SCAVE_PARTY_PS::	.BLKL	SCAVE$_PARTY_MAX	; status (SCAVE$_PS_*)
+SCAVE_PARTY_PK::	.BLKL	SCAVE$_PARTY_MAX	; dragon-kill count
+SCAVE_PARTY_PT::	.BLKL	<SCAVE$_PARTY_MAX*SCAVE$_TREAS_PER>
+							; treasure-slot indices, -1 = empty
+
+;
+; ===========================================================
+;  Per-chamber working set (overwritten each chamber entry)
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_CHAMBER_NS::	.LONG	0			; strangers count
+SCAVE_CHAMBER_NT::	.LONG	0			; treasure count
+SCAVE_CHAMBER_NH::	.LONG	0			; hazard count
+SCAVE_CHAMBER_CS::	.BLKL	SCAVE$_CHAMBER_MAX	; stranger creature indices
+SCAVE_CHAMBER_CT::	.BLKL	SCAVE$_CHAMBER_MAX	; treasure indices
+SCAVE_CHAMBER_CH::	.BLKL	SCAVE$_HAZARD_MAX	; hazard indices
+
+;
+; ===========================================================
+;  Decks
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DECK_LP::		.BLKL	60			; large pack -- 60 cards (gateway pulled)
+SCAVE_DECK_LI::		.LONG	0			; large-pack draw position
+SCAVE_DECK_SP::		.BLKL	SCAVE$_SMALL_COUNT	; small pack
+SCAVE_DECK_SI::		.LONG	0			; small-pack draw position
+
+;
+; ===========================================================
+;  Fight working state (overwritten per fight)
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_FIGHT_FA::	.BLKL	SCAVE$_CHAMBER_MAX	; party fighter slots (front)
+SCAVE_FIGHT_FD::	.BLKL	SCAVE$_CHAMBER_MAX	; defender (stranger) slots
+SCAVE_FIGHT_FB::	.BLKL	SCAVE$_CHAMBER_MAX	; background magic supporters
+SCAVE_FIGHT_NF::	.LONG	0			; matches
+SCAVE_FIGHT_FS::	.LONG	0			; surprise (+1=us, -1=them, 0=neither)
+SCAVE_FIGHT_RD::	.LONG	1			; round number
+SCAVE_FIGHT_POTION::	.LONG	-1			; party slot using strength potion
+
+;
+; ===========================================================
+;  Decoded-area scratch.  DECODE_AREA fills these from a card
+;  value.  Other modules (MAP, UI, CHAMBER) read them.
+;
+;  IMPORTANT: the first six longwords AN..AD must remain in this
+;  order so that callers can index them as a flat array using
+;  direction-1 (1=N, 2=E, 3=S, 4=W, 5=U, 6=D).
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_DEC_AN::		.LONG	0			; north exit flag
+SCAVE_DEC_AE::		.LONG	0			; east  exit flag
+SCAVE_DEC_AS::		.LONG	0			; south exit flag
+SCAVE_DEC_AW::		.LONG	0			; west  exit flag
+SCAVE_DEC_AU::		.LONG	0			; stair up   flag
+SCAVE_DEC_AD::		.LONG	0			; stair down flag
+SCAVE_DEC_AH::		.LONG	0			; chamber flag (otherwise tunnel)
+SCAVE_DEC_AT::		.LONG	0			; special type 0..5
+
+;
+; ===========================================================
+;  RNG seed (LCG state)
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_RNG_SEED::	.LONG	1			; non-zero default; reseeded at startup
+
+;
+; ===========================================================
+;  SMG$ identifiers (set up by UI.MAR, read by everything else)
+; ===========================================================
+;
+	.ALIGN	LONG
+SCAVE_UI_PB_ID::	.LONG	0			; pasteboard id
+SCAVE_UI_PB_ROWS::	.LONG	0
+SCAVE_UI_PB_COLS::	.LONG	0
+SCAVE_UI_KB_ID::	.LONG	0			; virtual keyboard id
+
+SCAVE_UI_DSP_STATUS::	.LONG	0			; virtual displays for the panels
+SCAVE_UI_DSP_PARTY::	.LONG	0
+SCAVE_UI_DSP_MAP::	.LONG	0
+SCAVE_UI_DSP_CHAMBER::	.LONG	0
+SCAVE_UI_DSP_LEGEND::	.LONG	0
+SCAVE_UI_DSP_LOG::	.LONG	0
+SCAVE_UI_DSP_PROMPT::	.LONG	0
+
+	.END

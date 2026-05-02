@@ -1,0 +1,327 @@
+	.TITLE	SPECIAL  Viper Pit + Deep Pool special-area handlers
+	.IDENT	/V0.1/
+
+;++
+; SPECIAL.MAR
+;
+;   Two special-area types from the rule book:
+;
+;     Viper Pit (SCAVE_DEC_AT == 3) -- a narrow ledge skirts a pit of
+;     vipers.  For each creature in the party we roll a die; on a 1
+;     the creature falls in and is lost.  The Charmed Flute (treasure
+;     index 12) lulls the vipers to sleep -- if anyone in the party
+;     carries it, all creatures cross safely.
+;
+;     Deep Pool (SCAVE_DEC_AT == 2) -- water blocks the way.
+;     Non-Giant creatures must drop any heavy treasure (treasure
+;     indices 0..2 = Silver/Gold/Gems) at the entry doorway.  Giants
+;     carry one load each.  Stage 5 simplification: we just clear
+;     heavy treasure slots from non-Giants and narrate.
+;
+;   Both handlers paint a header and per-creature outcome to the
+;   main display, then wait for a keystroke.  They are invoked from
+;   MAIN.MAR after a successful TRY_MOVE that lands in one of these
+;   special areas (and after the chamber-or-not decode).
+;
+; Public:
+;   ENTER_SPECIAL  --  no args.  Reads SCAVE_DEC_AT and dispatches
+;                      to the right handler; returns SS$_NORMAL.
+;                      For non-special areas (AT == 0/1/4/5) it just
+;                      returns without doing anything.
+;
+; Treasure index constants used here:
+;   0 SILVER, 1 GOLD, 2 GEMS, 12 CHARMED FLUTE
+;--
+
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	READ_KEY
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	ROLL_DIE
+
+	.EXTRN	SCAVE_DEC_AT
+
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PT
+
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+
+	.EXTRN	HAS_ARTIFACT
+
+
+	.PSECT	SCAVE_SPECIAL_DATA, NOEXE, WRT, LONG
+
+;
+; Static prompts/messages.
+;
+	.ALIGN	LONG
+DSC_HDR_VIPER:		.ASCID	/-- VIPER PIT --/
+DSC_HDR_POOL:		.ASCID	/-- DEEP POOL --/
+DSC_FLUTE_LULL:		.ASCID	/The Charmed Flute lulls the vipers to sleep.  All cross safely./
+DSC_VIPER_INTRO:	.ASCID	/A narrow ledge skirts a writhing pit.  Roll for each creature:/
+DSC_VIPER_FALLS:	.ASCID	/  ... !AS slips and falls into the pit!/
+DSC_VIPER_SAFE:		.ASCID	/  ... !AS crosses safely./
+DSC_POOL_INTRO:		.ASCID	/Cold black water bars your way.  Heavy treasure must stay behind:/
+DSC_POOL_DROP:		.ASCID	/  ... !AS drops their heavy treasure at the edge./
+DSC_POOL_SAFE:		.ASCID	/  ... !AS wades across./
+DSC_POOL_GIANT:		.ASCID	/  ... !AS the GIANT carries everyone's load./
+DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
+
+;
+; FAO buffer.
+;
+	.ALIGN	LONG
+LINE_BUF:	.BLKB	120
+	.ALIGN	LONG
+LINE_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS LINE_BUF
+
+	.ALIGN	LONG
+ROW_TMP:	.BLKL	1
+COL_TWO:	.LONG	2
+COL_FOUR:	.LONG	4
+
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+
+
+	.PSECT	SCAVE_SPECIAL_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  ENTER_SPECIAL  --  dispatch on AT.
+; ===========================================================
+;
+	.ENTRY	ENTER_SPECIAL, ^M<R2,R3,R4,R5,R6,R7>
+
+	CMPL	SCAVE_DEC_AT, #2
+	BEQL	S_POOL
+	CMPL	SCAVE_DEC_AT, #3
+	BEQL	S_VIPER
+	; Anything else: nothing to do (Gateway, Tomb, Hall, none).
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+S_POOL:
+	BSBW	HANDLE_POOL
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+S_VIPER:
+	BSBW	HANDLE_VIPER
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  HANDLE_VIPER  --  per-creature roll, 1 = falls in (PS=DEAD).
+;                   Charmed Flute (treasure 12) skips the rolls.
+; ===========================================================
+;
+HANDLE_VIPER:
+	; Has anyone got the Charmed Flute?
+	PUSHL	#12
+	CALLS	#1, G^HAS_ARTIFACT
+	MOVL	R0, R6				; R6 = 1 if flute, 0 otherwise
+
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_VIPER
+	CALLS	#2, G^PAINT_CENTERED
+
+	TSTL	R6
+	BEQL	V_DO_ROLLS
+
+	; Flute path: paint the lulling message and skip rolls.
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FLUTE_LULL
+	CALLS	#2, G^PAINT_CENTERED
+	BRW	V_FINISH
+
+V_DO_ROLLS:
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_VIPER_INTRO
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Loop over party members.  R5 = slot, R7 = next paint row.
+	MOVL	#7, R7
+	CLRL	R5
+V_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	V_BODY
+	BRW	V_FINISH
+V_BODY:
+	; Skip stoned / already-dead members.
+	MOVL	SCAVE_PARTY_PS[R5], R0
+	CMPL	R0, #2
+	BLSS	V_DO_MEMBER
+	BRW	V_NEXT
+V_DO_MEMBER:
+	; Roll a die for this member.
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
+	; Pull this member's name descriptor.
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], R3			; R3 = name desc addr
+
+	CMPL	R0, #1
+	BNEQ	V_SAFE
+	; Falls in.
+	MOVL	#3, SCAVE_PARTY_PS[R5]		; PS = DEAD
+	MOVAB	DSC_VIPER_FALLS, R4
+	BRB	V_PAINT
+V_SAFE:
+	MOVAB	DSC_VIPER_SAFE, R4
+V_PAINT:
+	BSBW	PAINT_PER_CREATURE
+V_NEXT:
+	INCL	R5
+	BRW	V_LOOP
+
+V_FINISH:
+	BSBW	PAINT_PROMPT_AND_WAIT
+	RSB
+
+
+;
+; ===========================================================
+;  HANDLE_POOL  --  drop heavy treasure for non-Giants.
+;                  Giants (creature index 12) keep their load.
+; ===========================================================
+;
+HANDLE_POOL:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_POOL
+	CALLS	#2, G^PAINT_CENTERED
+
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_INTRO
+	CALLS	#2, G^PAINT_CENTERED
+
+	MOVL	#7, R7				; next paint row
+	CLRL	R5				; slot
+P_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	P_BODY
+	BRW	P_FINISH
+P_BODY:
+	MOVL	SCAVE_PARTY_PS[R5], R0
+	CMPL	R0, #2
+	BLSS	P_DO_MEMBER
+	BRW	P_NEXT
+P_DO_MEMBER:
+	; Pull creature index + name descriptor address.
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], R3			; R3 = name desc addr
+
+	CMPL	R1, #12
+	BEQL	P_GIANT				; Giant: keep load
+
+	; Non-Giant: clear any heavy-treasure slot (indices 0..2).
+	BSBW	DROP_HEAVY_FOR_SLOT
+	MOVAB	DSC_POOL_DROP, R4
+	BSBW	PAINT_PER_CREATURE
+	BRW	P_NEXT
+P_GIANT:
+	MOVAB	DSC_POOL_GIANT, R4
+	BSBW	PAINT_PER_CREATURE
+P_NEXT:
+	INCL	R5
+	BRW	P_LOOP
+
+P_FINISH:
+	BSBW	PAINT_PROMPT_AND_WAIT
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  DROP_HEAVY_FOR_SLOT  --  R5 = party slot.  Walk PT[R5*4..+3]
+;                           and clear any entry whose treasure
+;                           index is < 3 (Silver/Gold/Gems).
+;                           Stage 5 simplification: dropped items
+;                           are not yet stored on the area card.
+; -----------------------------------------------------------
+;
+DROP_HEAVY_FOR_SLOT:
+	MULL3	#4, R5, R0			; offset of first slot
+	MOVL	#4, R1				; 4 slots per member
+1$:
+	MOVL	SCAVE_PARTY_PT[R0], R2
+	CMPL	R2, #0
+	BLSS	2$				; -1 = empty
+	CMPL	R2, #3
+	BGEQ	2$				; not heavy treasure
+	MNEGL	#1, SCAVE_PARTY_PT[R0]		; clear slot
+2$:
+	INCL	R0
+	SOBGTR	R1, 1$
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_PER_CREATURE  --  R3 = name desc addr,
+;                          R4 = template descriptor addr,
+;                          R7 = paint row (in/out, post-increment).
+;
+;     Formats template ("  ... !AS ...") via FAO, paints at col 4
+;     of row R7, then INCs R7.
+; -----------------------------------------------------------
+;
+PAINT_PER_CREATURE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=(R4), outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=R3
+	MOVW	FAO_OUTLEN, LINE_DSC
+
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_PROMPT_AND_WAIT  --  bottom prompt + READ_KEY.
+; -----------------------------------------------------------
+;
+PAINT_PROMPT_AND_WAIT:
+	MOVL	#16, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_CONT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+	.END

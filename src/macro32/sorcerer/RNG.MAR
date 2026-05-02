@@ -1,0 +1,168 @@
+	.TITLE	RNG	Pseudo-random number generator for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; RNG.MAR
+;
+;   A simple linear-congruential PRNG sufficient for dice rolls and
+;   deck shuffles.  We deliberately avoid MTH$RANDOM because it
+;   returns F-floating, which would drag in the float-handling
+;   plumbing for no real benefit.
+;
+;   Recurrence (the well-known glibc / ANSI-C constants):
+;
+;       seed' = seed * 1103515245 + 12345  (mod 2^31)
+;
+;   The high bits of the LCG output are far better-distributed than
+;   the low bits, so the public routines pull from the upper half.
+;
+; Public routines:
+;
+;   INIT_RNG    Seed from $GETTIM_S low longword.  Call once at startup.
+;   NEXT_RAND   Advance the seed; return new state in R0.
+;   ROLL_DIE    Return a random integer in [1..6] in R0.
+;   RAND_BELOW  R0 = uniform random in [0..R0).  Caller passes the
+;               exclusive upper bound in R0.
+;   SHUFFLE_LONGS  Fisher-Yates shuffle of a longword array.
+;                  Args: (count by value, address by reference)
+;
+; All routines clobber R0..R5.  Callers should save what they need.
+;--
+
+	$SSDEF
+
+	.EXTRN	SCAVE_RNG_SEED
+	.EXTRN	SYS$GETTIM
+
+
+	.PSECT	SCAVE_RNG_DATA, NOEXE, WRT, LONG
+
+;
+; Quadword to receive $GETTIM result.  Only the low longword feeds
+; the seed; the high longword (extending into the future) is
+; effectively unused.
+;
+	.ALIGN	LONG
+GETTIM_BUF:	.BLKQ	1
+
+
+	.PSECT	SCAVE_RNG_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  INIT_RNG -- seed the LCG from the system clock low longword.
+;              Idempotent; calling it twice just reseeds.
+;              No arguments.  Returns SS$_NORMAL.
+; ===========================================================
+;
+	.ENTRY	INIT_RNG, ^M<>
+
+	$GETTIM_S timadr=GETTIM_BUF
+	; The low longword changes every 100 ns; use it as the seed.
+	; Force odd to avoid the degenerate seed=0 case.
+	MOVL	GETTIM_BUF, R0
+	BISL2	#1, R0
+	MOVL	R0, SCAVE_RNG_SEED
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  NEXT_RAND -- advance the LCG and return the new 31-bit state.
+;               Used internally and by callers that want a raw
+;               random longword.
+; ===========================================================
+;
+	.ENTRY	NEXT_RAND, ^M<>
+
+	MOVL	SCAVE_RNG_SEED, R0
+	MULL2	#1103515245, R0
+	ADDL2	#12345, R0
+	BICL2	#^X80000000, R0			; clear sign bit -> 31-bit positive
+	MOVL	R0, SCAVE_RNG_SEED
+	RET
+
+
+;
+; ===========================================================
+;  ROLL_DIE -- return 1..6 in R0.  Pulls from the upper bits of
+;              the LCG output to avoid low-bit periodicity.
+; ===========================================================
+;
+	.ENTRY	ROLL_DIE, ^M<>				; R0/R1 are caller-saved scratch
+
+	CALLS	#0, NEXT_RAND			; R0 = new seed
+	EXTZV	#15, #16, R0, R1		; R1 = top-16 bits of low half
+	; R1 is in [0..65535]; map to [0..5] via DIVL by 10923 (= 65536/6).
+	; Any straggler at 65536 from rounding is clamped to 5.
+	DIVL2	#10923, R1
+	CMPL	R1, #5
+	BLEQ	1$
+	MOVL	#5, R1
+1$:	ADDL3	#1, R1, R0
+	RET
+
+
+;
+; ===========================================================
+;  RAND_BELOW -- caller passes the exclusive upper bound in R0;
+;                we return a uniform random in [0..R0).
+;
+;     Mod-bias is acceptable for our use (small bounds, never
+;     security-relevant).
+; ===========================================================
+;
+	.ENTRY	RAND_BELOW, ^M<R2>			; R2 is callee-saved per VMS calling std
+
+	MOVL	R0, R2				; R2 = bound
+	BLEQ	2$				; bound <= 0 -> return 0
+	CALLS	#0, NEXT_RAND			; R0 = random 31-bit state
+	; Take the upper 16 bits to reduce bias from the low LCG bits,
+	; then modulo-reduce.  16-bit << 16-bit bound is fine.
+	EXTZV	#15, #16, R0, R1
+	DIVL3	R2, R1, R0			; R0 = R1 / R2 (quotient)
+	MULL2	R2, R0				; R0 = (R1 / R2) * R2
+	SUBL3	R0, R1, R0			; R0 = R1 - that = R1 mod R2
+	RET
+2$:	CLRL	R0
+	RET
+
+
+;
+; ===========================================================
+;  SHUFFLE_LONGS -- Fisher-Yates in place on a longword array.
+;
+;     Args (both passed by value):
+;        4(AP)  count   -- longword count of elements
+;        8(AP)  base    -- address of the longword array
+;
+;     For i = count-1 down to 1:
+;        j = random in [0..i]
+;        swap a[i] <-> a[j]
+; ===========================================================
+;
+	.ENTRY	SHUFFLE_LONGS, ^M<R3,R4,R5,R6>
+
+	MOVL	4(AP), R6			; R6 = count
+	MOVL	8(AP), R5			; R5 = base address
+	DECL	R6
+	BGTR	S_LOOP				; count > 1: shuffle
+	BRB	S_DONE				; otherwise nothing to do
+S_LOOP:
+	; pick j in [0..R6]  (inclusive)
+	ADDL3	#1, R6, R0
+	CALLS	#0, RAND_BELOW			; R0 = j in [0..R6]
+
+	; swap base[R6] <-> base[R0]
+	MOVL	(R5)[R6], R3			; R3 = base[i]
+	MOVL	(R5)[R0], R4			; R4 = base[j]
+	MOVL	R4, (R5)[R6]
+	MOVL	R3, (R5)[R0]
+
+	SOBGTR	R6, S_LOOP
+S_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+	.END

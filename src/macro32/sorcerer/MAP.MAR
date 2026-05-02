@@ -1,0 +1,262 @@
+	.TITLE	MAP	Area-card decoding, movement, dead-end logic
+	.IDENT	/V0.1/
+
+;++
+; MAP.MAR
+;
+; Public routines:
+;
+;   DECODE_AREA   Arg: card-value by value (longword).  Splits the
+;                 packed bits into the SCAVE_DEC_* scratch globals
+;                 (N/E/S/W exits, U/D stairs, chamber flag, special
+;                 type).  Always returns SS$_NORMAL.
+;
+;   TRY_MOVE      Arg: direction (1..6) by value.
+;                 1=N 2=E 3=S 4=W 5=U 6=D.
+;                 On a successful move, updates SCAVE_MAP_PA,
+;                 SCAVE_MAP_PL, SCAVE_MAP_PP and returns 1 in R0.
+;                 On a dead-end / no-exit / pack-empty, leaves the
+;                 party in place (still places a face-down dead-end
+;                 card and clears the corresponding exit on the
+;                 current card so we never try the same direction
+;                 twice) and returns 0 in R0.
+;
+; Coordinate encoding follows the Casio implementation:
+;
+;     ML(i) = level*10000 + y*100 + x
+;
+;     y/x are 0..99 with the gateway at (50,50) on level 1.
+;--
+
+	$SSDEF
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_NM
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_ML
+	.EXTRN	SCAVE_MAP_MS
+	.EXTRN	SCAVE_DECK_LP
+	.EXTRN	SCAVE_DECK_LI
+	.EXTRN	SCAVE_DATA_AREA_CARDS
+	.EXTRN	SCAVE_DEC_AN
+	.EXTRN	SCAVE_DEC_AE
+	.EXTRN	SCAVE_DEC_AS
+	.EXTRN	SCAVE_DEC_AW
+	.EXTRN	SCAVE_DEC_AU
+	.EXTRN	SCAVE_DEC_AD
+	.EXTRN	SCAVE_DEC_AH
+	.EXTRN	SCAVE_DEC_AT
+
+
+	.PSECT	SCAVE_MAP_DATA, NOEXE, WRT, LONG
+
+;
+; Per-direction coordinate deltas.  Indexed by (direction-1).
+;
+	.ALIGN	LONG
+DELTA_DY:	.LONG	-1, 0,  1,  0,  0,  0	; N, E, S, W, U, D
+DELTA_DX:	.LONG	 0, 1,  0, -1,  0,  0
+DELTA_DL:	.LONG	 0, 0,  0,  0, -1,  1
+
+;
+; Address of the back-exit flag the destination card must have so
+; we can enter from this direction.  Indexed by (direction-1).
+;
+;     Going N -> destination must have S exit
+;     Going E -> destination must have W exit
+;     Going S -> destination must have N exit
+;     Going W -> destination must have E exit
+;     Going U -> destination must have D-stair
+;     Going D -> destination must have U-stair
+;
+BACK_EXIT:	.ADDRESS SCAVE_DEC_AS
+		.ADDRESS SCAVE_DEC_AW
+		.ADDRESS SCAVE_DEC_AN
+		.ADDRESS SCAVE_DEC_AE
+		.ADDRESS SCAVE_DEC_AD
+		.ADDRESS SCAVE_DEC_AU
+
+;
+; Mask of the exit bit on the CURRENT card we must clear when we
+; turn this direction into a known dead end.
+;
+DEAD_MASK:	.LONG	1, 2, 4, 8, 32, 64
+
+;
+; Scratch: most-recently-drawn card value.
+;
+CARD_VAL:	.LONG	0
+
+
+	.PSECT	SCAVE_MAP_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  DECODE_AREA  --  arg: card value (longword by value at 4(AP)).
+; ===========================================================
+;
+	.ENTRY	DECODE_AREA, ^M<>
+
+	MOVL	4(AP), R0
+	EXTZV	#0, #1, R0, SCAVE_DEC_AN
+	EXTZV	#1, #1, R0, SCAVE_DEC_AE
+	EXTZV	#2, #1, R0, SCAVE_DEC_AS
+	EXTZV	#3, #1, R0, SCAVE_DEC_AW
+	EXTZV	#4, #1, R0, SCAVE_DEC_AH
+	EXTZV	#5, #1, R0, SCAVE_DEC_AU
+	EXTZV	#6, #1, R0, SCAVE_DEC_AD
+	EXTZV	#7, #3, R0, SCAVE_DEC_AT
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  TRY_MOVE  --  arg: direction (1..6) by value at 4(AP).
+;                R0 = 1 on a successful move, 0 on dead-end.
+; ===========================================================
+;
+	.ENTRY	TRY_MOVE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	MOVL	4(AP), R6			; R6 = direction
+	SUBL3	#1, R6, R5			; R5 = direction-1 = 0..5
+
+	; Decode the current card to find its exits.
+	MOVL	SCAVE_MAP_PA, R7		; R7 = current PA
+	PUSHL	SCAVE_MAP_MP[R7]
+	CALLS	#1, DECODE_AREA
+
+	; Reject the move if the current card has no exit in this direction.
+	; The first six SCAVE_DEC_* longwords are AN/AE/AS/AW/AU/AD in
+	; that exact order, so SCAVE_DEC_AN[R5] picks up the right flag.
+	MOVAB	SCAVE_DEC_AN, R0
+	TSTL	(R0)[R5]
+	BNEQ	M_HAS_EXIT
+	BRW	M_FAIL
+M_HAS_EXIT:
+
+	; Compute target coordinates from the current ML[PA].
+	;     packed = level*10000 + y*100 + x
+	MOVL	SCAVE_MAP_ML[R7], R0
+	DIVL3	#10000, R0, R8			; R8 = level
+	MULL3	#10000, R8, R1
+	SUBL2	R1, R0
+	DIVL3	#100, R0, R9			; R9 = y
+	MULL3	#100, R9, R1
+	SUBL2	R1, R0				; R0 = x  (R0 reused as 'x' below)
+
+	; Apply the direction's delta.
+	MOVAB	DELTA_DY, R1
+	ADDL2	(R1)[R5], R9
+	MOVAB	DELTA_DX, R1
+	ADDL2	(R1)[R5], R0
+	MOVAB	DELTA_DL, R1
+	ADDL2	(R1)[R5], R8
+
+	; Re-pack into R10 = target coords.
+	MULL3	#10000, R8, R10
+	MULL3	#100, R9, R1
+	ADDL2	R1, R10
+	ADDL2	R0, R10
+
+	; Search ML[1..NM] for an existing area at the target coords.
+	MOVL	#1, R2
+	MOVL	SCAVE_MAP_NM, R3
+	CMPL	R2, R3
+	BLEQ	M_FIND				; NM >= 1: search
+	BRW	M_NEW				; NM == 0: nothing placed
+M_FIND:
+	CMPL	SCAVE_MAP_ML[R2], R10
+	BEQL	M_USE_EXISTING
+	AOBLEQ	R3, R2, M_FIND
+	BRW	M_NEW
+
+M_USE_EXISTING:
+	; R2 = index of the existing area.  Decode it and check that
+	; the back-exit is open from our direction.
+	;
+	; Exception: stair moves (direction 5 or 6 = U or D) are always
+	; allowed.  Per the rule book, the destination may simply have
+	; a "secret door" where the matching stair end is not visible,
+	; but you can still cross.  We treat the same in both directions.
+	PUSHL	SCAVE_MAP_MP[R2]
+	CALLS	#1, DECODE_AREA
+	CMPL	R6, #4
+	BGTR	M_DO_MOVE_EXISTING		; U / D: unconditional
+	MOVAB	BACK_EXIT, R0
+	MOVL	(R0)[R5], R0			; R0 = address of back-exit flag
+	TSTL	(R0)
+	BNEQ	M_DO_MOVE_EXISTING
+	BRW	M_FAIL				; existing card is a dead end from us
+
+M_DO_MOVE_EXISTING:
+	MOVL	R7, SCAVE_MAP_PP		; PP = old PA
+	MOVL	R2, SCAVE_MAP_PA		; new PA
+	MOVL	R8, SCAVE_MAP_PL		; new level
+	MOVL	#1, R0
+	RET
+
+
+M_NEW:
+	; Draw the next card from the large pack.  60 cards available
+	; (gateway is held aside in INIT_DECKS).
+	MOVL	SCAVE_DECK_LI, R2
+	CMPL	R2, #60
+	BLSS	M_DRAW
+	BRW	M_FAIL				; pack exhausted
+M_DRAW:
+	MOVL	SCAVE_DECK_LP[R2], R0		; R0 = card-table index
+	INCL	SCAVE_DECK_LI
+	MOVL	SCAVE_DATA_AREA_CARDS[R0], R0	; R0 = packed card value
+	MOVL	R0, CARD_VAL
+
+	PUSHL	R0
+	CALLS	#1, DECODE_AREA
+
+	; Stair moves: place the new card open, no matter what the
+	; back-exit looks like.  See note in M_USE_EXISTING.
+	CMPL	R6, #4
+	BGTR	M_PLACE_OPEN
+
+	MOVAB	BACK_EXIT, R0
+	MOVL	(R0)[R5], R0
+	TSTL	(R0)
+	BNEQ	M_PLACE_OPEN			; matching back-exit: open passage
+	BRW	M_PLACE_DEADEND			; no back-exit: dead end
+
+M_PLACE_OPEN:
+	INCL	SCAVE_MAP_NM
+	MOVL	SCAVE_MAP_NM, R2
+	MOVL	CARD_VAL, SCAVE_MAP_MP[R2]
+	MOVL	R10, SCAVE_MAP_ML[R2]
+
+	MOVL	R7, SCAVE_MAP_PP
+	MOVL	R2, SCAVE_MAP_PA
+	MOVL	R8, SCAVE_MAP_PL
+	MOVL	#1, R0
+	RET
+
+M_PLACE_DEADEND:
+	; Place the dead-end card so future visits can find it via
+	; coords.  Don't move the party.  Also clear the corresponding
+	; exit on the current card so we don't redraw on the same dir.
+	INCL	SCAVE_MAP_NM
+	MOVL	SCAVE_MAP_NM, R2
+	MOVL	CARD_VAL, SCAVE_MAP_MP[R2]
+	MOVL	R10, SCAVE_MAP_ML[R2]
+
+	MOVAB	DEAD_MASK, R0
+	MOVL	(R0)[R5], R0
+	BICL2	R0, SCAVE_MAP_MP[R7]		; clear that exit on the current card
+
+	CLRL	R0
+	RET
+
+
+M_FAIL:
+	CLRL	R0
+	RET
+
+	.END

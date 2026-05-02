@@ -1,0 +1,320 @@
+	.TITLE	SCORE  End-game scoring + score screen
+	.IDENT	/V0.1/
+
+;++
+; SCORE.MAR
+;
+;   Final-score calculation + the post-game screen.
+;
+;   Score formula (per the rule book):
+;
+;     score = 0
+;     for each party slot whose PS is original (0) or ally (1):
+;         s = creature_points[PC[slot]]
+;         if PK[slot] > 0:                ; dragon-slayer
+;             s *= 2
+;         score += s
+;         for each treasure carried by that slot:
+;             score += treasure_points[item]
+;     if SCAVE_STATE_SK:                  ; sorcerer killed
+;         score += 30
+;     score -= 30 * SCAVE_STATE_NC        ; per-curse penalty
+;     score = max(0, score)
+;
+;   When the party is wiped (SCAVE_STATE_GS == DEAD) we set the
+;   score to 0 unconditionally and paint the perished screen.
+;
+; Public:
+;
+;   CALCULATE_SCORE  --  fills SCAVE_STATE_SC.
+;
+;   SHOW_SCORE       --  full-screen end-game display, blocks on any
+;                        key.  Renders one of three variants based
+;                        on SCAVE_STATE_GS:
+;                          ESCAPED  -> "ESCAPED THE CAVE!"  + breakdown
+;                          DEAD     -> "YOUR PARTY HAS PERISHED"
+;                          QUIT     -> "You abandoned the cave."
+;--
+
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	READ_KEY
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	SCAVE_STATE_GS
+	.EXTRN	SCAVE_STATE_SC
+	.EXTRN	SCAVE_STATE_NC
+	.EXTRN	SCAVE_STATE_SK
+	.EXTRN	SCAVE_STATE_TN
+
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
+	.EXTRN	SCAVE_PARTY_PT
+
+	.EXTRN	SCAVE_DATA_CR_PTS
+	.EXTRN	SCAVE_DATA_TR_PTS
+
+
+	; SCAVE$_GS_* mirrors of STATE.MAR (file-local; see
+	; feedback_macro32_local_constants memory).
+	SCAVE$_GS_PLAYING = 0
+	SCAVE$_GS_ESCAPED = 1
+	SCAVE$_GS_DEAD    = 2
+	SCAVE$_GS_QUIT    = 3
+
+
+	.PSECT	SCAVE_SCORE_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+DSC_HDR_ESCAPED:	.ASCID	/** ESCAPED THE CAVE **/
+DSC_HDR_DEAD:		.ASCID	/** YOUR PARTY HAS PERISHED **/
+DSC_HDR_QUIT:		.ASCID	/-- You abandoned the cave --/
+
+DSC_PROMPT_END:		.ASCID	/(press any key to end)/
+
+DSC_LINE_TURN:		.ASCID	/Turns played: !UL/
+DSC_LINE_CR:		.ASCID	/Creatures + treasure: !UL pts/
+DSC_LINE_DRAGON:	.ASCID	/Dragon-slayer doubles: applied in line above/
+DSC_LINE_SORC:		.ASCID	/Sorcerer slain bonus: !UL/
+DSC_LINE_CURSE:		.ASCID	/Curse penalty: -!UL  (!UL curse(s))/
+DSC_LINE_TOTAL:		.ASCID	/====  FINAL SCORE: !UL  ===="/
+
+	.ALIGN	LONG
+LINE_BUF:	.BLKB	120
+	.ALIGN	LONG
+LINE_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS LINE_BUF
+
+	.ALIGN	LONG
+ROW_TMP:	.BLKL	1
+FAO_OUTLEN:	.BLKW	1
+	.ALIGN	LONG
+
+;
+; Working scratch.
+;
+SUB_CR:		.LONG	0			; subtotal: creatures+treasure
+SUB_SORC:	.LONG	0
+SUB_CURSE:	.LONG	0
+
+
+	.PSECT	SCAVE_SCORE_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  CALCULATE_SCORE  --  no args.  Fills SCAVE_STATE_SC.
+; ===========================================================
+;
+	.ENTRY	CALCULATE_SCORE, ^M<R2,R3,R4,R5,R6,R7>
+
+	; Wipe -> 0.
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD
+	BNEQ	1$
+	CLRL	SCAVE_STATE_SC
+	CLRL	SUB_CR
+	CLRL	SUB_SORC
+	CLRL	SUB_CURSE
+	RET
+1$:
+
+	CLRL	R6				; running sum (creatures+treasure)
+	CLRL	R5				; party slot
+PSUM_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	PSUM_BODY
+	BRB	PSUM_DONE
+PSUM_BODY:
+	; Skip stoned / dead.
+	MOVL	SCAVE_PARTY_PS[R5], R0
+	CMPL	R0, #2				; STONE
+	BLSS	PSUM_KEEP
+	BRB	PSUM_NEXT
+PSUM_KEEP:
+	; Add creature_points[PC[slot]], doubled if dragon-slayer.
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_PTS, R2
+	MOVL	(R2)[R1], R3			; R3 = points for this creature
+	TSTL	SCAVE_PARTY_PK[R5]
+	BEQL	2$
+	ASHL	#1, R3, R3			; *= 2  (R3 = points * 2)
+2$:
+	ADDL2	R3, R6
+
+	; Walk this creature's 4 treasure slots.
+	MULL3	#4, R5, R0			; offset = slot*4
+	MOVL	#4, R7				; loop count
+TS_LOOP:
+	MOVL	SCAVE_PARTY_PT[R0], R1
+	BLSS	TS_NEXT				; -1 = empty (signed compare)
+	MOVAB	SCAVE_DATA_TR_PTS, R2
+	ADDL2	(R2)[R1], R6
+TS_NEXT:
+	INCL	R0
+	SOBGTR	R7, TS_LOOP
+PSUM_NEXT:
+	INCL	R5
+	BRW	PSUM_LOOP
+
+PSUM_DONE:
+	MOVL	R6, SUB_CR
+
+	; Sorcerer bonus.
+	CLRL	R0
+	TSTL	SCAVE_STATE_SK
+	BEQL	3$
+	MOVL	#30, R0
+3$:
+	MOVL	R0, SUB_SORC
+
+	; Curse penalty: 30 * NC.
+	MULL3	#30, SCAVE_STATE_NC, R0
+	MOVL	R0, SUB_CURSE
+
+	; total = SUB_CR + SUB_SORC - SUB_CURSE, clamped at 0.
+	ADDL3	SUB_CR, SUB_SORC, R0
+	SUBL2	SUB_CURSE, R0
+	BGEQ	4$
+	CLRL	R0
+4$:
+	MOVL	R0, SCAVE_STATE_SC
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  SHOW_SCORE  --  end-game screen.  Blocks on any key.
+; ===========================================================
+;
+	.ENTRY	SHOW_SCORE, ^M<R2,R3,R4>
+
+	CALLS	#0, G^CALCULATE_SCORE
+
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	; Header chosen by SCAVE_STATE_GS.
+	MOVAB	DSC_HDR_QUIT, R2
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_ESCAPED
+	BNEQ	1$
+	MOVAB	DSC_HDR_ESCAPED, R2
+	BRB	2$
+1$:	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD
+	BNEQ	2$
+	MOVAB	DSC_HDR_DEAD, R2
+2$:
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R2
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Body lines, only relevant if not QUIT.
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_QUIT
+	BNEQ	3$
+	BRW	SS_FOOTER
+3$:
+	; "Turns played: N"
+	BSBW	PAINT_TURNS
+
+	; "Creatures + treasure: N pts"
+	BSBW	PAINT_CR_LINE
+
+	; "Sorcerer slain bonus: N"  -- only if SK
+	TSTL	SCAVE_STATE_SK
+	BEQL	4$
+	BSBW	PAINT_SORC_LINE
+4$:
+	; "Curse penalty: -N (M curse(s))" -- only if NC > 0
+	TSTL	SCAVE_STATE_NC
+	BEQL	5$
+	BSBW	PAINT_CURSE_LINE
+5$:
+	; Total
+	BSBW	PAINT_TOTAL_LINE
+
+SS_FOOTER:
+	MOVL	#16, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_END
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; -- per-line helpers ---------------------------------------
+;
+
+PAINT_TURNS:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LINE_TURN, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SCAVE_STATE_TN
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#6, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+PAINT_CR_LINE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LINE_CR, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SUB_CR
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#8, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+PAINT_SORC_LINE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LINE_SORC, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SUB_SORC
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#10, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+PAINT_CURSE_LINE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LINE_CURSE, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SUB_CURSE, p2=SCAVE_STATE_NC
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#11, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+PAINT_TOTAL_LINE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LINE_TOTAL, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SCAVE_STATE_SC
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#13, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+	.END

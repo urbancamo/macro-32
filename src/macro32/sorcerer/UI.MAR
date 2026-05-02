@@ -1,0 +1,259 @@
+	.TITLE	UI	SMG$ display + keyboard helpers for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; UI.MAR
+;
+;   SMG$ pasteboard / virtual-display setup and the small set of
+;   painting helpers that every other module uses.  Stage 1 keeps the
+;   layout simple: one full-screen bordered virtual display.  Later
+;   stages will subdivide into the panel layout described in PLAN.md.
+;
+; Public routines:
+;
+;   INIT_DISPLAY    Create pasteboard + virtual keyboard + main display.
+;                   Stores ids into SCAVE_UI_PB_ID / SCAVE_UI_KB_ID /
+;                   SCAVE_UI_DSP_MAP.  Returns SMG$ status in R0.
+;
+;   TEARDOWN_DISPLAY  Delete the main display and the pasteboard.
+;
+;   ERASE_MAIN      SMG$ERASE_DISPLAY on the main display.
+;
+;   PAINT_AT_MAIN   Args (text-descriptor by ref, row by ref, col by ref).
+;                   Wraps SMG$PUT_CHARS on the main display.
+;
+;   PAINT_CENTERED  Args (text-descriptor by ref, row by ref).
+;                   Centres horizontally on the main-display interior.
+;
+;   READ_KEY        Block on SMG$READ_KEYSTROKE; returns terminator
+;                   code in R0 (already MOVZWL'd to a longword).
+;
+;   BEGIN_BATCH / END_BATCH  Thin wrappers around
+;                   SMG$BEGIN_PASTEBOARD_UPDATE / END so callers can
+;                   stage multiple paints into one terminal update.
+;
+; All routines return their underlying SMG$ status in R0.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$CREATE_PASTEBOARD
+	.EXTRN	SMG$CREATE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$CREATE_VIRTUAL_KEYBOARD
+	.EXTRN	SMG$PASTE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$ERASE_DISPLAY
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SMG$READ_KEYSTROKE
+	.EXTRN	SMG$BEGIN_PASTEBOARD_UPDATE
+	.EXTRN	SMG$END_PASTEBOARD_UPDATE
+	.EXTRN	SMG$DELETE_VIRTUAL_DISPLAY
+	.EXTRN	SMG$DELETE_PASTEBOARD
+
+	.EXTRN	SCAVE_UI_PB_ID
+	.EXTRN	SCAVE_UI_PB_ROWS
+	.EXTRN	SCAVE_UI_PB_COLS
+	.EXTRN	SCAVE_UI_KB_ID
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+
+	.PSECT	SCAVE_UI_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+DSP_ROWS:	.BLKL	1			; main display interior rows = PB_ROWS - 2
+DSP_COLS:	.BLKL	1			; main display interior cols = PB_COLS - 2
+PASTE_ROW:	.LONG	2
+PASTE_COL:	.LONG	2
+DISP_ATTR:	.LONG	SMG$M_BORDER
+
+	.ALIGN	LONG
+TERM_CODE:	.BLKW	1			; SMG$READ_KEYSTROKE terminator out
+	.ALIGN	LONG
+
+;
+; Single-longword scratch for SMG$ args that take addresses.  We
+; copy the by-reference inputs into these so PUSHAL has a stable
+; longword to point at.
+;
+	.ALIGN	LONG
+TMP_ROW:	.BLKL	1
+TMP_COL:	.BLKL	1
+
+
+	.PSECT	SCAVE_UI_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  INIT_DISPLAY  --  open pasteboard, create main bordered virtual
+;                    display, create virtual keyboard, paste the
+;                    display so its border hugs the screen edge.
+;                    Status returned in R0; on failure, callers
+;                    should propagate it.
+; ===========================================================
+;
+	.ENTRY	INIT_DISPLAY, ^M<R2,R3,R4,R5>
+
+	; SMG$CREATE_PASTEBOARD pasteboard-id, [output-device], [rows], [cols]
+	PUSHAL	SCAVE_UI_PB_COLS
+	PUSHAL	SCAVE_UI_PB_ROWS
+	CLRL	-(SP)
+	PUSHAL	SCAVE_UI_PB_ID
+	CALLS	#4, G^SMG$CREATE_PASTEBOARD
+	BLBS	R0, 1$
+	RET
+1$:
+	; Compute interior dims: full terminal minus the border ring.
+	SUBL3	#2, SCAVE_UI_PB_ROWS, DSP_ROWS
+	SUBL3	#2, SCAVE_UI_PB_COLS, DSP_COLS
+
+	; SMG$CREATE_VIRTUAL_DISPLAY rows, cols, display-id, attrs
+	PUSHAL	DISP_ATTR
+	PUSHAL	SCAVE_UI_DSP_MAP
+	PUSHAL	DSP_COLS
+	PUSHAL	DSP_ROWS
+	CALLS	#4, G^SMG$CREATE_VIRTUAL_DISPLAY
+	BLBS	R0, 2$
+	RET
+2$:
+	PUSHAL	SCAVE_UI_KB_ID
+	CALLS	#1, G^SMG$CREATE_VIRTUAL_KEYBOARD
+	BLBS	R0, 3$
+	RET
+3$:
+	PUSHAL	PASTE_COL
+	PUSHAL	PASTE_ROW
+	PUSHAL	SCAVE_UI_PB_ID
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PASTE_VIRTUAL_DISPLAY
+	RET
+
+
+;
+; ===========================================================
+;  TEARDOWN_DISPLAY  --  reverse INIT.  Best-effort; ignores
+;                        per-call status and just propagates the
+;                        last one.
+; ===========================================================
+;
+	.ENTRY	TEARDOWN_DISPLAY, ^M<>
+
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#1, G^SMG$DELETE_VIRTUAL_DISPLAY
+	PUSHAL	SCAVE_UI_PB_ID
+	CALLS	#1, G^SMG$DELETE_PASTEBOARD
+	RET
+
+
+;
+; ===========================================================
+;  ERASE_MAIN  --  clear all characters in the main display.
+; ===========================================================
+;
+	.ENTRY	ERASE_MAIN, ^M<>
+
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#1, G^SMG$ERASE_DISPLAY
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_AT_MAIN  --  SMG$PUT_CHARS on the main display.
+;
+;     Args (by reference):
+;        text   character-string descriptor
+;        row    1-based row in the display interior
+;        col    1-based column
+; ===========================================================
+;
+	.ENTRY	PAINT_AT_MAIN, ^M<>
+
+	PUSHAL	12(AP)				; col
+	PUSHAL	8(AP)				; row
+	PUSHAL	@4(AP)				; text descriptor (pass through addr)
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_CENTERED  --  draw a descriptor centred on the given row
+;                      of the main display interior.
+;
+;     Args (by reference):
+;        text   character-string descriptor
+;        row
+;
+;     Reads the descriptor's length from offset 0 (a word) so it
+;     can compute the start column.
+; ===========================================================
+;
+	.ENTRY	PAINT_CENTERED, ^M<R6,R7>
+
+	MOVL	4(AP), R6			; descriptor address
+	MOVZWL	(R6), R7			; R7 = string length (word)
+	; col = (interior_cols - len) / 2 + 1, clamped to 1.
+	SUBL3	R7, DSP_COLS, R0
+	BGEQ	1$
+	CLRL	R0
+1$:	DIVL2	#2, R0
+	INCL	R0
+	MOVL	R0, TMP_COL
+	; row arg is by reference; copy through to TMP_ROW so we have
+	; a stable longword to PUSHAL when we re-enter PAINT_AT_MAIN.
+	MOVL	@8(AP), TMP_ROW
+
+	PUSHAL	TMP_COL
+	PUSHAL	TMP_ROW
+	MOVL	4(AP), -(SP)			; text-descriptor *address* by value
+						; we want PAINT_AT_MAIN to receive
+						; an address that points to the
+						; descriptor; here that's just R6.
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RET
+
+
+;
+; ===========================================================
+;  READ_KEY  --  blocking single-keystroke read.  Returns the
+;                terminator code in R0 (low half is the SMG$K_TRM_*
+;                code; for ASCII keys this is the byte itself).
+; ===========================================================
+;
+	.ENTRY	READ_KEY, ^M<>
+
+	PUSHAL	TERM_CODE
+	PUSHAL	SCAVE_UI_KB_ID
+	CALLS	#2, G^SMG$READ_KEYSTROKE
+	BLBS	R0, 1$
+	; on failure we return the failure status so callers can
+	; bail out of their input loops cleanly.
+	RET
+1$:
+	MOVZWL	TERM_CODE, R0
+	RET
+
+
+;
+; ===========================================================
+;  BEGIN_BATCH / END_BATCH  --  let callers wrap multi-step paints
+;                               into a single terminal update.
+; ===========================================================
+;
+	.ENTRY	BEGIN_BATCH, ^M<>
+
+	PUSHAL	SCAVE_UI_PB_ID
+	CALLS	#1, G^SMG$BEGIN_PASTEBOARD_UPDATE
+	RET
+
+
+	.ENTRY	END_BATCH, ^M<>
+
+	PUSHAL	SCAVE_UI_PB_ID
+	CALLS	#1, G^SMG$END_PASTEBOARD_UPDATE
+	RET
+
+	.END

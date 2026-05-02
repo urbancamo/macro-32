@@ -1,0 +1,558 @@
+	.TITLE	MAIN	The Sorcerer's Cave -- entry point and turn dispatch
+	.IDENT	/V0.3/
+
+;++
+; MAIN.MAR
+;
+;   Image entry point.  After Stage 2 the flow is:
+;
+;     1. SETUP_INIT      -- RNG, SMG$, title splash, party pick,
+;                           deck shuffle, gateway placement.
+;     2. TURN_DISPATCH   -- per-turn loop:
+;                            paint current location summary
+;                            read a key
+;                            handle  N/E/S/W/U/D  -> TRY_MOVE
+;                            handle  q / Q       -> exit
+;                            other keys are ignored
+;     3. TEARDOWN        -- delete SMG$ display + pasteboard.
+;
+;   Stage 3+ will hook chamber draws into the move-success path.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+
+;
+; UI helpers (UI.MAR)
+;
+	.EXTRN	TEARDOWN_DISPLAY
+	.EXTRN	ERASE_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	PAINT_AT_MAIN
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+;
+; Setup pipeline (SETUP.MAR)
+;
+	.EXTRN	SETUP_INIT
+
+;
+; Map / movement (MAP.MAR)
+;
+	.EXTRN	DECODE_AREA
+	.EXTRN	TRY_MOVE
+	.EXTRN	SCAVE_DEC_AN
+	.EXTRN	SCAVE_DEC_AE
+	.EXTRN	SCAVE_DEC_AS
+	.EXTRN	SCAVE_DEC_AW
+	.EXTRN	SCAVE_DEC_AU
+	.EXTRN	SCAVE_DEC_AD
+	.EXTRN	SCAVE_DEC_AH
+	.EXTRN	SCAVE_DEC_AT
+
+;
+; Chamber dispatch (CHAMBER.MAR)
+;
+	.EXTRN	ENTER_CHAMBER
+
+;
+; Special-area dispatch (SPECIAL.MAR)
+;
+	.EXTRN	ENTER_SPECIAL
+
+;
+; End-game scoring (SCORE.MAR)
+;
+	.EXTRN	SHOW_SCORE
+
+;
+; Game state (STATE.MAR)
+;
+	.EXTRN	SCAVE_STATE_GS
+	.EXTRN	SCAVE_STATE_TN
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_NM
+	.EXTRN	SCAVE_MAP_MP
+
+;
+; Static data (DATA.MAR)
+;
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_SP_NAME_PTR
+
+;
+; SMG$ direct calls + SYS$FAO
+;
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+
+	SCAVE$_GS_QUIT  = 3
+	SCAVE$_GS_ESCAPED = 1
+
+
+	.PSECT	MAIN_DATA, NOEXE, WRT, LONG
+
+;
+; FAO control strings
+;
+	.ALIGN	LONG
+HEADER_FAO:	.ASCID	/L!UL  !AS    Turn !UL    Areas !UL/
+EXITS_FAO:	.ASCID	/Exits: !AS    Stairs: !AS/
+TYPE_FAO:	.ASCID	/!AS!AS/
+PARTY_FAO:	.ASCID	/Party (!UL): !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS/
+
+;
+; Static prompt and helper descriptors.
+;
+PROMPT_DSC:	.ASCID	/[N E S W U D] move    [Q] quit/
+EMPTY_DSC:	.ASCID	//
+TUNNEL_DSC:	.ASCID	/Tunnel/
+CHAMBER_DSC:	.ASCID	/Chamber/
+
+;
+; Output buffers + descriptors for FAO targets.
+;
+	.ALIGN	LONG
+HEADER_BUF:	.BLKB	120
+	.ALIGN	LONG
+HEADER_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS HEADER_BUF
+
+	.ALIGN	LONG
+EXITS_BUF:	.BLKB	80
+	.ALIGN	LONG
+EXITS_DSC:	.WORD	80
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS EXITS_BUF
+
+	.ALIGN	LONG
+TYPE_BUF:	.BLKB	40
+	.ALIGN	LONG
+TYPE_DSC:	.WORD	40
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS TYPE_BUF
+
+	.ALIGN	LONG
+PARTY_BUF:	.BLKB	160
+	.ALIGN	LONG
+PARTY_DSC:	.WORD	160
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS PARTY_BUF
+
+;
+; Small static buffers for the exit/stair direction-list strings.
+; "NESW" / "UD" with one char per flag.  Built each frame.
+;
+	.ALIGN	LONG
+EXITSTR_BUF:	.BLKB	5
+	.ALIGN	LONG
+EXITSTR_DSC:	.WORD	0
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS EXITSTR_BUF
+	.ALIGN	LONG
+STAIRSTR_BUF:	.BLKB	3
+	.ALIGN	LONG
+STAIRSTR_DSC:	.WORD	0
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS STAIRSTR_BUF
+
+;
+; Row constants used by the painters.
+;
+HEADER_ROW:	.LONG	2
+EXITS_ROW:	.LONG	5
+TYPE_ROW:	.LONG	7
+PARTY_ROW:	.LONG	10
+PROMPT_ROW:	.LONG	18
+
+;
+; Slot table for the party FAO (12 longwords; each holds the
+; address of a name descriptor).
+;
+	.ALIGN	LONG
+SLOT_BUF:	.BLKL	12
+
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+
+
+	.PSECT	MAIN_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  SCAVE  -- image entry point
+; ===========================================================
+;
+	.ENTRY	SCAVE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CALLS	#0, G^SETUP_INIT
+	BLBS	R0, 1$
+	CALLS	#0, G^TEARDOWN_DISPLAY
+	RET
+1$:
+	CALLS	#0, TURN_DISPATCH
+
+	; Show the end-game screen unless the player simply quit
+	; mid-game (we treat Q as "abandon" -- still painted but minimal).
+	CALLS	#0, G^SHOW_SCORE
+
+	CALLS	#0, G^TEARDOWN_DISPLAY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  TURN_DISPATCH  --  the per-turn input/redraw loop.
+;                     Returns to caller when the user presses Q
+;                     or when SCAVE_STATE_GS goes non-zero for
+;                     any other reason (escaped, dead, etc.).
+; ===========================================================
+;
+	.ENTRY	TURN_DISPATCH, ^M<R2,R3,R4,R5,R6>
+
+T_LOOP:
+	; If anything has flipped the game-state out of PLAYING (combat
+	; defeat, hazards killing the whole party, X-leave, Q-quit) we
+	; bail out of dispatch immediately so the score screen runs.
+	TSTL	SCAVE_STATE_GS
+	BEQL	T_GO
+	MOVL	#SS$_NORMAL, R0
+	RET
+T_GO:
+	BSBW	PAINT_TURN
+
+	CALLS	#0, READ_KEY
+	; R0 = terminator code (low half is the byte for ASCII keys)
+	MOVL	R0, R6				; save -- READ_KEY clobbered
+
+	; q / Q -> mark quit and exit
+	CMPL	R6, #^A/q/
+	BNEQ	100$
+	BRW	T_QUIT
+100$:	CMPL	R6, #^A/Q/
+	BNEQ	101$
+	BRW	T_QUIT
+101$:
+	; x / X -> leave the cave (only if on level 1 with stair-up)
+	CMPL	R6, #^A/x/
+	BEQL	102$
+	CMPL	R6, #^A/X/
+	BEQL	102$
+	BRB	103$
+102$:
+	; Validate: must be on level 1 with an up-stair on the current
+	; area card.  Decode + check.
+	MOVL	SCAVE_MAP_PA, R5
+	PUSHL	SCAVE_MAP_MP[R5]
+	CALLS	#1, G^DECODE_AREA
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	T_LOOP				; not on level 1
+	TSTL	SCAVE_DEC_AU
+	BEQL	T_LOOP				; no up-stair here
+	; Mark escaped and break out of the loop.
+	MOVL	#1, SCAVE_STATE_GS		; SCAVE$_GS_ESCAPED
+	MOVL	#SS$_NORMAL, R0
+	RET
+103$:
+
+	; map N/E/S/W/U/D (upper or lower) to direction 1..6
+	MOVL	#0, R5				; default: no direction
+	CMPL	R6, #^A/N/
+	BNEQ	2$
+	MOVL	#1, R5
+	BRW	T_DO_DIR
+2$:	CMPL	R6, #^A/n/
+	BNEQ	3$
+	MOVL	#1, R5
+	BRW	T_DO_DIR
+3$:	CMPL	R6, #^A/E/
+	BNEQ	4$
+	MOVL	#2, R5
+	BRW	T_DO_DIR
+4$:	CMPL	R6, #^A/e/
+	BNEQ	5$
+	MOVL	#2, R5
+	BRW	T_DO_DIR
+5$:	CMPL	R6, #^A/S/
+	BNEQ	6$
+	MOVL	#3, R5
+	BRW	T_DO_DIR
+6$:	CMPL	R6, #^A/s/
+	BNEQ	7$
+	MOVL	#3, R5
+	BRW	T_DO_DIR
+7$:	CMPL	R6, #^A/W/
+	BNEQ	8$
+	MOVL	#4, R5
+	BRW	T_DO_DIR
+8$:	CMPL	R6, #^A/w/
+	BNEQ	9$
+	MOVL	#4, R5
+	BRW	T_DO_DIR
+9$:	CMPL	R6, #^A/U/
+	BNEQ	10$
+	MOVL	#5, R5
+	BRW	T_DO_DIR
+10$:	CMPL	R6, #^A/u/
+	BNEQ	11$
+	MOVL	#5, R5
+	BRW	T_DO_DIR
+11$:	CMPL	R6, #^A/D/
+	BNEQ	12$
+	MOVL	#6, R5
+	BRW	T_DO_DIR
+12$:	CMPL	R6, #^A/d/
+	BNEQ	13$
+	MOVL	#6, R5
+	BRW	T_DO_DIR
+13$:
+	; not a recognised key -- ignore
+	BRW	T_LOOP
+
+T_DO_DIR:
+	TSTL	R5
+	BNEQ	200$				; defensive (shouldn't happen)
+	BRW	T_LOOP
+200$:	PUSHL	R5
+	CALLS	#1, G^TRY_MOVE
+	; R0 = 1 on move, 0 on dead-end / no-exit / pack-empty.  Either
+	; way, refresh the display next iteration.  Increment the turn
+	; counter only on a successful move (matching the Casio).
+	BLBS	R0, 201$
+	BRW	T_LOOP
+201$:	INCL	SCAVE_STATE_TN
+	; Decode the freshly-arrived-at area, then dispatch:
+	;   AT == 2  -> Deep Pool   (SPECIAL)
+	;   AT == 3  -> Viper Pit   (SPECIAL)
+	;   AH == 1  -> Chamber     (CHAMBER, first-visit only -- the
+	;                            routine itself checks SCAVE_MAP_MV)
+	;   else     -> tunnel/corridor, nothing else to do this turn
+	MOVL	SCAVE_MAP_PA, R2
+	PUSHL	SCAVE_MAP_MP[R2]
+	CALLS	#1, G^DECODE_AREA
+
+	CMPL	SCAVE_DEC_AT, #2
+	BEQL	202$
+	CMPL	SCAVE_DEC_AT, #3
+	BEQL	202$
+	BRB	203$
+202$:
+	CALLS	#0, G^ENTER_SPECIAL
+	BRW	T_LOOP
+203$:
+	TSTL	SCAVE_DEC_AH
+	BNEQ	204$
+	BRW	T_LOOP
+204$:
+	CALLS	#0, G^ENTER_CHAMBER
+	BRW	T_LOOP
+
+T_QUIT:
+	MOVL	#SCAVE$_GS_QUIT, SCAVE_STATE_GS
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_TURN  --  full repaint of the per-turn display.
+;
+;     Decodes the current area, builds the header / exits /
+;     party / prompt strings via $FAO, and writes them all
+;     inside one batched pasteboard update.
+; ===========================================================
+;
+PAINT_TURN:
+	; Decode current card.  TRY_MOVE already calls DECODE_AREA at
+	; its entry, but we are here on a frame where TRY_MOVE may not
+	; have run (first frame, or input was 'q').  Decode it ourselves.
+	MOVL	SCAVE_MAP_PA, R2
+	PUSHL	SCAVE_MAP_MP[R2]
+	CALLS	#1, G^DECODE_AREA
+
+	BSBW	BUILD_EXITSTR
+	BSBW	BUILD_STAIRSTR
+	BSBW	BUILD_PARTYSTR
+
+	; Header line.  Pick the area-name descriptor: special name if
+	; SCAVE_DEC_AT > 0, else "Tunnel" / "Chamber".
+	MOVL	SCAVE_DEC_AT, R2
+	BNEQ	1$
+	; AT == 0: pick tunnel or chamber by AH
+	TSTL	SCAVE_DEC_AH
+	BEQL	2$
+	MOVAB	CHAMBER_DSC, R3
+	BRB	3$
+2$:	MOVAB	TUNNEL_DSC, R3
+	BRB	3$
+1$:
+	MOVAB	SCAVE_DATA_SP_NAME_PTR, R3
+	MOVL	(R3)[R2], R3			; R3 = ptr to special-name descriptor
+3$:
+
+	MOVW	#120, HEADER_DSC
+	$FAO_S	ctrstr=HEADER_FAO, outlen=FAO_OUTLEN, outbuf=HEADER_DSC, -
+		p1=SCAVE_MAP_PL, p2=R3, -
+		p3=SCAVE_STATE_TN, p4=SCAVE_MAP_NM
+	MOVW	FAO_OUTLEN, HEADER_DSC
+
+	; Exits line: "Exits: NESW    Stairs: UD".  !AS arguments are
+	; descriptor *addresses*; use #DSC so the macro pushes the
+	; immediate address rather than the first longword of the
+	; descriptor.
+	MOVW	#80, EXITS_DSC
+	$FAO_S	ctrstr=EXITS_FAO, outlen=FAO_OUTLEN, outbuf=EXITS_DSC, -
+		p1=#EXITSTR_DSC, p2=#STAIRSTR_DSC
+	MOVW	FAO_OUTLEN, EXITS_DSC
+
+	; Now paint everything in a single batch.
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	PUSHAL	HEADER_ROW
+	PUSHAL	HEADER_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	PUSHAL	EXITS_ROW
+	PUSHAL	EXITS_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	PUSHAL	PARTY_ROW
+	PUSHAL	PARTY_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	PUSHAL	PROMPT_ROW
+	PUSHAL	PROMPT_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  BUILD_EXITSTR  --  fill EXITSTR_BUF / EXITSTR_DSC with the
+;                     subset of "NESW" matching the decoded flags.
+; ===========================================================
+;
+BUILD_EXITSTR:
+	MOVAB	EXITSTR_BUF, R2			; R2 = dst pointer
+	CLRL	R3				; R3 = length so far
+	TSTL	SCAVE_DEC_AN
+	BEQL	1$
+	MOVB	#^A/N/, (R2)+
+	INCL	R3
+1$:	TSTL	SCAVE_DEC_AE
+	BEQL	2$
+	MOVB	#^A/E/, (R2)+
+	INCL	R3
+2$:	TSTL	SCAVE_DEC_AS
+	BEQL	3$
+	MOVB	#^A/S/, (R2)+
+	INCL	R3
+3$:	TSTL	SCAVE_DEC_AW
+	BEQL	4$
+	MOVB	#^A/W/, (R2)+
+	INCL	R3
+4$:
+	; Pad the buffer with spaces in case earlier frames wrote more
+	; chars (SMG$ doesn't auto-erase between paints when the new
+	; descriptor is shorter).  We reset the length below anyway.
+	MOVW	R3, EXITSTR_DSC			; trim descriptor length
+	RSB
+
+
+;
+; ===========================================================
+;  BUILD_STAIRSTR  --  fill STAIRSTR_BUF with subset of "UD".
+; ===========================================================
+;
+BUILD_STAIRSTR:
+	MOVAB	STAIRSTR_BUF, R2
+	CLRL	R3
+	TSTL	SCAVE_DEC_AU
+	BEQL	1$
+	MOVB	#^A/U/, (R2)+
+	INCL	R3
+1$:	TSTL	SCAVE_DEC_AD
+	BEQL	2$
+	MOVB	#^A/D/, (R2)+
+	INCL	R3
+2$:
+	MOVW	R3, STAIRSTR_DSC
+	RSB
+
+
+;
+; ===========================================================
+;  BUILD_PARTYSTR  --  fill PARTY_BUF via FAO, listing party
+;                      member names.  Pads unused slots with
+;                      EMPTY_DSC.
+; ===========================================================
+;
+BUILD_PARTYSTR:
+	MOVAB	SLOT_BUF, R2			; dst slot array (12 longwords)
+	MOVL	SCAVE_PARTY_NP, R3		; party size
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
+	MOVAB	SCAVE_PARTY_PC, R5
+	MOVAB	SCAVE_PARTY_PS, R8
+	CLRL	R9				; living count (PS < STONE)
+	CLRL	R6
+1$:
+	CMPL	R6, R3
+	BLSS	2$
+	; beyond NP -- empty slot
+	MOVAB	EMPTY_DSC, R7
+	BRB	3$
+2$:
+	; in-bounds; show only living/ally members.  STONE (2) and
+	; DEAD (3) collapse to an empty slot and don't count toward
+	; the displayed party size.
+	CMPL	(R8)[R6], #2
+	BLSS	4$
+	MOVAB	EMPTY_DSC, R7
+	BRB	3$
+4$:
+	INCL	R9
+	MOVL	(R5)[R6], R0			; creature index in slot R6
+	MOVL	(R4)[R0], R7
+3$:
+	MOVL	R7, (R2)[R6]
+	AOBLSS	#12, R6, 1$
+
+	MOVW	#160, PARTY_DSC
+	$FAO_S	ctrstr=PARTY_FAO, outlen=FAO_OUTLEN, outbuf=PARTY_DSC, -
+		p1=R9, -
+		p2=SLOT_BUF+0,  p3=SLOT_BUF+4,  p4=SLOT_BUF+8,  p5=SLOT_BUF+12, -
+		p6=SLOT_BUF+16, p7=SLOT_BUF+20, p8=SLOT_BUF+24, p9=SLOT_BUF+28, -
+		p10=SLOT_BUF+32, p11=SLOT_BUF+36, p12=SLOT_BUF+40, p13=SLOT_BUF+44
+	MOVW	FAO_OUTLEN, PARTY_DSC
+
+	; If everyone is dead/stone, mark the game as DEAD so the next
+	; T_LOOP iteration falls out into the score screen.  This is
+	; belt-and-braces -- DO_ATTACK already does it on combat loss,
+	; but Medusa / Ghouls / Viper Pit casualties can trickle the
+	; party down to zero living members without touching GS.
+	TSTL	R9
+	BNEQ	5$
+	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
+5$:
+	RSB
+
+	.END	SCAVE

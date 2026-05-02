@@ -1,0 +1,516 @@
+	.TITLE	SETUP	Title splash, party selection, deck shuffle, map init
+	.IDENT	/V0.1/
+
+;++
+; SETUP.MAR
+;
+;   The pre-game phase.  After the SMG$ pasteboard is up, run:
+;
+;     1. TITLE_SPLASH    -- art + "press any key"
+;     2. PICK_PARTY      -- choose creatures totalling <= 6 sel-points
+;     3. INIT_DECKS      -- shuffle 60 large-pack + 52 small-pack
+;     4. INIT_MAP        -- place GATEWAY as area 1, level 1
+;
+;   The Stage-1 party picker is number-key driven (1..8 to add,
+;   0 to finish).  A later stage can replace it with cursor-driven
+;   selection without changing the resulting party state.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+
+;
+; External system services / RTL we call.
+;
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SMG$ERASE_DISPLAY
+	.EXTRN	SYS$FAO
+
+;
+; UI helpers (UI.MAR)
+;
+	.EXTRN	INIT_DISPLAY
+	.EXTRN	ERASE_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	SCAVE_UI_DSP_MAP
+	.EXTRN	SCAVE_UI_PB_ROWS
+	.EXTRN	SCAVE_UI_PB_COLS
+
+;
+; RNG (RNG.MAR)
+;
+	.EXTRN	INIT_RNG
+	.EXTRN	SHUFFLE_LONGS
+
+;
+; Game state (STATE.MAR)
+;
+	.EXTRN	SCAVE_DECK_LP
+	.EXTRN	SCAVE_DECK_LI
+	.EXTRN	SCAVE_DECK_SP
+	.EXTRN	SCAVE_DECK_SI
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_ML
+	.EXTRN	SCAVE_MAP_MS
+	.EXTRN	SCAVE_MAP_MV
+	.EXTRN	SCAVE_MAP_NM
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_AREA_AC
+	.EXTRN	SCAVE_AREA_AF
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
+	.EXTRN	SCAVE_PARTY_PT
+
+;
+; Static data (DATA.MAR)
+;
+	.EXTRN	SCAVE_DATA_AREA_CARDS
+	.EXTRN	SCAVE_DATA_CR_FS
+	.EXTRN	SCAVE_DATA_CR_MP
+	.EXTRN	SCAVE_DATA_CR_CARRY
+	.EXTRN	SCAVE_DATA_CR_SEL
+	.EXTRN	SCAVE_DATA_CR_PTS
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_CR_START_COUNT
+	.EXTRN	SCAVE_DATA_SMALL_PACK
+
+
+	.PSECT	SCAVE_SETUP_DATA, NOEXE, WRT, LONG
+
+;
+; -- title-screen strings --
+;
+	.ALIGN	LONG
+TITLE_DSC1:	.ASCID	/THE SORCERER'S CAVE/
+TITLE_DSC2:	.ASCID	/A Game of Exploration, Magic, and Adventure/
+TITLE_DSC3:	.ASCID	/After Terence Donnelly (1978)/
+TITLE_DSC4:	.ASCID	/Press any key to begin.../
+
+;
+; -- party-selection strings --
+;
+HEADER_DSC:	.ASCID	/SELECT YOUR PARTY/
+INSTR_DSC:	.ASCID	\Press 1-8 to add a creature; 0 when done.\
+
+;
+; FAO control string for the per-creature catalog row.
+;   !2UL) !12<!AS!>F:!UL M:!UL Carry:!3UL kg  Cost:!UL  Pts:!2UL  (avail:!UL)
+;
+ROW_FAO_DSC:	.ASCID	/!2UL) !12<!AS!>F:!UL M:!UL Carry:!3UL kg  Cost:!UL  Pts:!2UL  (avail:!UL)/
+
+;
+; FAO control for the running-total line.
+;
+TOTAL_FAO_DSC:	.ASCID	/Points left: !UL    Party size: !UL/
+
+;
+; -- working buffers for FAO --
+;
+	.ALIGN	LONG
+ROW_BUF:	.BLKB	120			; one rendered catalog row
+ROW_LEN:	.BLKW	1
+	.ALIGN	LONG
+ROW_DSC:	.WORD	120			; max length
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS ROW_BUF
+
+	.ALIGN	LONG
+TOT_BUF:	.BLKB	80
+TOT_LEN:	.BLKW	1
+	.ALIGN	LONG
+TOT_DSC:	.WORD	80
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS TOT_BUF
+
+;
+; -- per-row paint cursor --
+;
+	.ALIGN	LONG
+ROW_NUM:	.BLKL	1
+COL_ONE:	.LONG	1
+COL_EIGHT:	.LONG	8
+
+;
+; -- working copies of selection state --
+;
+	.ALIGN	LONG
+RP:		.LONG	6			; remaining selection points
+AVAIL:		.BLKL	8			; per-creature available count
+
+;
+; -- title row positions --
+;
+TITLE_R1:	.LONG	5
+TITLE_R2:	.LONG	7
+TITLE_R3:	.LONG	9
+TITLE_R4:	.LONG	14
+
+;
+; -- party-screen row positions --
+;
+HEADER_ROW:	.LONG	2
+TOTAL_ROW:	.LONG	4
+CATALOG_R0:	.LONG	7			; first catalog row
+INSTR_ROW:	.LONG	18
+
+;
+; -- transient FAO outlen (must be a word) --
+;
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+
+
+	.PSECT	SCAVE_SETUP_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  SETUP_INIT  --  full pre-game flow.  Returns SS$_NORMAL on
+;                  success; failure status from any sub-step
+;                  is propagated.
+; ===========================================================
+;
+	.ENTRY	SETUP_INIT, ^M<R2,R3,R4,R5,R6,R7>
+
+	CALLS	#0, INIT_RNG
+	BLBS	R0, 1$
+	RET
+1$:
+	CALLS	#0, G^INIT_DISPLAY
+	BLBS	R0, 2$
+	RET
+2$:
+	CALLS	#0, TITLE_SPLASH
+	; ignore failure; the title splash is decorative
+
+	CALLS	#0, PICK_PARTY
+	BLBS	R0, 3$
+	RET
+3$:
+	CALLS	#0, INIT_DECKS
+	; INIT_DECKS doesn't fail in any meaningful way
+
+	CALLS	#0, INIT_MAP
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  TITLE_SPLASH  --  paint a centred 4-line title; wait for any key.
+; ===========================================================
+;
+	.ENTRY	TITLE_SPLASH, ^M<>
+
+	CALLS	#0, BEGIN_BATCH
+	CALLS	#0, ERASE_MAIN
+
+	PUSHAL	TITLE_R1
+	PUSHAL	TITLE_DSC1
+	CALLS	#2, PAINT_CENTERED
+
+	PUSHAL	TITLE_R2
+	PUSHAL	TITLE_DSC2
+	CALLS	#2, PAINT_CENTERED
+
+	PUSHAL	TITLE_R3
+	PUSHAL	TITLE_DSC3
+	CALLS	#2, PAINT_CENTERED
+
+	PUSHAL	TITLE_R4
+	PUSHAL	TITLE_DSC4
+	CALLS	#2, PAINT_CENTERED
+
+	CALLS	#0, END_BATCH
+
+	CALLS	#0, READ_KEY			; block on any key
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  PICK_PARTY  --  number-key party picker.
+;                  Updates SCAVE_PARTY_* and AVAIL.
+; ===========================================================
+;
+	.ENTRY	PICK_PARTY, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+
+	; Initialise working state
+	MOVL	#6, RP				; 6 selection points
+	CLRL	SCAVE_PARTY_NP
+
+	; Copy starting counts into AVAIL[0..7]
+	CLRL	R0
+	MOVAB	SCAVE_DATA_CR_START_COUNT, R1
+	MOVAB	AVAIL, R2
+1$:
+	MOVL	(R1)[R0], (R2)[R0]
+	AOBLSS	#8, R0, 1$
+
+;
+; Main pick loop.
+;
+PICK_LOOP:
+	BSBW	REPAINT_PARTY_SCREEN
+
+	CALLS	#0, READ_KEY
+	; R0 = terminator code
+	; '0' done  '1'..'8' pick that creature  anything else ignored.
+	CMPL	R0, #^A/0/
+	BEQL	PICK_DONE
+
+	CMPL	R0, #^A/1/
+	BLSS	PICK_LOOP			; below '1' -> ignore
+	CMPL	R0, #^A/8/
+	BGTR	PICK_LOOP			; above '8' -> ignore
+
+	; index = R0 - '1' = 0..7
+	SUBL2	#^A/1/, R0
+	BSBW	TRY_ADD_CREATURE
+	BRW	PICK_LOOP
+
+PICK_DONE:
+	; Need at least one creature.
+	TSTL	SCAVE_PARTY_NP
+	BNEQ	1$
+	BRW	PICK_LOOP			; reject empty party
+1$:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; -----------------------------------------------------------
+;  TRY_ADD_CREATURE  --  R0 = creature index (0..7).
+;                        If affordable + available, append.
+; -----------------------------------------------------------
+;
+TRY_ADD_CREATURE:
+	; sel = SCAVE_DATA_CR_SEL[R0]
+	MOVAB	SCAVE_DATA_CR_SEL, R1
+	MOVL	(R1)[R0], R2			; R2 = sel cost
+	; affordable?
+	CMPL	R2, RP
+	BLEQ	1$
+	RSB					; over budget
+1$:
+	; available?
+	MOVAB	AVAIL, R3
+	MOVL	(R3)[R0], R4
+	BGTR	2$
+	RSB					; none left
+2$:
+	; record into party.  PC[NP] = R0 (creature index).
+	MOVL	SCAVE_PARTY_NP, R5
+	MOVAB	SCAVE_PARTY_PC, R6
+	MOVL	R0, (R6)[R5]
+	MOVAB	SCAVE_PARTY_PS, R6
+	CLRL	(R6)[R5]
+	MOVAB	SCAVE_PARTY_PK, R6
+	CLRL	(R6)[R5]
+	; clear treasure slots for this party member (4 slots)
+	MOVAB	SCAVE_PARTY_PT, R6
+	MULL3	#4, R5, R7			; offset = NP*4 longwords
+	MNEGL	#1, R8				; treasure slot empty marker
+	MOVL	R8, (R6)[R7]
+	INCL	R7
+	MOVL	R8, (R6)[R7]
+	INCL	R7
+	MOVL	R8, (R6)[R7]
+	INCL	R7
+	MOVL	R8, (R6)[R7]
+
+	INCL	SCAVE_PARTY_NP
+	SUBL2	R2, RP				; deduct cost
+	DECL	(R3)[R0]			; AVAIL[R0]--
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  REPAINT_PARTY_SCREEN  --  full repaint of the party UI.
+; -----------------------------------------------------------
+;
+REPAINT_PARTY_SCREEN:
+	CALLS	#0, BEGIN_BATCH
+	CALLS	#0, ERASE_MAIN
+
+	; Header
+	PUSHAL	HEADER_ROW
+	PUSHAL	HEADER_DSC
+	CALLS	#2, PAINT_CENTERED
+
+	; Totals line.  Reset the descriptor max length each call --
+	; we patch in the actual length after $FAO and never want
+	; the previous iteration's smaller length to constrain the
+	; next $FAO write.
+	MOVW	#80, TOT_DSC
+	$FAO_S	ctrstr=TOTAL_FAO_DSC, outlen=FAO_OUTLEN, outbuf=TOT_DSC, -
+		p1=RP, p2=SCAVE_PARTY_NP
+	MOVW	FAO_OUTLEN, TOT_DSC		; trim descriptor to actual length
+
+	PUSHAL	TOTAL_ROW
+	PUSHAL	TOT_DSC
+	CALLS	#2, PAINT_CENTERED
+
+	; Catalog rows
+	CLRL	R6				; R6 = creature index 0..7
+CAT_LOOP:
+	BSBW	PAINT_CATALOG_ROW
+	AOBLSS	#8, R6, CAT_LOOP
+
+	; Instruction line at the bottom
+	PUSHAL	INSTR_ROW
+	PUSHAL	INSTR_DSC
+	CALLS	#2, PAINT_CENTERED
+
+	CALLS	#0, END_BATCH
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_CATALOG_ROW  --  R6 = creature index.  Formats a row
+;                         into ROW_BUF and paints it.
+; -----------------------------------------------------------
+;
+PAINT_CATALOG_ROW:
+	; Pull stats by index.
+	MOVAB	SCAVE_DATA_CR_FS, R0
+	MOVL	(R0)[R6], R7			; R7 = FS
+	MOVAB	SCAVE_DATA_CR_MP, R0
+	MOVL	(R0)[R6], R8			; R8 = MP
+	MOVAB	SCAVE_DATA_CR_CARRY, R0
+	MOVL	(R0)[R6], R9			; R9 = CARRY
+	MOVAB	SCAVE_DATA_CR_SEL, R0
+	MOVL	(R0)[R6], R10			; R10 = SEL
+	MOVAB	SCAVE_DATA_CR_PTS, R0
+	MOVL	(R0)[R6], R11			; R11 = PTS
+
+	; The display number is index+1 (1..8 in UI).
+	ADDL3	#1, R6, R0			; R0 = display number
+
+	; Reset the descriptor max length before each FAO.
+	MOVW	#120, ROW_DSC
+
+	; FAO !2UL ) !12<!AS!>F:!UL M:!UL Carry:!3ULkg  Cost:!UL Pts:!2UL  (avail:!UL)
+	; with: p1=display#, p2=name-desc-addr, p3=FS, p4=MP,
+	;       p5=CARRY, p6=SEL, p7=PTS, p8=AVAIL
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R1
+	MOVL	(R1)[R6], R2			; R2 = address of name descriptor
+	MOVAB	AVAIL, R1
+	MOVL	(R1)[R6], R3			; R3 = available count
+
+	$FAO_S	ctrstr=ROW_FAO_DSC, outlen=FAO_OUTLEN, outbuf=ROW_DSC, -
+		p1=R0, p2=R2, p3=R7, p4=R8, -
+		p5=R9, p6=R10, p7=R11, p8=R3
+
+	MOVW	FAO_OUTLEN, ROW_DSC		; trim to actual length
+
+	; Paint at row CATALOG_R0 + R6, col 8.
+	ADDL3	CATALOG_R0, R6, ROW_NUM
+
+	PUSHAL	COL_EIGHT			; col (by reference)
+	PUSHAL	ROW_NUM
+	PUSHAL	ROW_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+
+	RSB
+
+
+;
+; ===========================================================
+;  INIT_DECKS  --  build & shuffle the large pack (60 cards, the
+;                  GATEWAY at index 21 is held aside) and the
+;                  small pack (52 cards copied from the static
+;                  template, then shuffled).
+; ===========================================================
+;
+	.ENTRY	INIT_DECKS, ^M<R2,R3,R4,R5>
+
+	; Large pack: indices 0..60 except 21, in order, into LP[0..59].
+	CLRL	R2				; src index 0..60
+	CLRL	R3				; dst index 0..59
+	MOVAB	SCAVE_DECK_LP, R4
+LP_LOOP:
+	CMPL	R2, #21
+	BEQL	LP_SKIP
+	MOVL	R2, (R4)[R3]
+	INCL	R3
+LP_SKIP:
+	AOBLEQ	#60, R2, LP_LOOP
+
+	; Shuffle the 60 entries (count + base both by value).
+	PUSHAL	SCAVE_DECK_LP
+	PUSHL	#60
+	CALLS	#2, G^SHUFFLE_LONGS
+
+	CLRL	SCAVE_DECK_LI
+
+	; Small pack: copy 52 longwords from the template, then shuffle.
+	CLRL	R2
+	MOVAB	SCAVE_DATA_SMALL_PACK, R3
+	MOVAB	SCAVE_DECK_SP, R4
+SP_LOOP:
+	MOVL	(R3)[R2], (R4)[R2]
+	AOBLSS	#52, R2, SP_LOOP
+
+	PUSHAL	SCAVE_DECK_SP
+	PUSHL	#52
+	CALLS	#2, G^SHUFFLE_LONGS
+
+	CLRL	SCAVE_DECK_SI
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  INIT_MAP  --  zero the map state and place the GATEWAY at slot 1
+;                with party position (level 1, y=50, x=50).
+; ===========================================================
+;
+	.ENTRY	INIT_MAP, ^M<R2,R3>
+
+	; Zero MP, ML, MS, MV, AF (61 longwords each).
+	CLRL	R2
+1$:
+	CLRL	SCAVE_MAP_MP[R2]
+	CLRL	SCAVE_MAP_ML[R2]
+	CLRL	SCAVE_MAP_MS[R2]
+	CLRL	SCAVE_MAP_MV[R2]
+	CLRL	SCAVE_AREA_AF[R2]
+	AOBLSS	#61, R2, 1$
+
+	; Zero AC (61 * 4 longwords).
+	CLRL	R2
+2$:
+	CLRL	SCAVE_AREA_AC[R2]
+	AOBLSS	#<61*4>, R2, 2$
+
+	; Place GATEWAY (area-card index 21) into slot 1.
+	MOVAB	SCAVE_DATA_AREA_CARDS, R2
+	MOVL	21*4(R2), R3			; R3 = AREA_CARDS[21]
+	MOVL	R3, SCAVE_MAP_MP+4		; MP[1] = card value (slot 1)
+	MOVL	#15050, SCAVE_MAP_ML+4		; level 1, y=50, x=50
+
+	MOVL	#1, SCAVE_MAP_NM
+	MOVL	#1, SCAVE_MAP_PA
+	MOVL	#1, SCAVE_MAP_PL
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+	.END
