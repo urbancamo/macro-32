@@ -189,7 +189,18 @@ M_USE_EXISTING:
 	MOVL	(R0)[R5], R0			; R0 = address of back-exit flag
 	TSTL	(R0)
 	BNEQ	M_DO_MOVE_EXISTING
-	BRW	M_FAIL				; existing card is a dead end from us
+
+	; Existing card has no back-exit from this direction.  Clear
+	; the matching exit bit on the CURRENT card so the player no
+	; longer sees a phantom direction in the exit list and we
+	; don't waste turns re-trying.  This mirrors M_PLACE_DEADEND
+	; for the new-card path -- without it, two cards placed from
+	; different paths can advertise an opening that the engine
+	; refuses to walk, which feels like "the map is lying".
+	MOVAB	DEAD_MASK, R0
+	MOVL	(R0)[R5], R0
+	BICL2	R0, SCAVE_MAP_MP[R7]		; current card -- clear that exit
+	BRW	M_FAIL
 
 M_DO_MOVE_EXISTING:
 	MOVL	R7, SCAVE_MAP_PP		; PP = old PA
