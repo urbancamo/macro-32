@@ -29,6 +29,7 @@
 	.EXTRN	BEGIN_BATCH
 	.EXTRN	END_BATCH
 	.EXTRN	ERASE_MAIN
+	.EXTRN	ERASE_ROW
 	.EXTRN	PAINT_CENTERED
 	.EXTRN	PAINT_AT_MAIN
 	.EXTRN	READ_KEY
@@ -116,10 +117,8 @@ E_LOOP:
 	BRB	E_LOOP
 
 E_WITHDRAW:
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_WITHDRAW
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_WITHDRAW, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 
 	; Move party back to PP.  PP was set by TRY_MOVE before the
@@ -141,10 +140,8 @@ E_ATTACK:
 
 
 E_TEST:
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_TESTING
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_TESTING, R5
+	BSBW	PAINT_RESULT_LINE
 
 	CALLS	#0, G^ROLL_DIE			; R0 = 1..6 raw roll
 	MOVL	R0, R5				; R5 = roll
@@ -182,10 +179,8 @@ E_TEST:
 	CMPL	R5, R3
 	BGTR	NOT_HOSTILE
 	; Hostile path
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_HOSTILE
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_HOSTILE, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 	MNEGL	#1, SCAVE_FIGHT_FS		; strangers have surprise
 	BSBW	DO_ATTACK
@@ -196,10 +191,8 @@ NOT_HOSTILE:
 	CMPL	R5, R4
 	BGTR	FRIENDLY
 	; Indifferent path
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_INDIFF
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_INDIFF, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 	; End turn -- strangers stay in the chamber.  In Stage 4 v1 we
 	; don't track the indifference counter (Stage 5 will); the
@@ -208,10 +201,8 @@ NOT_HOSTILE:
 	RET
 
 FRIENDLY:
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_FRIENDLY
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_FRIENDLY, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 
 	BSBW	ADD_FRIENDLIES_TO_PARTY
@@ -454,27 +445,41 @@ DSC_FIGHT_TIE:		.ASCID	/A draw.  Both sides fall back./
 
 
 PAINT_FIGHT_WIN:
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_FIGHT_WIN
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_FIGHT_WIN, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 	RSB
 
 PAINT_FIGHT_LOSE:
-	MOVL	#15, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_FIGHT_LOSE
-	CALLS	#2, G^PAINT_CENTERED
+	MOVAB	DSC_FIGHT_LOSE, R5
+	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 	RSB
 
 PAINT_FIGHT_TIE:
+	MOVAB	DSC_FIGHT_TIE, R5
+	BSBW	PAINT_RESULT_LINE
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_RESULT_LINE  --  R5 = address of a string descriptor.
+;                         Erases row 15 (the encounter "result"
+;                         row) before painting so a shorter
+;                         message doesn't get tail-garbled by
+;                         leftover characters from an earlier
+;                         frame on the same row.
+; ===========================================================
+;
+PAINT_RESULT_LINE:
 	MOVL	#15, ROW_TMP
 	PUSHAL	ROW_TMP
-	PUSHAL	DSC_FIGHT_TIE
+	CALLS	#1, G^ERASE_ROW
+	PUSHAL	ROW_TMP
+	PUSHL	R5
 	CALLS	#2, G^PAINT_CENTERED
-	CALLS	#0, G^READ_KEY
 	RSB
 
 	.END

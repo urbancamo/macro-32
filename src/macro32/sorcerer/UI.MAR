@@ -44,6 +44,7 @@
 	.EXTRN	SMG$CREATE_VIRTUAL_KEYBOARD
 	.EXTRN	SMG$PASTE_VIRTUAL_DISPLAY
 	.EXTRN	SMG$ERASE_DISPLAY
+	.EXTRN	SMG$ERASE_LINE
 	.EXTRN	SMG$PUT_CHARS
 	.EXTRN	SMG$READ_KEYSTROKE
 	.EXTRN	SMG$BEGIN_PASTEBOARD_UPDATE
@@ -154,6 +155,27 @@ TMP_COL:	.BLKL	1
 
 	PUSHAL	SCAVE_UI_DSP_MAP
 	CALLS	#1, G^SMG$ERASE_DISPLAY
+	RET
+
+
+;
+; ===========================================================
+;  ERASE_ROW  --  arg: row (by reference).  Clears columns 1
+;                 through end-of-line on the main display so a
+;                 short follow-up paint at that row doesn't get
+;                 garbled by leftover text from a previous frame.
+; ===========================================================
+;
+	.PSECT	SCAVE_UI_DATA, NOEXE, WRT, LONG
+ERASE_COL_ONE:	.LONG	1
+	.PSECT	SCAVE_UI_CODE, EXE, NOWRT, LONG
+
+	.ENTRY	ERASE_ROW, ^M<>
+
+	PUSHAL	ERASE_COL_ONE			; start-column (1)
+	PUSHAL	@4(AP)				; the caller's row longword
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#3, G^SMG$ERASE_LINE
 	RET
 
 
