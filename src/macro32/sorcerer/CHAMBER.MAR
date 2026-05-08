@@ -441,13 +441,20 @@ AOH_LOOP:
 AOH_BODY:
 	CMPL	SCAVE_CHAMBER_CH[R6], R8
 	BNEQ	AOH_NEXT
-	; Dispatch
+	; Dispatch via a CASE jump table.  Each .WORD must be a
+	; signed-word displacement *from the start of the table*, not
+	; from its own location -- VAX CASEL adds the displacement to
+	; the address of the first entry.  Using `HAZ_X - .` (current
+	; PC of THIS entry) gave each entry a different reference base
+	; and the table landed N*2 bytes early on entry N -- so MEDUSA
+	; (idx 3) jumped 6 bytes before HAZ_MEDUSA, mid-HAZ_QUAKE.
 	CASEL	R8, #0, #4
-	.WORD	HAZ_MUTINY - .
-	.WORD	HAZ_TRAP - .
-	.WORD	HAZ_QUAKE - .
-	.WORD	HAZ_MEDUSA - .
-	.WORD	HAZ_GHOULS - .
+HAZ_TBL:
+	.WORD	HAZ_MUTINY - HAZ_TBL
+	.WORD	HAZ_TRAP   - HAZ_TBL
+	.WORD	HAZ_QUAKE  - HAZ_TBL
+	.WORD	HAZ_MEDUSA - HAZ_TBL
+	.WORD	HAZ_GHOULS - HAZ_TBL
 AOH_NEXT:
 	INCL	R6
 	BRB	AOH_LOOP
