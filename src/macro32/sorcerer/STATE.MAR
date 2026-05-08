@@ -68,7 +68,8 @@
 	SCAVE$_SMALL_COUNT = 52			; 52 chamber cards in the small pack
 	SCAVE$_PARTY_MAX   = 12			; max creatures in party
 	SCAVE$_TREAS_PER   = 4			; max treasure slots per creature
-	SCAVE$_AREA_ITEMS  = 4			; max persistent items per area
+	SCAVE$_AREA_ITEMS  = 8			; max persistent items per area
+						; (creatures + leftover treasure)
 	SCAVE$_CHAMBER_MAX = 8			; max strangers / treasure per chamber
 	SCAVE$_HAZARD_MAX  = 4			; max hazards per chamber draw
 

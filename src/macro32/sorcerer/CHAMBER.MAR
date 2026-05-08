@@ -128,17 +128,38 @@ FAO_OUTLEN:	.BLKW	1
 
 ;
 ; ===========================================================
-;  ENTER_CHAMBER  --  no args.  Idempotent (will not re-draw if
-;                    SCAVE_MAP_MV[PA] is already non-zero).
+;  ENTER_CHAMBER  --  no args.
+;
+;     First visit (SCAVE_MAP_MV[PA] == 0): draw cards from the
+;     small pack, paint the contents, run hazards, then handle
+;     strangers / treasure, then save the leftovers to the
+;     area's persistent slots.
+;
+;     Re-entry (SCAVE_MAP_MV[PA] != 0): rebuild SCAVE_CHAMBER_*
+;     from the persistent slots and re-paint.  Strangers that
+;     remained from the prior visit are re-tested via the full
+;     W/A/T menu (the player picks again, the reaction die is
+;     rolled fresh).  Treasure that was left behind is offered
+;     up for pickup.  Hazards do NOT re-fire -- a Stage 6
+;     simplification; the rule book says some do (Trap, Medusa,
+;     Ghouls), but those are deferred.
 ; ===========================================================
 ;
 	.ENTRY	ENTER_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
 
-	; If already visited, nothing to do.
 	MOVL	SCAVE_MAP_PA, R7
 	TSTL	SCAVE_MAP_MV[R7]
-	BEQL	C_FRESH
-	RET
+	BNEQ	C_REENTRY
+	BRW	C_FRESH
+
+C_REENTRY:
+	; Restore SCAVE_CHAMBER_* from the area's saved AC slots and
+	; re-paint the (possibly diminished) contents.  Hazards are
+	; not persisted; NH stays at 0.
+	BSBW	LOAD_PERSISTED
+	BSBW	PAINT_CHAMBER_INTRO
+	BRW	C_PROCESS
+
 C_FRESH:
 	MOVL	#1, SCAVE_MAP_MV[R7]		; mark visited
 
@@ -170,7 +191,7 @@ C_FRESH:
 
 	; Pull DRAW_COUNT cards from the small pack.  Each is encoded
 	; as type*100 + index where type 1=creature, 2=treasure,
-	; 3=hazard.  Bucket into SLOT_{S,T,H}.
+	; 3=hazard.  Bucket into the chamber state.
 	CLRL	R6				; cards drawn so far
 DRAW_LOOP:
 	CMPL	R6, DRAW_COUNT
@@ -222,19 +243,25 @@ DRAW_DONE:
 
 	BSBW	PAINT_CHAMBER_INTRO
 
-	; Resolve hazards in priority order
+	; Resolve hazards in priority order (first-visit only -- they
+	; are not persisted, so re-entry skips this).
 	BSBW	APPLY_HAZARDS
 
-	; Auto-pickup treasure (only if no strangers; the rules require
-	; strangers to be dealt with first, but we still narrate it)
+C_PROCESS:
+	; Same logic for first visit and re-entry: if strangers remain,
+	; W/A/T encounter (a fresh reaction roll); otherwise auto-pick
+	; up any leftover treasure.
 	TSTL	SCAVE_CHAMBER_NS
 	BNEQ	9$
 	BSBW	AUTO_PICKUP_TREASURE
 	BRB	10$
 9$:
-	; Strangers present -- run the full W/A/T encounter.
 	CALLS	#0, G^STRANGER_ENCOUNTER
 10$:
+
+	; Save the post-action state (whatever's left of strangers +
+	; uncollected treasure) so the next visit can rehydrate it.
+	BSBW	SAVE_PERSISTED
 
 	; Wait for the user before returning to the turn loop.
 	MOVL	#16, ROW_TMP
@@ -551,11 +578,116 @@ APU_NEXT_MEMBER:
 	BRW	APU_FIND_PARTY
 
 APU_PLACE:
-	; Place SCAVE_CHAMBER_CT[R6] into PARTY_PT[R0].
+	; Place SCAVE_CHAMBER_CT[R6] into PARTY_PT[R0]; mark the chamber
+	; slot consumed so SAVE_PERSISTED won't re-stash it on the area.
+	; Treasure index 0 is SILVER, so we can't use 0 as the empty
+	; marker -- use -1 instead, mirroring PARTY_PT's convention.
 	MOVL	SCAVE_CHAMBER_CT[R6], SCAVE_PARTY_PT[R0]
+	MNEGL	#1, SCAVE_CHAMBER_CT[R6]
 APU_NEXT:
 	INCL	R6
 	BRW	APU_LOOP
+
+
+;
+; ===========================================================
+;  LOAD_PERSISTED  --  rebuild SCAVE_CHAMBER_{NS,NT,NH,CS,CT}
+;                      from the area's saved AC slots.  Hazards
+;                      (NH) are not persisted -- they're treated
+;                      as consumed by the first visit.
+; ===========================================================
+;
+LOAD_PERSISTED:
+	MOVL	SCAVE_MAP_PA, R7
+	MOVAB	SCAVE_AREA_AC, R8
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0	; bytes per area = 8 * 4
+	ADDL2	R0, R8				; R8 = base of this area's AC
+
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; remaining slots
+LP_LOOP:
+	TSTL	R3
+	BLEQ	LP_DONE
+	MOVL	(R8)+, R0			; encoded value
+	BEQL	LP_NEXT				; 0 = empty
+	; Decode: 100..199 -> creature, 200..299 -> treasure
+	DIVL3	#100, R0, R1
+	MULL3	#100, R1, R2
+	SUBL3	R2, R0, R2			; R2 = index within type
+	CMPL	R1, #1
+	BNEQ	LP_TR
+	; Append creature to CS
+	MOVL	SCAVE_CHAMBER_NS, R4
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	LP_NEXT
+LP_TR:
+	CMPL	R1, #2
+	BNEQ	LP_NEXT				; ignore unknown encodings
+	MOVL	SCAVE_CHAMBER_NT, R4
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+LP_NEXT:
+	DECL	R3
+	BRB	LP_LOOP
+LP_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  SAVE_PERSISTED  --  write the post-encounter contents back to
+;                      the area's AC slots.  Strangers come first
+;                      (CS[0..NS-1] -> 100+i), then non-consumed
+;                      treasure (CT[i] != -1 -> 200+CT[i]).  Any
+;                      slots beyond the budget are dropped (rare
+;                      in practice -- max draw is 6 cards before
+;                      Tomb/Hall bonus).
+; ===========================================================
+;
+SAVE_PERSISTED:
+	MOVL	SCAVE_MAP_PA, R7
+	MOVAB	SCAVE_AREA_AC, R8
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	ADDL2	R0, R8				; R8 = base of this area's AC
+
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; remaining slots in AC
+	CLRL	R6				; loop in CS
+SP_S:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	SP_T
+	TSTL	R3
+	BLEQ	SP_PAD				; out of room
+	ADDL3	#100, SCAVE_CHAMBER_CS[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	SP_S
+SP_T:
+	CLRL	R6
+SP_T_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NT
+	BGEQ	SP_PAD
+	TSTL	R3
+	BLEQ	SP_PAD
+	MOVL	SCAVE_CHAMBER_CT[R6], R0
+	BLSS	SP_T_NEXT			; -1 = consumed, skip
+	ADDL3	#200, R0, (R8)+
+	DECL	R3
+SP_T_NEXT:
+	INCL	R6
+	BRB	SP_T_LOOP
+SP_PAD:
+	; Zero out any unused tail slots so a previous visit's longer
+	; contents don't leak through.
+	TSTL	R3
+	BLEQ	SP_DONE
+	CLRL	(R8)+
+	DECL	R3
+	BRB	SP_PAD
+SP_DONE:
+	RSB
 
 
 	.END

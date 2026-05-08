@@ -76,6 +76,8 @@
 	.EXTRN	SCAVE_STATE_TN
 	.EXTRN	SCAVE_PARTY_NP
 	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PT
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_NM
@@ -85,6 +87,7 @@
 ; Static data (DATA.MAR)
 ;
 	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
 	.EXTRN	SCAVE_DATA_SP_NAME_PTR
 
 ;
@@ -104,10 +107,14 @@
 ; FAO control strings
 ;
 	.ALIGN	LONG
-HEADER_FAO:	.ASCID	/L!UL  !AS    Turn !UL    Areas !UL/
+HEADER_FAO:	.ASCID	/L!UL #!UL  !AS    Turn !UL    Areas !UL/
 EXITS_FAO:	.ASCID	/Exits: !AS    Stairs: !AS/
 TYPE_FAO:	.ASCID	/!AS!AS/
 PARTY_FAO:	.ASCID	/Party (!UL): !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS/
+
+; One-creature inventory line: name, then four item names (or
+; empty descriptors when the slot is unused).
+PMEM_FAO:	.ASCID	/!10AS  !AS  !AS  !AS  !AS/
 
 ;
 ; Static prompt and helper descriptors.
@@ -153,6 +160,28 @@ PARTY_DSC:	.WORD	160
 		.ADDRESS PARTY_BUF
 
 ;
+; Per-creature inventory line buffer.  Used by PAINT_PARTY_ROWS to
+; render one row per living party member ("HERO  M.SWORD  GOLD ...").
+;
+	.ALIGN	LONG
+PMEM_BUF:	.BLKB	120
+	.ALIGN	LONG
+PMEM_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS PMEM_BUF
+
+; Four-entry array of treasure-name descriptor addresses, refilled
+; for each member before the FAO call.  Empty slots point at
+; EMPTY_DSC so the !AS placeholders consume nothing.
+	.ALIGN	LONG
+ITEM_DSC_BUF:	.BLKL	4
+
+; Static columns + first-row index for the inventory listing.
+PMEM_COL:	.LONG	4
+PMEM_FIRST_ROW:	.LONG	7
+
+;
 ; Small static buffers for the exit/stair direction-list strings.
 ; "NESW" / "UD" with one char per flag.  Built each frame.
 ;
@@ -178,7 +207,7 @@ HEADER_ROW:	.LONG	2
 EXITS_ROW:	.LONG	5
 TYPE_ROW:	.LONG	7
 PARTY_ROW:	.LONG	10
-PROMPT_ROW:	.LONG	18
+PROMPT_ROW:	.LONG	21
 
 ;
 ; Slot table for the party FAO (12 longwords; each holds the
@@ -388,7 +417,6 @@ PAINT_TURN:
 
 	BSBW	BUILD_EXITSTR
 	BSBW	BUILD_STAIRSTR
-	BSBW	BUILD_PARTYSTR
 
 	; Header line.  Pick the area-name descriptor: special name if
 	; SCAVE_DEC_AT > 0, else "Tunnel" / "Chamber".
@@ -408,8 +436,8 @@ PAINT_TURN:
 
 	MOVW	#120, HEADER_DSC
 	$FAO_S	ctrstr=HEADER_FAO, outlen=FAO_OUTLEN, outbuf=HEADER_DSC, -
-		p1=SCAVE_MAP_PL, p2=R3, -
-		p3=SCAVE_STATE_TN, p4=SCAVE_MAP_NM
+		p1=SCAVE_MAP_PL, p2=SCAVE_MAP_PA, p3=R3, -
+		p4=SCAVE_STATE_TN, p5=SCAVE_MAP_NM
 	MOVW	FAO_OUTLEN, HEADER_DSC
 
 	; Exits line: "Exits: NESW    Stairs: UD".  !AS arguments are
@@ -433,9 +461,10 @@ PAINT_TURN:
 	PUSHAL	EXITS_DSC
 	CALLS	#2, G^PAINT_CENTERED
 
-	PUSHAL	PARTY_ROW
-	PUSHAL	PARTY_DSC
-	CALLS	#2, G^PAINT_CENTERED
+	; Per-creature inventory rows: one PUSHAL per living member at
+	; column PMEM_COL, starting at row PMEM_FIRST_ROW.  Also flips
+	; SCAVE_STATE_GS to DEAD if no living members remain.
+	BSBW	PAINT_PARTY_ROWS
 
 	PUSHAL	PROMPT_ROW
 	PUSHAL	PROMPT_DSC
@@ -501,58 +530,90 @@ BUILD_STAIRSTR:
 
 ;
 ; ===========================================================
-;  BUILD_PARTYSTR  --  fill PARTY_BUF via FAO, listing party
-;                      member names.  Pads unused slots with
-;                      EMPTY_DSC.
+;  PAINT_PARTY_ROWS  --  one row per living party member,
+;                        starting at PMEM_FIRST_ROW (= row 7),
+;                        column PMEM_COL.  Each row reads
+;                        "<NAME>  <item1>  <item2>  <item3>  <item4>"
+;                        with empty descriptors filling unused
+;                        treasure slots.  Rows for stoned / dead
+;                        members are skipped entirely.
+;
+;     Side effect: if no living members remain after the walk,
+;     SCAVE_STATE_GS flips to DEAD.  This used to be the job of
+;     BUILD_PARTYSTR; preserved here so combat / Medusa / Ghouls
+;     losses still end the game.
 ; ===========================================================
 ;
-BUILD_PARTYSTR:
-	MOVAB	SLOT_BUF, R2			; dst slot array (12 longwords)
-	MOVL	SCAVE_PARTY_NP, R3		; party size
-	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
-	MOVAB	SCAVE_PARTY_PC, R5
-	MOVAB	SCAVE_PARTY_PS, R8
-	CLRL	R9				; living count (PS < STONE)
-	CLRL	R6
-1$:
-	CMPL	R6, R3
-	BLSS	2$
-	; beyond NP -- empty slot
-	MOVAB	EMPTY_DSC, R7
-	BRB	3$
-2$:
-	; in-bounds; show only living/ally members.  STONE (2) and
-	; DEAD (3) collapse to an empty slot and don't count toward
-	; the displayed party size.
-	CMPL	(R8)[R6], #2
-	BLSS	4$
-	MOVAB	EMPTY_DSC, R7
-	BRB	3$
-4$:
+PAINT_PARTY_ROWS:
+	MOVL	PMEM_FIRST_ROW, R7		; next row to paint
+	CLRL	R9				; living count
+	CLRL	R6				; party slot
+PR_LOOP:
+	CMPL	R6, SCAVE_PARTY_NP
+	BLSS	PR_BODY
+	BRW	PR_TAIL
+PR_BODY:
+	; Skip stoned / dead.
+	CMPL	SCAVE_PARTY_PS[R6], #2
+	BLSS	PR_LIVING
+	BRW	PR_NEXT
+PR_LIVING:
 	INCL	R9
-	MOVL	(R5)[R6], R0			; creature index in slot R6
-	MOVL	(R4)[R0], R7
-3$:
-	MOVL	R7, (R2)[R6]
-	AOBLSS	#12, R6, 1$
 
-	MOVW	#160, PARTY_DSC
-	$FAO_S	ctrstr=PARTY_FAO, outlen=FAO_OUTLEN, outbuf=PARTY_DSC, -
-		p1=R9, -
-		p2=SLOT_BUF+0,  p3=SLOT_BUF+4,  p4=SLOT_BUF+8,  p5=SLOT_BUF+12, -
-		p6=SLOT_BUF+16, p7=SLOT_BUF+20, p8=SLOT_BUF+24, p9=SLOT_BUF+28, -
-		p10=SLOT_BUF+32, p11=SLOT_BUF+36, p12=SLOT_BUF+40, p13=SLOT_BUF+44
-	MOVW	FAO_OUTLEN, PARTY_DSC
+	; Pull this member's name descriptor address into R5.
+	MOVL	SCAVE_PARTY_PC[R6], R0		; creature index
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R1
+	MOVL	(R1)[R0], R5
 
-	; If everyone is dead/stone, mark the game as DEAD so the next
-	; T_LOOP iteration falls out into the score screen.  This is
-	; belt-and-braces -- DO_ATTACK already does it on combat loss,
-	; but Medusa / Ghouls / Viper Pit casualties can trickle the
-	; party down to zero living members without touching GS.
+	; Fill ITEM_DSC_BUF[0..3] with treasure-name descriptor
+	; addresses (or EMPTY_DSC for empty slots).
+	MULL3	#4, R6, R0			; PT base offset for slot R6
+	MOVAB	ITEM_DSC_BUF, R1
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R2
+	MOVL	#4, R3
+PR_ITEM:
+	MOVL	SCAVE_PARTY_PT[R0], R4
+	BLSS	PR_EMPTY			; -1 = empty slot
+	MOVL	(R2)[R4], (R1)+
+	BRB	PR_NEXT_SLOT
+PR_EMPTY:
+	MOVAB	EMPTY_DSC, (R1)+
+PR_NEXT_SLOT:
+	INCL	R0
+	SOBGTR	R3, PR_ITEM
+
+	; Format the row into PMEM_BUF.
+	MOVW	#120, PMEM_DSC
+	$FAO_S	ctrstr=PMEM_FAO, outlen=FAO_OUTLEN, outbuf=PMEM_DSC, -
+		p1=R5, -
+		p2=ITEM_DSC_BUF+0, p3=ITEM_DSC_BUF+4, -
+		p4=ITEM_DSC_BUF+8, p5=ITEM_DSC_BUF+12
+	MOVW	FAO_OUTLEN, PMEM_DSC
+
+	; Paint at (R7, PMEM_COL).
+	MOVL	R7, ROW_TMP_PMEM
+	PUSHAL	PMEM_COL
+	PUSHAL	ROW_TMP_PMEM
+	PUSHAL	PMEM_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+
+	INCL	R7
+PR_NEXT:
+	INCL	R6
+	BRW	PR_LOOP
+
+PR_TAIL:
+	; All slots scanned.  If R9 == 0, flip GS to DEAD.
 	TSTL	R9
-	BNEQ	5$
+	BNEQ	PR_RSB
 	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
-5$:
+PR_RSB:
 	RSB
+
+	.PSECT	MAIN_DATA, NOEXE, WRT, LONG
+	.ALIGN	LONG
+ROW_TMP_PMEM:	.BLKL	1
+	.PSECT	MAIN_CODE, EXE, NOWRT, LONG
 
 	.END	SCAVE
