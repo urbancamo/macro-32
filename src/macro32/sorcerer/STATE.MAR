@@ -114,6 +114,10 @@ SCAVE_MAP_MV::		.BLKL	SCAVE$_AREA_COUNT	; visited-state per area
 SCAVE_AREA_AC::		.BLKL	<SCAVE$_AREA_COUNT*SCAVE$_AREA_ITEMS>
 							; encoded creature=100+i, treasure=200+i
 SCAVE_AREA_AF::		.BLKL	SCAVE$_AREA_COUNT	; per-area flag bits
+SCAVE_AREA_AI::		.BLKL	SCAVE$_AREA_COUNT	; indifference test count
+							; (rolls of "indifferent" in this
+							; chamber's stranger encounter; on
+							; the 3rd, set AF_PERMINDIFF)
 
 ;
 ; ===========================================================

@@ -40,6 +40,8 @@
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_AREA_AF
+	.EXTRN	SCAVE_AREA_AI
 	.EXTRN	SCAVE_PARTY_NP
 	.EXTRN	SCAVE_PARTY_PC
 	.EXTRN	SCAVE_PARTY_PS
@@ -47,6 +49,9 @@
 	.EXTRN	SCAVE_PARTY_PT
 	.EXTRN	SCAVE_STATE_NC
 	.EXTRN	SCAVE_FIGHT_FS
+
+	; Per-area flag bit declared in STATE.MAR.
+	SCAVE$M_AF_PERMINDIFF = ^X10
 
 	.EXTRN	SCAVE_DATA_CR_NAME_PTR
 	.EXTRN	SCAVE_DATA_CR_LEADER_PRI
@@ -74,6 +79,7 @@ DSC_PROMPT_WAT:		.ASCID	/[W]ithdraw    [A]ttack    [T]est reaction/
 DSC_TESTING:		.ASCID	/Testing the leader's reaction.../
 DSC_HOSTILE:		.ASCID	/HOSTILE!  They attack with surprise./
 DSC_INDIFF:		.ASCID	/Indifferent.  They watch you warily./
+DSC_PERM_INDIFF:	.ASCID	/Permanently indifferent.  They cannot be tested again./
 DSC_FRIENDLY:		.ASCID	/Friendly!  They join your party./
 DSC_WITHDRAW:		.ASCID	/You withdraw the way you came./
 
@@ -140,6 +146,20 @@ E_ATTACK:
 
 
 E_TEST:
+	; If a previous visit's third indifferent roll set the perm-indiff
+	; flag, the rules say the strangers can never be tested again.
+	; Short-circuit to a single "you can't test them" message and end
+	; turn -- the chamber-intro screen has already painted them, so
+	; there's nothing else to redraw.
+	MOVL	SCAVE_MAP_PA, R0
+	BBC	#4, SCAVE_AREA_AF[R0], 5$	; bit 4 = AF_PERMINDIFF
+	MOVAB	DSC_PERM_INDIFF, R5
+	BSBW	PAINT_RESULT_LINE
+	CALLS	#0, G^READ_KEY
+	MOVL	#SS$_NORMAL, R0
+	RET
+5$:
+
 	MOVAB	DSC_TESTING, R5
 	BSBW	PAINT_RESULT_LINE
 
@@ -190,13 +210,22 @@ E_TEST:
 NOT_HOSTILE:
 	CMPL	R5, R4
 	BGTR	FRIENDLY
-	; Indifferent path
-	MOVAB	DSC_INDIFF, R5
+	; Indifferent path.  Bump this area's indiff counter; on the
+	; third indifferent test set AF_PERMINDIFF so future visits
+	; can't test the strangers again (per the rules).  Use a custom
+	; message on the third hit so the player knows the door has
+	; closed.
+	MOVL	SCAVE_MAP_PA, R0
+	INCL	SCAVE_AREA_AI[R0]
+	CMPL	SCAVE_AREA_AI[R0], #3
+	BLSS	1$
+	BISL2	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R0]
+	MOVAB	DSC_PERM_INDIFF, R5
+	BRB	2$
+1$:	MOVAB	DSC_INDIFF, R5
+2$:
 	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
-	; End turn -- strangers stay in the chamber.  In Stage 4 v1 we
-	; don't track the indifference counter (Stage 5 will); the
-	; player can just choose another action next turn.
 	MOVL	#SS$_NORMAL, R0
 	RET
 

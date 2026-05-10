@@ -76,6 +76,13 @@
 	.EXTRN	SCAVE_DATA_TR_NAME_PTR
 	.EXTRN	SCAVE_DATA_HZ_NAME_PTR
 
+	; `=` constants are file-local in MACRO-32 -- the assembler
+	; doesn't propagate them across modules and undefined uses turn
+	; into unresolved external references at LINK time.  Mirror the
+	; sizing constant we share with STATE.MAR's storage layout.  If
+	; you change this here, change it there too (and vice versa).
+	SCAVE$_AREA_ITEMS = 8
+
 
 	.PSECT	SCAVE_CHAMBER_DATA, NOEXE, WRT, LONG
 
@@ -86,6 +93,9 @@ DRAW_COUNT:	.LONG	0			; cards to draw on this entry
 ;
 	.ALIGN	LONG
 DSC_HDR_CHAMBER:	.ASCID	/-- ENTERING CHAMBER --/
+DSC_HDR_REENTRY:	.ASCID	/-- RE-ENTERING CHAMBER --/
+DSC_REENTRY_EMPTY:	.ASCID	/Nothing remains in this chamber./
+DSC_REENTRY_FAO:	.ASCID	/!UL item(s) remain from your last visit./
 DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
 
@@ -119,6 +129,7 @@ LINE_DSC:	.WORD	120
 ROW_TMP:	.BLKL	1
 COL_TWO:	.LONG	2
 COL_FOUR:	.LONG	4
+REENTRY_CNT:	.BLKL	1			; NS+NT for the re-entry FAO !UL
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
@@ -155,9 +166,13 @@ FAO_OUTLEN:	.BLKW	1
 C_REENTRY:
 	; Restore SCAVE_CHAMBER_* from the area's saved AC slots and
 	; re-paint the (possibly diminished) contents.  Hazards are
-	; not persisted; NH stays at 0.
+	; not persisted; NH stays at 0.  Use a re-entry-specific header
+	; so the player doesn't see a stale "Drew N chamber cards"
+	; line referring to the original draw, especially on a chamber
+	; that has been cleared (where the lists below it would be
+	; empty).
 	BSBW	LOAD_PERSISTED
-	BSBW	PAINT_CHAMBER_INTRO
+	BSBW	PAINT_CHAMBER_REENTRY
 	BRW	C_PROCESS
 
 C_FRESH:
@@ -304,6 +319,55 @@ PAINT_CHAMBER_INTRO:
 
 	; List drawn items: hazards first, then strangers, then treasure.
 	MOVL	#7, R7				; current paint row
+	BSBW	PAINT_HAZARD_LIST
+	BSBW	PAINT_STRANGER_LIST
+	BSBW	PAINT_TREASURE_LIST
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_CHAMBER_REENTRY  --  header + "N items remain" (or
+;                              "Nothing remains") + persisted
+;                              contents.  Hazards are not
+;                              persisted, so NH=0 here.
+; ===========================================================
+;
+PAINT_CHAMBER_REENTRY:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_REENTRY
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Sub-header reflecting what's actually left.  If both NS and
+	; NT are zero, say so plainly; otherwise show the count.
+	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, REENTRY_CNT
+	MOVL	#5, ROW_TMP
+	TSTL	REENTRY_CNT
+	BNEQ	1$
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_REENTRY_EMPTY
+	CALLS	#2, G^PAINT_CENTERED
+	BRB	2$
+1$:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_REENTRY_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=REENTRY_CNT
+	MOVW	FAO_OUTLEN, LINE_DSC
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+2$:
+
+	; List remaining items.  NH is always zero on re-entry but
+	; calling PAINT_HAZARD_LIST is harmless and keeps the order
+	; identical to the fresh-visit screen.
+	MOVL	#7, R7
 	BSBW	PAINT_HAZARD_LIST
 	BSBW	PAINT_STRANGER_LIST
 	BSBW	PAINT_TREASURE_LIST
