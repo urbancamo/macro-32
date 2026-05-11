@@ -395,16 +395,27 @@ PU_FD_DONE:
 ; ===========================================================
 ;
 BG_MP_TOTAL:
-	CLRL	R0
-	CLRL	R3
+	; Important: this routine is reached via BSBW from
+	; COMPUTE_PARTY_STR, which itself is reached from RESOLVE_PAIR
+	; with R6 = the current pair index.  BSBW does NOT save any
+	; registers (it just pushes a return address), so anything we
+	; clobber stays clobbered when we hand R6 back to RESOLVE_PAIR
+	; -- and RP_PARTY_WIN uses SCAVE_CHAMBER_CS[R6] / FD[R6].  Keep
+	; this routine's scratch set within R0/R3/R4/R5 to leave R6+
+	; alone.  An earlier version used R6 as the MOVAB target for
+	; the MP table and produced an ACCVIO at MNEGL CS[R6] on the
+	; very first pair when the party won (R6 then held the address
+	; of SCAVE_DATA_CR_MP).
+	CLRL	R0				; accumulator
+	CLRL	R3				; FB scan index
+	MOVAB	SCAVE_DATA_CR_MP, R5		; hoist table base out of loop
 1$:	CMPL	R3, #8
 	BGEQ	3$
 	MOVL	SCAVE_FIGHT_FB[R3], R4
 	CMPL	R4, #-1
 	BEQL	2$
-	MOVL	SCAVE_PARTY_PC[R4], R5
-	MOVAB	SCAVE_DATA_CR_MP, R6
-	ADDL2	(R6)[R5], R0
+	MOVL	SCAVE_PARTY_PC[R4], R4		; reuse R4 for the creature index
+	ADDL2	(R5)[R4], R0
 2$:	INCL	R3
 	BRB	1$
 3$:	RSB
