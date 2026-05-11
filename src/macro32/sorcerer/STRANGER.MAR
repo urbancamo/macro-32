@@ -58,6 +58,9 @@
 	.EXTRN	SCAVE_DATA_CR_HOSTILE_MAX
 	.EXTRN	SCAVE_DATA_CR_INDIFF_MAX
 
+	; Combat resolution lives in FIGHT.MAR.
+	.EXTRN	DO_FIGHT
+
 ;
 ; STATE.MAR per-chamber working set (filled by CHAMBER.MAR).
 ;
@@ -140,7 +143,7 @@ E_WITHDRAW:
 
 E_ATTACK:
 	MOVL	#1, SCAVE_FIGHT_FS		; we have surprise
-	BSBW	DO_ATTACK
+	CALLS	#0, G^DO_FIGHT
 	MOVL	#SS$_NORMAL, R0
 	RET
 
@@ -203,7 +206,7 @@ E_TEST:
 	BSBW	PAINT_RESULT_LINE
 	CALLS	#0, G^READ_KEY
 	MNEGL	#1, SCAVE_FIGHT_FS		; strangers have surprise
-	BSBW	DO_ATTACK
+	CALLS	#0, G^DO_FIGHT
 	MOVL	#SS$_NORMAL, R0
 	RET
 
@@ -343,163 +346,16 @@ AF_DONE:
 
 ;
 ; ===========================================================
-;  DO_ATTACK  --  simplified Stage 4 v1 combat.
-;
-;     Sums party total fight strength (FS+MP for living, non-stone
-;     members), sums stranger total fight strength.  Each side
-;     rolls a die.  Surprise (+1 in round 1) for the side that has
-;     SCAVE_FIGHT_FS == +1 / -1.  Higher total wins -- on a party
-;     win every stranger is slain (cleared).  On a stranger win
-;     every party creature is killed (PS=DEAD), and game state
-;     drops to DEAD.  A tie leaves both alive.
-; ===========================================================
-;
-	.EXTRN	SCAVE_DATA_CR_FS
-	.EXTRN	SCAVE_DATA_CR_MP
-
-DO_ATTACK:
-	; Compute party_total = sum(FS+MP) for PS<2
-	CLRL	R3				; party total
-	CLRL	R2
-DA_PT:
-	CMPL	R2, SCAVE_PARTY_NP
-	BLSS	DA_PT_BODY
-	BRB	DA_HAVE_PT
-DA_PT_BODY:
-	MOVL	SCAVE_PARTY_PS[R2], R0
-	CMPL	R0, #2
-	BGEQ	DA_PT_NEXT			; STONE or DEAD
-	MOVL	SCAVE_PARTY_PC[R2], R0		; creature index
-	MOVAB	SCAVE_DATA_CR_FS, R1
-	ADDL2	(R1)[R0], R3
-	MOVAB	SCAVE_DATA_CR_MP, R1
-	ADDL2	(R1)[R0], R3
-DA_PT_NEXT:
-	INCL	R2
-	BRB	DA_PT
-DA_HAVE_PT:
-
-	; Compute stranger_total
-	CLRL	R4
-	MOVAB	SCAVE_CHAMBER_NS, R0
-	MOVL	(R0), R5
-	MOVAB	SCAVE_CHAMBER_CS, R6
-	CLRL	R2
-DA_ST:
-	CMPL	R2, R5
-	BLSS	DA_ST_BODY
-	BRB	DA_HAVE_ST
-DA_ST_BODY:
-	MOVL	(R6)[R2], R0
-	MOVAB	SCAVE_DATA_CR_FS, R1
-	ADDL2	(R1)[R0], R4
-	MOVAB	SCAVE_DATA_CR_MP, R1
-	ADDL2	(R1)[R0], R4
-	INCL	R2
-	BRB	DA_ST
-DA_HAVE_ST:
-
-	; Apply surprise modifier.
-	MOVL	SCAVE_FIGHT_FS, R0
-	BLSS	DA_THEM_SURPRISE		; -1: their surprise
-	BGTR	DA_US_SURPRISE			; +1: our surprise
-	BRB	DA_NO_SURPRISE
-DA_US_SURPRISE:
-	INCL	R3
-	BRB	DA_NO_SURPRISE
-DA_THEM_SURPRISE:
-	INCL	R4
-DA_NO_SURPRISE:
-
-	; Subtract curses from our roll.
-	; (We apply -NC to party total.)
-	SUBL2	SCAVE_STATE_NC, R3
-
-	; Roll dice
-	CALLS	#0, G^ROLL_DIE
-	MOVL	R0, R6				; party die
-	CALLS	#0, G^ROLL_DIE
-	MOVL	R0, R7				; stranger die
-
-	ADDL2	R6, R3				; party total + die
-	ADDL2	R7, R4				; stranger total + die
-
-	CMPL	R3, R4
-	BEQL	DA_TIE
-	BGTR	DA_PARTY_WIN
-	BRB	DA_PARTY_LOSE
-
-DA_TIE:
-	; No casualties on a tie.
-	BSBW	PAINT_FIGHT_TIE
-	RSB
-
-DA_PARTY_WIN:
-	; Wipe strangers; mark dragon kills (Stage 4 simplification: any
-	; party member who fought gets credit if exactly one stranger
-	; was a dragon).  For Stage 4 v1 we just wipe and skip the
-	; dragon-slayer bonus.
-	MOVAB	SCAVE_CHAMBER_NS, R0
-	CLRL	(R0)				; NS = 0
-	BSBW	PAINT_FIGHT_WIN
-	RSB
-
-DA_PARTY_LOSE:
-	; Mark every living party member as dead (Stage 4 v1
-	; simplification: the whole party perishes if it loses).
-	CLRL	R2
-DPL_LOOP:
-	CMPL	R2, SCAVE_PARTY_NP
-	BLSS	DPL_BODY
-	BRB	DPL_DONE
-DPL_BODY:
-	MOVL	SCAVE_PARTY_PS[R2], R0
-	CMPL	R0, #2				; STONE
-	BGEQ	DPL_NEXT
-	MOVL	#3, SCAVE_PARTY_PS[R2]		; DEAD
-DPL_NEXT:
-	INCL	R2
-	BRB	DPL_LOOP
-DPL_DONE:
-	; Mark game state DEAD.
-	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
-	BSBW	PAINT_FIGHT_LOSE
-	RSB
-
-
-	.ALIGN	LONG
-DSC_FIGHT_WIN:		.ASCID	/Victory!  All strangers slain./
-DSC_FIGHT_LOSE:		.ASCID	/DEFEAT.  Your party is no more./
-DSC_FIGHT_TIE:		.ASCID	/A draw.  Both sides fall back./
-
-
-PAINT_FIGHT_WIN:
-	MOVAB	DSC_FIGHT_WIN, R5
-	BSBW	PAINT_RESULT_LINE
-	CALLS	#0, G^READ_KEY
-	RSB
-
-PAINT_FIGHT_LOSE:
-	MOVAB	DSC_FIGHT_LOSE, R5
-	BSBW	PAINT_RESULT_LINE
-	CALLS	#0, G^READ_KEY
-	RSB
-
-PAINT_FIGHT_TIE:
-	MOVAB	DSC_FIGHT_TIE, R5
-	BSBW	PAINT_RESULT_LINE
-	CALLS	#0, G^READ_KEY
-	RSB
-
-
-;
-; ===========================================================
 ;  PAINT_RESULT_LINE  --  R5 = address of a string descriptor.
 ;                         Erases row 15 (the encounter "result"
 ;                         row) before painting so a shorter
 ;                         message doesn't get tail-garbled by
 ;                         leftover characters from an earlier
 ;                         frame on the same row.
+;
+;   Combat itself moved to FIGHT.MAR's DO_FIGHT -- this module
+;   only handles the W/A/T menu and reaction test; once it's
+;   decided to start a fight it CALLS DO_FIGHT.
 ; ===========================================================
 ;
 PAINT_RESULT_LINE:
