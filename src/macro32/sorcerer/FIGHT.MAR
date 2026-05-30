@@ -167,6 +167,7 @@ DSC_DEAD_PAIR:		.ASCID	/(none)/
 DSC_OUT_TIE:		.ASCID	/TIE/
 DSC_OUT_WIN:		.ASCID	/WIN/
 DSC_OUT_LOSE:		.ASCID	/LOSE/
+DSC_OUT_SLAIN:		.ASCID	/slain by spectre/
 DSC_SPECTRE_FAO:	.ASCID	/A spectre's chill strikes !AS dead./
 DSC_PROMPT_FR:		.ASCID	/[F]ight on    [R]etreat/
 DSC_VICTORY:		.ASCID	/Victory!  The chamber is yours./
@@ -522,9 +523,12 @@ RESOLVE_PAIR:
 	BRW	RP_PAINT_GHOST
 2$:	CMPL	SCAVE_PARTY_PS[R7], #2
 	BLSS	RP_DO_FIGHT
-	; Party slot died this round already (spectre) -- paint a
-	; placeholder so the player sees the pair was skipped.
-	BRW	RP_PAINT_GHOST
+	; Party fighter was slain before the dice by the spectre's chill
+	; (APPLY_SPECTRE_RULE).  No fight happens against this stranger, so
+	; label the row "slain by spectre" rather than the neutral "(none)"
+	; placeholder -- otherwise the 0-vs-0 reads like a mutual tie.
+	MOVAB	DSC_OUT_SLAIN, PAIR_OUT_DSC
+	BRW	RP_PAINT_VOID
 
 RP_DO_FIGHT:
 	; Compute party strength (without die).
@@ -581,6 +585,9 @@ RP_PAINT_GHOST:
 	; One side already gone.  Paint a placeholder line so the row
 	; doesn't carry stale text.
 	MOVAB	DSC_DEAD_PAIR, PAIR_OUT_DSC
+RP_PAINT_VOID:
+	; Common tail for non-fights: zero the totals (no dice were rolled)
+	; and paint with whatever PAIR_OUT_DSC was set above.
 	CLRL	PARTY_TOT
 	CLRL	STRANGER_TOT
 	; Fall through.
