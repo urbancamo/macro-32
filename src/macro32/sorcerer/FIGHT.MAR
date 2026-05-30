@@ -163,7 +163,7 @@ DSC_HDR_FAO:		.ASCID	/-- COMBAT, ROUND !UL --/
 DSC_SURPRISE_US:	.ASCID	/We have surprise this round./
 DSC_SURPRISE_THEM:	.ASCID	/They have surprise this round./
 DSC_PAIR_FAO:		.ASCID	/!10AS !2UL    vs    !10AS !2UL     !AS/
-DSC_DEAD_PAIR:		.ASCID	/(no fighter)/
+DSC_DEAD_PAIR:		.ASCID	/(none)/
 DSC_OUT_TIE:		.ASCID	/TIE/
 DSC_OUT_WIN:		.ASCID	/WIN/
 DSC_OUT_LOSE:		.ASCID	/LOSE/
@@ -555,16 +555,21 @@ RP_PARTY_WIN:
 	BNEQ	1$
 	INCL	SCAVE_PARTY_PK[R7]
 1$:
-	; Mark stranger for removal (CS[R6] = -1; FD[R6] = -1 too so
-	; subsequent passes know the fighter is gone).
+	; Mark stranger for removal.  CULL_STRANGERS keys off CS[R6]=-1;
+	; that is the only flag needed.  Do NOT touch FD[R6] -- it still
+	; holds this stranger's creature index, and PAINT_PAIR_LINE reads
+	; it to show the name of the creature we just defeated.  FD is
+	; rebuilt from CS every round in PAIR_UP, so there is nothing to
+	; "clean up" for later passes (the pair index only increments).
 	MNEGL	#1, SCAVE_CHAMBER_CS[R6]
-	MNEGL	#1, SCAVE_FIGHT_FD[R6]
 	MOVAB	DSC_OUT_WIN, PAIR_OUT_DSC
 	BRW	RP_PAINT
 
 RP_PARTY_LOSE:
+	; Death is recorded in PS[R7]; leave FA[R6] intact so the row
+	; still names the fighter who fell (same reasoning as the win
+	; path -- FA is rebuilt each round in PAIR_UP).
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R7]
-	MNEGL	#1, SCAVE_FIGHT_FA[R6]
 	MOVAB	DSC_OUT_LOSE, PAIR_OUT_DSC
 	BRB	RP_PAINT
 
