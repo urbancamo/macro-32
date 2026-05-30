@@ -59,6 +59,10 @@
 
 	.EXTRN	HAS_ARTIFACT
 
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
 
 	.PSECT	SCAVE_SPECIAL_DATA, NOEXE, WRT, LONG
 
@@ -269,8 +273,8 @@ P_FINISH:
 ; -----------------------------------------------------------
 ;
 DROP_HEAVY_FOR_SLOT:
-	MULL3	#4, R5, R0			; offset of first slot
-	MOVL	#4, R1				; 4 slots per member
+	MULL3	#SCAVE$_TREAS_PER, R5, R0	; offset of first slot
+	MOVL	#SCAVE$_TREAS_PER, R1		; slots per member
 1$:
 	MOVL	SCAVE_PARTY_PT[R0], R2
 	CMPL	R2, #0

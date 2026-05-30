@@ -67,7 +67,19 @@
 	SCAVE$_AREA_COUNT  = 61			; 61 area cards in the large pack
 	SCAVE$_SMALL_COUNT = 52			; 52 chamber cards in the small pack
 	SCAVE$_PARTY_MAX   = 12			; max creatures in party
-	SCAVE$_TREAS_PER   = 4			; max treasure slots per creature
+	SCAVE$_TREAS_PER   = 20			; per-creature treasure backing
+						; slots.  The rules cap carrying
+						; by WEIGHT only (heavy treasure
+						; <= a creature's kg capacity);
+						; weightless artifacts are
+						; unbounded.  20 is a backing
+						; size large enough never to bind
+						; in play (a giant tops out near
+						; 6 sacks + ~11 artifacts).  Any
+						; module that strides PARTY_PT
+						; MUST use this same value -- it
+						; is file-local in MACRO-32, so
+						; each module redeclares it to 20.
 	SCAVE$_AREA_ITEMS  = 8			; max persistent items per area
 						; (creatures + leftover treasure)
 	SCAVE$_CHAMBER_MAX = 8			; max strangers / treasure per chamber

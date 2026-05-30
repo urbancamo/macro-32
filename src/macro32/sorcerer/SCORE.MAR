@@ -72,6 +72,10 @@
 	SCAVE$_GS_DEAD    = 2
 	SCAVE$_GS_QUIT    = 3
 
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
 
 	.PSECT	SCAVE_SCORE_DATA, NOEXE, WRT, LONG
 
@@ -152,9 +156,9 @@ PSUM_KEEP:
 2$:
 	ADDL2	R3, R6
 
-	; Walk this creature's 4 treasure slots.
-	MULL3	#4, R5, R0			; offset = slot*4
-	MOVL	#4, R7				; loop count
+	; Walk this creature's treasure slots (SCAVE$_TREAS_PER of them).
+	MULL3	#SCAVE$_TREAS_PER, R5, R0	; offset = slot * stride
+	MOVL	#SCAVE$_TREAS_PER, R7		; loop count
 TS_LOOP:
 	MOVL	SCAVE_PARTY_PT[R0], R1
 	BLSS	TS_NEXT				; -1 = empty (signed compare)

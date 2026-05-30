@@ -23,6 +23,10 @@
 	.EXTRN	SCAVE_PARTY_PS
 	.EXTRN	SCAVE_PARTY_PT
 
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
 
 	.PSECT	SCAVE_ARTIFACT_CODE, EXE, NOWRT, LONG
 
@@ -50,9 +54,9 @@ H_BODY:
 	BLSS	H_CHECK_SLOTS
 	BRB	H_NEXT_MEMBER
 H_CHECK_SLOTS:
-	; offset = R2*4 + slot, slot 0..3
-	MULL3	#4, R2, R3
-	MOVL	#4, R4
+	; offset = R2 * stride + slot
+	MULL3	#SCAVE$_TREAS_PER, R2, R3
+	MOVL	#SCAVE$_TREAS_PER, R4
 H_SLOT:
 	CMPL	SCAVE_PARTY_PT[R3], R5
 	BNEQ	H_SLOT_NEXT

@@ -82,6 +82,10 @@
 	.EXTRN	SCAVE_DATA_CR_START_COUNT
 	.EXTRN	SCAVE_DATA_SMALL_PACK
 
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
 
 	.PSECT	SCAVE_SETUP_DATA, NOEXE, WRT, LONG
 
@@ -319,17 +323,14 @@ TRY_ADD_CREATURE:
 	CLRL	(R6)[R5]
 	MOVAB	SCAVE_PARTY_PK, R6
 	CLRL	(R6)[R5]
-	; clear treasure slots for this party member (4 slots)
+	; clear this member's treasure slots (SCAVE$_TREAS_PER of them)
 	MOVAB	SCAVE_PARTY_PT, R6
-	MULL3	#4, R5, R7			; offset = NP*4 longwords
+	MULL3	#SCAVE$_TREAS_PER, R5, R7	; offset = NP * stride
 	MNEGL	#1, R8				; treasure slot empty marker
-	MOVL	R8, (R6)[R7]
+	MOVL	#SCAVE$_TREAS_PER, R9
+3$:	MOVL	R8, (R6)[R7]
 	INCL	R7
-	MOVL	R8, (R6)[R7]
-	INCL	R7
-	MOVL	R8, (R6)[R7]
-	INCL	R7
-	MOVL	R8, (R6)[R7]
+	SOBGTR	R9, 3$
 
 	INCL	SCAVE_PARTY_NP
 	SUBL2	R2, RP				; deduct cost

@@ -29,6 +29,7 @@
 
 	$SSDEF
 	$DSCDEF
+	$SMGDEF
 
 	.EXTRN	SMG$PUT_CHARS
 	.EXTRN	SYS$FAO
@@ -60,6 +61,11 @@
 	.EXTRN	SCAVE_PARTY_PS
 	.EXTRN	SCAVE_PARTY_PT
 	.EXTRN	SCAVE_STATE_NC
+	.EXTRN	SCAVE_STATE_GS
+
+	; Carry-capacity model for manual treasure pickup.
+	.EXTRN	SCAVE_DATA_CR_CARRY
+	.EXTRN	SCAVE_DATA_TR_WT
 
 	; Per-chamber working set lives in STATE.MAR's SCAVE_CHAMBER_*
 	; globals so STRANGER.MAR can read SCAVE_CHAMBER_CS / SCAVE_CHAMBER_NS / etc.
@@ -83,10 +89,24 @@
 	; you change this here, change it there too (and vice versa).
 	SCAVE$_AREA_ITEMS = 8
 
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	; The carry limit is by WEIGHT only; this is just the backing-array
+	; stride, sized large enough never to bind in play.
+	SCAVE$_TREAS_PER = 20
+
 
 	.PSECT	SCAVE_CHAMBER_DATA, NOEXE, WRT, LONG
 
 DRAW_COUNT:	.LONG	0			; cards to draw on this entry
+
+; The area whose chamber we are resolving, captured at ENTER_CHAMBER
+; entry.  A withdraw or retreat moves the party (overwriting
+; SCAVE_MAP_PA with PP) before SAVE_PERSISTED runs, so persistence
+; must key off this stable copy -- not the live SCAVE_MAP_PA -- or the
+; chamber's contents get filed under the area we retreated to and the
+; chamber itself comes back empty.
+CHAMBER_AREA:	.LONG	0
 
 ;
 ; Static strings + FAO controls.
@@ -98,6 +118,7 @@ DSC_REENTRY_EMPTY:	.ASCID	/Nothing remains in this chamber./
 DSC_REENTRY_FAO:	.ASCID	/!UL item(s) remain from your last visit./
 DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
+DSC_PROMPT_GATHER:	.ASCID	/(press any key to gather treasure)/
 
 DSC_PFX_STRANGER:	.ASCID	/Stranger:/
 DSC_PFX_TREASURE:	.ASCID	/Treasure:/
@@ -129,10 +150,45 @@ LINE_DSC:	.WORD	120
 ROW_TMP:	.BLKL	1
 COL_TWO:	.LONG	2
 COL_FOUR:	.LONG	4
+COL_SIX:	.LONG	6
 REENTRY_CNT:	.BLKL	1			; NS+NT for the re-entry FAO !UL
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
+
+;
+; Manual treasure-pickup screen: strings, video attributes, and the
+; scratch cells the FAO calls read from.
+;
+	.ALIGN	LONG
+DSC_PICK_HDR:		.ASCID	/-- PICK UP TREASURE --/
+DSC_PICK_ITEM_FAO:	.ASCID	|Item !UL/!UL:  !AS  (!UL kg)|
+DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !2UL/!3UL kg  !UL held|
+DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
+DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
+DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
+MARK_SEL:		.ASCID	/> /
+MARK_NONE:		.ASCID	/  /
+
+	.ALIGN	LONG
+FLAGS_ZERO:	.LONG	0
+REND_REVERSE:	.LONG	SMG$M_REVERSE
+
+	; Pickup loop state + FAO value/pointer scratch.
+PT_ITEM:	.BLKL	1			; current chamber-treasure index
+PT_TRIDX:	.BLKL	1			; its treasure-card index
+PICK_SEL:	.BLKL	1			; highlighted roster position
+PICK_NLIVE:	.BLKL	1			; living-member count
+	.ALIGN	LONG
+PICK_SLOTS:	.BLKL	12			; menu position -> party slot
+PICK_ITEM_NO:	.BLKL	1
+PICK_WT_VAL:	.BLKL	1
+PICK_LOAD_VAL:	.BLKL	1
+PICK_CAP_VAL:	.BLKL	1
+PICK_HELD_VAL:	.BLKL	1
+PICK_NAME_PTR:	.BLKL	1
+PICK_MNAME_PTR:	.BLKL	1
+PICK_MARK_PTR:	.BLKL	1
 
 
 	.PSECT	SCAVE_CHAMBER_CODE, EXE, NOWRT, LONG
@@ -159,6 +215,7 @@ FAO_OUTLEN:	.BLKW	1
 	.ENTRY	ENTER_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
 
 	MOVL	SCAVE_MAP_PA, R7
+	MOVL	R7, CHAMBER_AREA		; stable area id for persistence
 	TSTL	SCAVE_MAP_MV[R7]
 	BNEQ	C_REENTRY
 	BRW	C_FRESH
@@ -264,14 +321,33 @@ DRAW_DONE:
 
 C_PROCESS:
 	; Same logic for first visit and re-entry: if strangers remain,
-	; W/A/T encounter (a fresh reaction roll); otherwise auto-pick
-	; up any leftover treasure.
+	; W/A/T encounter (a fresh reaction roll); otherwise the treasure
+	; is unguarded and may be picked up now.
 	TSTL	SCAVE_CHAMBER_NS
 	BNEQ	9$
-	BSBW	AUTO_PICKUP_TREASURE
+	; No strangers guarding the chamber.  If there is treasure, let
+	; the player read the chamber contents first -- the pickup screen
+	; erases the display -- then run the manual pickup.  With nothing
+	; to collect, fall straight through to the end-of-chamber prompt
+	; so we don't show two "press any key" pauses on an empty room.
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	10$
+	BSBW	VIEW_CHAMBER_PAUSE
+	BSBW	PICKUP_TREASURE
 	BRB	10$
 9$:
 	CALLS	#0, G^STRANGER_ENCOUNTER
+	; Treasure is assigned only when every stranger in the chamber is
+	; either defeated or has joined the party -- both leave NS = 0.
+	; Any stranger left indifferent (or a withdraw/retreat) leaves
+	; NS > 0, so the loot stays in the chamber (rules: a party may
+	; leave "without picking up any treasure found there").  Also bail
+	; if the party died or the game ended (GS != PLAYING).
+	TSTL	SCAVE_STATE_GS
+	BNEQ	10$
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	10$
+	BSBW	PICKUP_TREASURE
 10$:
 
 	; Save the post-action state (whatever's left of strangers +
@@ -609,55 +685,330 @@ HAZ_TRAP:
 
 ;
 ; ===========================================================
-;  AUTO_PICKUP_TREASURE  --  for each treasure in SCAVE_CHAMBER_CT, find
-;                            the first party slot that has space
-;                            in SCAVE_PARTY_PT and stash it there.
-;                            For Stage 3 we don't track weights.
+;  VIEW_CHAMBER_PAUSE  --  the chamber-contents screen is already
+;                          painted; drop a prompt on row 16 and wait
+;                          for a keystroke so the player can read what
+;                          was found before the pickup screen clears
+;                          the display.
 ; ===========================================================
 ;
-AUTO_PICKUP_TREASURE:
-	CLRL	R6				; treasure index in SCAVE_CHAMBER_CT
-APU_LOOP:
-	CMPL	R6, SCAVE_CHAMBER_NT
-	BLSS	APU_BODY
+VIEW_CHAMBER_PAUSE:
+	MOVL	#16, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_GATHER
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
 	RSB
-APU_BODY:
-	; Find a free slot in PARTY_PT.  PT is laid out as a flat
-	; 12*4 longword array indexed by [creature_slot * 4 + treasure_slot].
-	CLRL	R5				; party slot 0..NP-1
-APU_FIND_PARTY:
-	CMPL	R5, SCAVE_PARTY_NP
-	BLSS	1$
-	BRW	APU_NEXT			; party full -- give up on this item
-1$:	CLRL	R3				; treasure slot 0..3
-APU_FIND_SLOT:
-	CMPL	R3, #4
+
+
+;
+; ===========================================================
+;  PICKUP_TREASURE  --  manual, weight-limited distribution of the
+;                       chamber's treasure (SCAVE_CHAMBER_CT[0..NT-1])
+;                       among living party members.  For each item the
+;                       player drives a highlighted cursor over the
+;                       roster (Up/Dn) and presses Enter to give it to
+;                       the selected member, or L to leave it.  An item
+;                       left behind keeps its CT entry, so SAVE_PERSISTED
+;                       leaves it in the chamber for a later visit.
+;
+;  Weight model: heavy treasure (SCAVE_DATA_TR_WT > 0; sacks are 25 kg,
+;  the Chest 100 kg) may not push a member's carried load past its
+;  SCAVE_DATA_CR_CARRY capacity.  Artifacts (weight 0) are free but
+;  still consume one of the member's four pack slots.
+;
+;  Treasure Chest joint-carry (rules: two creatures may share it) is
+;  not modelled in v1 -- it is treated as a single 100 kg load, so only
+;  a giant (150 kg) can take it alone; otherwise it is left behind.
+; ===========================================================
+;
+PICKUP_TREASURE:
+	BSBW	BUILD_LIVING_LIST		; -> PICK_SLOTS[], PICK_NLIVE
+	TSTL	PICK_NLIVE
+	BNEQ	1$
+	RSB					; nobody left to carry anything
+1$:	CLRL	PT_ITEM
+PKT_LOOP:
+	CMPL	PT_ITEM, SCAVE_CHAMBER_NT
 	BLSS	2$
-	; party member full; try next member
-	BRB	APU_NEXT_MEMBER
-2$:
-	; offset = R5*4 + R3
-	MULL3	#4, R5, R0
-	ADDL2	R3, R0
-	CMPL	SCAVE_PARTY_PT[R0], #-1
-	BEQL	APU_PLACE
-	INCL	R3
-	BRB	APU_FIND_SLOT
+	RSB
+2$:	MOVL	PT_ITEM, R0
+	MOVL	SCAVE_CHAMBER_CT[R0], R1
+	CMPL	R1, #-1
+	BEQL	PKT_NEXT			; already consumed
+	MOVL	R1, PT_TRIDX
+	BSBW	SELECT_FOR_ITEM
+PKT_NEXT:
+	INCL	PT_ITEM
+	BRB	PKT_LOOP
 
-APU_NEXT_MEMBER:
-	INCL	R5
-	BRW	APU_FIND_PARTY
 
-APU_PLACE:
-	; Place SCAVE_CHAMBER_CT[R6] into PARTY_PT[R0]; mark the chamber
-	; slot consumed so SAVE_PERSISTED won't re-stash it on the area.
-	; Treasure index 0 is SILVER, so we can't use 0 as the empty
-	; marker -- use -1 instead, mirroring PARTY_PT's convention.
-	MOVL	SCAVE_CHAMBER_CT[R6], SCAVE_PARTY_PT[R0]
-	MNEGL	#1, SCAVE_CHAMBER_CT[R6]
-APU_NEXT:
-	INCL	R6
-	BRW	APU_LOOP
+;
+; ===========================================================
+;  BUILD_LIVING_LIST  --  PICK_SLOTS[0..PICK_NLIVE-1] = the party
+;                         slots with PS < STONE (i.e. living), in
+;                         slot order.  Stable for the whole pickup.
+; ===========================================================
+;
+BUILD_LIVING_LIST:
+	CLRL	R0				; menu count
+	CLRL	R1				; party slot
+BLL_LOOP:
+	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	BLL_DONE
+	CMPL	SCAVE_PARTY_PS[R1], #2		; >= STONE -> skip
+	BGEQ	BLL_NEXT
+	MOVL	R1, PICK_SLOTS[R0]
+	INCL	R0
+BLL_NEXT:
+	INCL	R1
+	BRB	BLL_LOOP
+BLL_DONE:
+	MOVL	R0, PICK_NLIVE
+	RSB
+
+
+;
+; ===========================================================
+;  SELECT_FOR_ITEM  --  drive the cursor menu for the item named by
+;                       PT_ITEM / PT_TRIDX.  Returns when the item is
+;                       assigned (Enter on a member that can take it)
+;                       or left (L).  Uses PICK_SEL as the highlight.
+; ===========================================================
+;
+SELECT_FOR_ITEM:
+	CLRL	PICK_SEL
+SI_LOOP:
+	BSBW	PAINT_PICKUP_SCREEN
+	CALLS	#0, G^READ_KEY			; R0 = terminator / char code
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	DECL	PICK_SEL
+	BGEQ	SI_LOOP
+	MOVL	PICK_NLIVE, R1			; wrap to last
+	DECL	R1
+	MOVL	R1, PICK_SEL
+	BRW	SI_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	INCL	PICK_SEL
+	CMPL	PICK_SEL, PICK_NLIVE
+	BLSS	SI_LOOP
+	CLRL	PICK_SEL			; wrap to first
+	BRW	SI_LOOP
+20$:	CMPL	R0, #SMG$K_TRM_CR		; Enter = give
+	BEQL	25$
+	CMPL	R0, #^A/ /			; Space also gives
+	BNEQ	30$
+25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 rejected
+	TSTL	R0
+	BNEQ	26$
+	BRW	SI_LOOP				; rejected -- keep choosing
+26$:	RSB					; assigned -- next item
+30$:	CMPL	R0, #^A/L/			; leave this item behind
+	BEQL	SI_LEAVE
+	CMPL	R0, #^A/l/
+	BEQL	SI_LEAVE
+	BRW	SI_LOOP
+SI_LEAVE:
+	RSB
+
+
+;
+; ===========================================================
+;  TRY_ASSIGN  --  attempt to give the current item (PT_TRIDX, chamber
+;                  slot PT_ITEM) to the highlighted member
+;                  (PICK_SLOTS[PICK_SEL]).  Validates a free pack slot
+;                  and, for heavy treasure, the carry-weight limit.
+;                  On success places the item, marks CT[PT_ITEM] = -1,
+;                  returns R0 = 1.  On failure paints an error line and
+;                  returns R0 = 0.
+; ===========================================================
+;
+TRY_ASSIGN:
+	MOVL	PICK_SEL, R0
+	MOVL	PICK_SLOTS[R0], R3		; party slot (preserved by helper)
+	; Weight is the only carry limit.  Heavy treasure must fit the
+	; member's kg capacity; weightless artifacts are always accepted.
+	MOVL	PT_TRIDX, R6
+	MOVAB	SCAVE_DATA_TR_WT, R2
+	MOVL	(R2)[R6], R4			; item weight
+	BEQL	TA_PLACE			; weightless artifact -- no limit
+	BSBW	GET_LOAD_USED			; R0 = current load (R3 kept)
+	MOVL	SCAVE_PARTY_PC[R3], R5		; creature index
+	MOVAB	SCAVE_DATA_CR_CARRY, R2
+	ADDL3	R0, R4, R1			; prospective load
+	CMPL	R1, (R2)[R5]
+	BLEQ	TA_PLACE
+	MOVAB	DSC_ERR_WEIGHT, R5
+	BRW	TA_REJECT
+
+TA_PLACE:
+	; Store in the first free backing slot (index = R3*stride + k).
+	; With the weight-only model the stride is large enough that it
+	; never binds in play; the full-array branch is a defensive guard.
+	MULL3	#SCAVE$_TREAS_PER, R3, R7
+	CLRL	R8
+TAP_FIND:
+	ADDL3	R7, R8, R9
+	CMPL	SCAVE_PARTY_PT[R9], #-1
+	BEQL	TAP_GOT
+	INCL	R8
+	CMPL	R8, #SCAVE$_TREAS_PER
+	BLSS	TAP_FIND
+	MOVAB	DSC_ERR_SLOTS, R5		; defensive -- backing array full
+	BRW	TA_REJECT
+TAP_GOT:
+	MOVL	PT_TRIDX, R0
+	MOVL	R0, SCAVE_PARTY_PT[R9]
+	MOVL	PT_ITEM, R1
+	MNEGL	#1, SCAVE_CHAMBER_CT[R1]		; consume from the chamber
+	MOVL	#1, R0
+	RSB
+TA_REJECT:
+	BSBW	PAINT_PICK_ERR			; R5 = error descriptor
+	CLRL	R0
+	RSB
+
+
+;
+; ===========================================================
+;  GET_LOAD_USED  --  in: R3 = party slot.  out: R0 = heavy-treasure
+;                     load (kg) the member currently carries, R1 =
+;                     count of items held.  Clobbers R0,R1,R2,R4,R5;
+;                     preserves R3 and R6-R11.
+; ===========================================================
+;
+GET_LOAD_USED:
+	CLRL	R0				; load
+	CLRL	R1				; held count
+	MOVAB	SCAVE_DATA_TR_WT, R5
+	CLRL	R2				; k = 0..stride-1
+GLF_LOOP:
+	CMPL	R2, #SCAVE$_TREAS_PER
+	BGEQ	GLF_DONE
+	MULL3	#SCAVE$_TREAS_PER, R3, R4
+	ADDL2	R2, R4				; R4 = slot*stride + k
+	MOVL	SCAVE_PARTY_PT[R4], R4
+	CMPL	R4, #-1
+	BEQL	GLF_NEXT
+	INCL	R1				; held++
+	ADDL2	(R5)[R4], R0			; load += TR_WT[item]
+GLF_NEXT:
+	INCL	R2
+	BRB	GLF_LOOP
+GLF_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PICKUP_SCREEN  --  redraw the pickup panel for the current
+;                           item with the roster and the highlighted
+;                           selection.  Reads PT_ITEM, PT_TRIDX,
+;                           PICK_SEL, PICK_NLIVE, PICK_SLOTS.
+; ===========================================================
+;
+PAINT_PICKUP_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	; Header (row 3).
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PICK_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Item line (row 5): "Item n/N:  <name>  (w kg)".
+	MOVL	PT_TRIDX, R0
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R0], PICK_WT_VAL
+	ADDL3	#1, PT_ITEM, PICK_ITEM_NO	; 1-based item number
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_PICK_ITEM_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_ITEM_NO, p2=SCAVE_CHAMBER_NT, -
+		p3=PICK_NAME_PTR, p4=PICK_WT_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Roster rows, one per living member, starting at row 7.
+	CLRL	R6				; menu position (preserved by CALLS)
+PPS_MLOOP:
+	CMPL	R6, PICK_NLIVE
+	BLSS	PPS_MBODY
+	BRW	PPS_MDONE
+PPS_MBODY:
+	MOVL	PICK_SLOTS[R6], R3		; party slot
+	BSBW	GET_LOAD_USED			; R0 = load, R1 = held (R3,R6 kept)
+	MOVL	R0, PICK_LOAD_VAL
+	MOVL	R1, PICK_HELD_VAL
+	MOVL	SCAVE_PARTY_PC[R3], R0		; creature index
+	MOVAB	SCAVE_DATA_CR_CARRY, R1
+	MOVL	(R1)[R0], PICK_CAP_VAL
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_MNAME_PTR
+	; Selection marker.
+	CMPL	R6, PICK_SEL
+	BNEQ	1$
+	MOVAB	MARK_SEL, PICK_MARK_PTR
+	BRB	2$
+1$:	MOVAB	MARK_NONE, PICK_MARK_PTR
+2$:	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_PICK_MEMBER_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MARK_PTR, p2=PICK_MNAME_PTR, p3=PICK_LOAD_VAL, -
+		p4=PICK_CAP_VAL, p5=PICK_HELD_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	ADDL3	#7, R6, ROW_TMP			; row = 7 + menu position
+	; Selected row in reverse video; others plain.
+	CMPL	R6, PICK_SEL
+	BNEQ	3$
+	PUSHAL	REND_REVERSE
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	BRB	4$
+3$:	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+4$:	INCL	R6
+	BRW	PPS_MLOOP
+PPS_MDONE:
+	; Prompt (row 20 -- below a full 12-member roster, which fills
+	; rows 7..18).
+	MOVL	#20, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PICK_PROMPT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PICK_ERR  --  R5 = error descriptor.  Paint it centered on
+;                      row 19 and wait for a keystroke so the player
+;                      sees why the assignment was refused (the next
+;                      repaint erases it).
+; ===========================================================
+;
+PAINT_PICK_ERR:
+	MOVL	#19, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
 
 
 ;
@@ -669,7 +1020,7 @@ APU_NEXT:
 ; ===========================================================
 ;
 LOAD_PERSISTED:
-	MOVL	SCAVE_MAP_PA, R7
+	MOVL	CHAMBER_AREA, R7
 	MOVAB	SCAVE_AREA_AC, R8
 	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0	; bytes per area = 8 * 4
 	ADDL2	R0, R8				; R8 = base of this area's AC
@@ -719,7 +1070,7 @@ LP_DONE:
 ; ===========================================================
 ;
 SAVE_PERSISTED:
-	MOVL	SCAVE_MAP_PA, R7
+	MOVL	CHAMBER_AREA, R7
 	MOVAB	SCAVE_AREA_AC, R8
 	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
 	ADDL2	R0, R8				; R8 = base of this area's AC
