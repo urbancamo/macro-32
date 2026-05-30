@@ -95,6 +95,7 @@
 ;
 	.EXTRN	SMG$PUT_CHARS
 	.EXTRN	SYS$FAO
+	.EXTRN	SMG$DRAW_RECTANGLE
 
 
 	SCAVE$_GS_QUIT  = 3
@@ -227,6 +228,21 @@ FAO_OUTLEN:	.BLKW	1
 ;  SCAVE  -- image entry point
 ; ===========================================================
 ;
+;
+; Party-panel box geometry (1-based rows/cols inside the main
+; display interior).  The top edge sits one row above the first
+; member row (PMEM_FIRST_ROW = 7); PARTY_BOX_BOT is the bottom edge,
+; filled in by PAINT_PARTY_ROWS once it knows how many members were
+; drawn (= 7 + living-count).  The label is overlaid on the top edge.
+;
+PBOX_TOP:	.LONG	6
+PBOX_LEFT:	.LONG	2
+PBOX_RIGHT:	.LONG	68
+PBOX_LABEL_COL:	.LONG	4
+PARTY_BOX_BOT:	.BLKL	1
+	.ALIGN	LONG
+PARTY_TITLE_DSC:	.ASCID	/ Party /
+
 	.ENTRY	SCAVE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
 
 	CALLS	#0, G^SETUP_INIT
@@ -484,6 +500,9 @@ BUILD_EXITSTR:
 	MOVAB	EXITSTR_BUF, R2			; R2 = dst pointer
 	CLRL	R3				; R3 = length so far
 	TSTL	SCAVE_DEC_AN
+	; Frame the roster with a titled "Party" box.
+	BSBW	DRAW_PARTY_BOX
+
 	BEQL	1$
 	MOVB	#^A/N/, (R2)+
 	INCL	R3
@@ -617,3 +636,42 @@ ROW_TMP_PMEM:	.BLKL	1
 	.PSECT	MAIN_CODE, EXE, NOWRT, LONG
 
 	.END	SCAVE
+	; R7 now = PMEM_FIRST_ROW + living-count = the row just past the
+	; last member painted.  That is exactly where DRAW_PARTY_BOX wants
+	; the bottom border.  Stash it for that routine.
+	MOVL	R7, PARTY_BOX_BOT
+
+;
+; ===========================================================
+;  DRAW_PARTY_BOX  --  draw a titled rectangle around the party
+;                      roster.  PARTY_BOX_BOT (set by
+;                      PAINT_PARTY_ROWS) is the bottom border row;
+;                      when it is still <= the first member row no
+;                      living members were painted, so skip the box.
+;                      Must run inside the pasteboard batch so the
+;                      box and roster reach the screen together.
+; ===========================================================
+;
+DRAW_PARTY_BOX:
+	CMPL	PARTY_BOX_BOT, #7		; PMEM_FIRST_ROW
+	BGTR	1$
+	RSB					; no living members -- no box
+1$:
+	; SMG$DRAW_RECTANGLE display-id, start-row, start-col,
+	;                    end-row, end-col   (all by reference)
+	PUSHAL	PBOX_RIGHT
+	PUSHAL	PARTY_BOX_BOT
+	PUSHAL	PBOX_LEFT
+	PUSHAL	PBOX_TOP
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#5, G^SMG$DRAW_RECTANGLE
+
+	; Overlay the title on the top edge.
+	; SMG$PUT_CHARS display-id, text, row, column.
+	PUSHAL	PBOX_LABEL_COL
+	PUSHAL	PBOX_TOP
+	PUSHAL	PARTY_TITLE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
