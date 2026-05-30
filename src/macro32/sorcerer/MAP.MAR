@@ -203,6 +203,7 @@ M_USE_EXISTING:
 	BRW	M_FAIL
 
 M_DO_MOVE_EXISTING:
+	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
 	MOVL	R7, SCAVE_MAP_PP		; PP = old PA
 	MOVL	R2, SCAVE_MAP_PA		; new PA
 	MOVL	R8, SCAVE_MAP_PL		; new level
@@ -243,6 +244,7 @@ M_PLACE_OPEN:
 	MOVL	CARD_VAL, SCAVE_MAP_MP[R2]
 	MOVL	R10, SCAVE_MAP_ML[R2]
 
+	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
 	MOVL	R7, SCAVE_MAP_PP
 	MOVL	R2, SCAVE_MAP_PA
 	MOVL	R8, SCAVE_MAP_PL
@@ -269,5 +271,27 @@ M_PLACE_DEADEND:
 M_FAIL:
 	CLRL	R0
 	RET
+
+
+;
+; ===========================================================
+;  MIRROR_UP_STAIR  --  when the move being committed is a staircase
+;                       descent (direction 6 = D), set the up-stair
+;                       bit (AU, bit 5) on the destination card so the
+;                       party can ascend the way it came down.  Lateral
+;                       and up moves leave the card untouched.  Trap
+;                       falls bypass TRY_MOVE entirely (CHAMBER's
+;                       HAZ_TRAP just bumps the level), so a trap
+;                       descent correctly gets no return stair.
+;
+;     In:  R6 = direction (1..6), R2 = destination area index.
+;     Clobbers nothing the callers rely on (only the condition codes).
+; ===========================================================
+;
+MIRROR_UP_STAIR:
+	CMPL	R6, #6				; D = descend a staircase
+	BNEQ	1$
+	BISL2	#^X20, SCAVE_MAP_MP[R2]		; set AU (bit 5) on destination
+1$:	RSB
 
 	.END
