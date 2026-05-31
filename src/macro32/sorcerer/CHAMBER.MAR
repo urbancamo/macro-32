@@ -52,6 +52,7 @@
 	.EXTRN	SCAVE_MAP_PP
 	.EXTRN	SCAVE_MAP_MV
 	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_FELL
 	.EXTRN	SCAVE_AREA_AC
 	.EXTRN	SCAVE_AREA_AF
 	.EXTRN	SCAVE_DECK_SP
@@ -124,6 +125,7 @@ DSC_PFX_STRANGER:	.ASCID	/Stranger:/
 DSC_PFX_TREASURE:	.ASCID	/Treasure:/
 DSC_PFX_HAZARD:		.ASCID	/Hazard:/
 DSC_HZ_TRAP_MSG:	.ASCID	/!! TRAP -- party falls one level/
+DSC_HZ_TRAP_DWARF:	.ASCID	/!! TRAP -- the dwarf steps the party around it/
 DSC_HZ_QUAKE_MSG:	.ASCID	/!! EARTHQUAKE -- the way back collapses/
 DSC_HZ_MEDUSA_MSG:	.ASCID	/!! MEDUSA -- her glance turns flesh to stone/
 DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack with strength 2/
@@ -216,6 +218,7 @@ PICK_MARK_PTR:	.BLKL	1
 
 	MOVL	SCAVE_MAP_PA, R7
 	MOVL	R7, CHAMBER_AREA		; stable area id for persistence
+	CLRL	SCAVE_MAP_FELL			; no trap fall unless we set it below
 	TSTL	SCAVE_MAP_MV[R7]
 	BNEQ	C_REENTRY
 	BRW	C_FRESH
@@ -318,6 +321,36 @@ DRAW_DONE:
 	; Resolve hazards in priority order (first-visit only -- they
 	; are not persisted, so re-entry skips this).
 	BSBW	APPLY_HAZARDS
+
+	; Trap resolution (after the other hazards).  Count the traps drawn
+	; here; a single living dwarf lets the party step around one (the
+	; rules: "may ignore a trap, but not two drawn in the same
+	; chamber").  Any uncountered trap drops the whole party to the
+	; area directly below WITHOUT touching this chamber's strangers or
+	; treasure -- they remain here for a later visit.
+	BSBW	COUNT_TRAPS			; R0 = number of TRAP cards
+	TSTL	R0
+	BNEQ	1$
+	BRW	C_PROCESS			; no trap -- ordinary chamber
+1$:	MOVL	R0, R6				; R6 = trap count
+	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
+	TSTL	R0
+	BEQL	CT_FALL				; no dwarf -> the party falls
+	CMPL	R6, #1
+	BGTR	CT_FALL				; two+ traps -> a dwarf can't cope
+	; Single trap, dwarf present: stepped around, chamber plays normally.
+	MOVAB	DSC_HZ_TRAP_DWARF, R5
+	BSBW	PAINT_TRAP_LINE
+	BRW	C_PROCESS
+CT_FALL:
+	; The party falls.  Persist this chamber's untouched contents, flag
+	; the fall for MAIN to relocate + re-dispatch, and skip C_PROCESS.
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#SS$_NORMAL, R0
+	RET
 
 C_PROCESS:
 	; Same logic for first visit and re-entry: if strangers remain,
@@ -566,8 +599,9 @@ APPLY_HAZARDS:
 	BSBW	APPLY_ONE_HAZARD
 	MOVL	#0, R0				; mutiny
 	BSBW	APPLY_ONE_HAZARD
-	MOVL	#1, R0				; trap
-	BSBW	APPLY_ONE_HAZARD
+	; Traps are resolved by ENTER_CHAMBER after this pipeline -- the
+	; fall/dwarf decision needs the whole-chamber trap count -- so the
+	; trap hazard index is deliberately not dispatched here.
 	RSB
 
 APPLY_ONE_HAZARD:
@@ -676,11 +710,69 @@ HMT_NEXT:
 	BRB	HMT_LOOP
 
 HAZ_TRAP:
-	; Trap: one level deeper.  Don't draw a new area card here --
-	; the next turn's MOVE_PARTY will see the level changed and
-	; draw appropriately.  (Simplified for Stage 3.)
-	INCL	SCAVE_MAP_PL
+	; Traps are resolved by ENTER_CHAMBER after the hazard pipeline
+	; (it weighs the trap count against a dwarf's negation before
+	; deciding the fall), so this handler is intentionally inert.
+	; Kept as a valid CASE-table target should index 1 ever dispatch.
 	BRW	AOH_NEXT
+
+
+;
+; ===========================================================
+;  COUNT_TRAPS  --  R0 = number of TRAP cards (hazard index 1) drawn
+;                   into this chamber (SCAVE_CHAMBER_CH[0..NH-1]).
+; ===========================================================
+;
+COUNT_TRAPS:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_CHAMBER_NH
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CH[R2], #1		; 1 = TRAP
+	BNEQ	3$
+	INCL	R0
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  HAS_DWARF  --  R0 = 1 if a living (PS < STONE) Dwarf (creature
+;                 index 7) is in the party, else 0.
+; ===========================================================
+;
+HAS_DWARF:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	2$
+	CMPL	SCAVE_PARTY_PS[R2], #2		; STONE/DEAD can't act
+	BGEQ	3$
+	CMPL	SCAVE_PARTY_PC[R2], #7		; 7 = DWARF
+	BNEQ	3$
+	MOVL	#1, R0
+	RSB
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAINT_TRAP_LINE  --  R5 = descriptor address.  Paint it centered on
+;                       row 14 (below the chamber-contents list) and
+;                       wait for a keystroke so the player reads the
+;                       trap result before the screen changes.
+; ===========================================================
+;
+PAINT_TRAP_LINE:
+	MOVL	#14, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
 
 
 ;

@@ -45,6 +45,7 @@
 ;
 	.EXTRN	DECODE_AREA
 	.EXTRN	TRY_MOVE
+	.EXTRN	FALL_TO_BELOW
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -82,6 +83,7 @@
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_NM
 	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_FELL
 
 ;
 ; Static data (DATA.MAR)
@@ -400,7 +402,8 @@ T_DO_DIR:
 	BLBS	R0, 201$
 	BRW	T_LOOP
 201$:	INCL	SCAVE_STATE_TN
-	; Decode the freshly-arrived-at area, then dispatch:
+T_DISPATCH:
+	; Decode the area the party now occupies, then dispatch:
 	;   AT == 2  -> Deep Pool   (SPECIAL)
 	;   AT == 3  -> Viper Pit   (SPECIAL)
 	;   AH == 1  -> Chamber     (CHAMBER, first-visit only -- the
@@ -424,6 +427,18 @@ T_DO_DIR:
 	BRW	T_LOOP
 204$:
 	CALLS	#0, G^ENTER_CHAMBER
+	; A trap in the chamber drops the party to the area directly below
+	; (SCAVE_MAP_FELL set), leaving this chamber's contents untouched.
+	; Relocate and re-dispatch within the same turn -- the rules have
+	; the party "proceed normally with the turn in the area below."
+	; Chained traps simply loop back through here.
+	TSTL	SCAVE_MAP_FELL
+	BEQL	205$
+	CLRL	SCAVE_MAP_FELL
+	CALLS	#0, G^FALL_TO_BELOW		; R0 = 1 placed, 0 = pack empty
+	BLBC	R0, 205$			; no area below -> end the turn
+	BRW	T_DISPATCH
+205$:
 	BRW	T_LOOP
 
 T_QUIT:

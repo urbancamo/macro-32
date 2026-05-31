@@ -294,4 +294,60 @@ MIRROR_UP_STAIR:
 	BISL2	#^X20, SCAVE_MAP_MP[R2]		; set AU (bit 5) on destination
 1$:	RSB
 
+
+;
+; ===========================================================
+;  FALL_TO_BELOW  --  relocate the party one level directly below its
+;                     current area (same x,y, level+1) -- a trap fall.
+;                     Reuses an existing area at those coords, else
+;                     draws and places a new card.  No stairs are
+;                     created (you cannot climb back out of a trap, and
+;                     unlike a deliberate descent we add no up-stair).
+;
+;     R0 = 1 if the party was relocated, 0 if the large pack is
+;     exhausted and no area exists below (caller ends the turn).
+; ===========================================================
+;
+	.ENTRY	FALL_TO_BELOW, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	MOVL	SCAVE_MAP_PA, R7		; R7 = area we fall from
+	; Target coords = ML[PA] + one level.  y,x are < 100, so adding
+	; 10000 cleanly bumps only the level*10000 field.
+	ADDL3	#10000, SCAVE_MAP_ML[R7], R10	; R10 = target coords
+	DIVL3	#10000, R10, R8			; R8 = new (deeper) level
+
+	; Look for an already-placed area at the target coords.
+	MOVL	#1, R2
+	MOVL	SCAVE_MAP_NM, R3
+	CMPL	R2, R3
+	BLEQ	FTB_FIND
+	BRW	FTB_DRAW			; nothing placed yet
+FTB_FIND:
+	CMPL	SCAVE_MAP_ML[R2], R10
+	BEQL	FTB_USE
+	AOBLEQ	R3, R2, FTB_FIND
+
+FTB_DRAW:
+	; Draw the next large-pack card and place it below.
+	MOVL	SCAVE_DECK_LI, R2
+	CMPL	R2, #60
+	BLSS	FTB_PLACE
+	CLRL	R0				; pack exhausted -- cannot fall
+	RET
+FTB_PLACE:
+	MOVL	SCAVE_DECK_LP[R2], R0
+	INCL	SCAVE_DECK_LI
+	MOVL	SCAVE_DATA_AREA_CARDS[R0], R0	; packed card value
+	INCL	SCAVE_MAP_NM
+	MOVL	SCAVE_MAP_NM, R2
+	MOVL	R0, SCAVE_MAP_MP[R2]
+	MOVL	R10, SCAVE_MAP_ML[R2]
+
+FTB_USE:
+	MOVL	R7, SCAVE_MAP_PP		; PP = area we fell from
+	MOVL	R2, SCAVE_MAP_PA		; now one level down
+	MOVL	R8, SCAVE_MAP_PL
+	MOVL	#1, R0
+	RET
+
 	.END

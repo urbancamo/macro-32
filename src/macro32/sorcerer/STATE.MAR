@@ -110,6 +110,9 @@ SCAVE_MAP_NM::		.LONG	0			; areas placed so far
 SCAVE_MAP_PA::		.LONG	1			; current party area index (1-based)
 SCAVE_MAP_PL::		.LONG	1			; current party level
 SCAVE_MAP_PP::		.LONG	0			; previous area (for earthquake)
+SCAVE_MAP_FELL::	.LONG	0			; set by ENTER_CHAMBER when a trap
+							; drops the party; MAIN relocates one
+							; level down and re-dispatches the turn
 
 	.ALIGN	LONG
 SCAVE_MAP_MP::		.BLKL	SCAVE$_AREA_COUNT	; area-card value at each placed slot
