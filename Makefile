@@ -124,3 +124,118 @@ vms-debug: vms-build
 vms-clean:
 	@echo ">>> purge $(NAME_UC).*"
 	@$(VMSDRIVE) cmd 'PURGE/KEEP=1 $(NAME_UC).*'
+
+# ----------------------------------------------------------------------
+# Multi-file image builds (currently used by SCAVE / Sorcerer's Cave)
+#
+# A multi-module program lives at src/macro32/<NAME>/ with one .MAR file
+# per module and a sources.list giving link order, one BASENAME per line.
+# All modules link into <NAME_UC>.EXE.  The default target SCAVE uses
+# src/macro32/sorcerer/.
+#
+# On the VAX side, all SCAVE files live in a [.SCAVE] subdirectory of
+# the daemon's default ([MSW.CLAUDE.SCAVE] in practice).  Each target
+# does SET DEFAULT [.SCAVE] at the start and SET DEFAULT [-] at the end
+# so other tools that assume [MSW.CLAUDE] (vms-build, vms-run for the
+# single-file demos) keep working unchanged.  vmsftp uploads/downloads
+# go via the `raw` subcommand with an explicit cd into [.SCAVE] so the
+# DCL session and FTP session don't have to share state.
+# ----------------------------------------------------------------------
+
+SCAVE_DIR     := src/macro32/sorcerer
+SCAVE_NAME    := SCAVE
+SCAVE_SUBDIR  := SCAVE
+SCAVE_SRCS    := $(shell awk 'NF && !/^\#/' $(SCAVE_DIR)/sources.list 2>/dev/null)
+SCAVE_LINK    := $(shell awk 'NF && !/^\#/{print $$0".OBJ"}' $(SCAVE_DIR)/sources.list 2>/dev/null | paste -sd, -)
+SCAVE_LIS_DIR := $(SCAVE_DIR)
+SCAVE_LOG     := $(SCAVE_DIR)/scave.log
+
+.PHONY: vms-scave-build vms-scave-build-release vms-scave-run vms-scave-debug \
+        vms-scave-fetch-lis vms-scave-clean vms-scave-cd vms-scave-cd-back
+
+# Helper: enter / leave the SCAVE subdir on the daemon side.
+vms-scave-cd:
+	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]'
+
+vms-scave-cd-back:
+	@$(VMSDRIVE) cmd 'SET DEFAULT [-]'
+
+#
+# Host-side build is now a thin driver around MAKE.COM living on the
+# VAX in [.SCAVE].  We push the .MAR sources + MAKE.COM in one FTP
+# session, run @MAKE.COM via vmsdrive (one round-trip for the whole
+# MACRO/LINK chain), then fetch listings in one FTP session.  This
+# replaces the previous one-cmd-per-MACRO loop, which was slow and
+# repeatedly tripped the daemon's prompt-detection.
+#
+# MAKE.COM uses ON ERROR THEN EXIT $STATUS so any failed MACRO halts
+# the procedure before LINK runs.  See src/macro32/sorcerer/MAKE.COM
+# for the canonical list of sources -- keep it in sync with
+# sources.list.
+#
+
+# Build the script that vmsftp will execute: cd into [.SCAVE], then
+# `put <local> <basename>.MAR` for every source plus MAKE.COM.
+define SCAVE_PUSH_SCRIPT
+ascii
+cd [.$(SCAVE_SUBDIR)]
+$(foreach s,$(SCAVE_SRCS),put $(SCAVE_DIR)/$(s).MAR $(s).MAR
+)put $(SCAVE_DIR)/MAKE.COM MAKE.COM
+endef
+export SCAVE_PUSH_SCRIPT
+
+# Build the fetch script for listings.
+define SCAVE_FETCH_SCRIPT
+ascii
+cd [.$(SCAVE_SUBDIR)]
+$(foreach s,$(SCAVE_SRCS),get $(s).LIS $(SCAVE_LIS_DIR)/$(s).lis
+)
+endef
+export SCAVE_FETCH_SCRIPT
+
+vms-scave-build: vms-up
+	@test -n "$(SCAVE_SRCS)" || { echo "no sources in $(SCAVE_DIR)/sources.list" >&2; exit 1; }
+	@test -f $(SCAVE_DIR)/MAKE.COM || { echo "missing $(SCAVE_DIR)/MAKE.COM" >&2; exit 1; }
+	@echo ">>> upload sources + MAKE.COM -> [.$(SCAVE_SUBDIR)]"
+	@$(VMSFTP) raw "$$SCAVE_PUSH_SCRIPT" >/dev/null
+	@echo ">>> SET DEFAULT [.$(SCAVE_SUBDIR)]"
+	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]'
+	@echo ">>> @MAKE.COM"
+	@$(VMSDRIVE) cmd '@MAKE.COM'
+	@echo ">>> SET DEFAULT [-]"
+	@$(VMSDRIVE) cmd 'SET DEFAULT [-]'
+	@$(MAKE) --no-print-directory vms-scave-fetch-lis
+
+vms-scave-build-release: vms-up vms-scave-cd
+	@echo "release variant not yet ported to MAKE.COM driver -- TODO"
+	@$(MAKE) --no-print-directory vms-scave-cd-back
+	@false
+
+vms-scave-fetch-lis:
+	@echo ">>> fetch *.LIS -> $(SCAVE_LIS_DIR)/"
+	@$(VMSFTP) raw "$$SCAVE_FETCH_SCRIPT" >/dev/null
+	@ls -l $(SCAVE_LIS_DIR)/*.lis
+
+vms-scave-run: vms-scave-build vms-scave-cd
+	@echo ">>> RUN/NODEBUG $(SCAVE_NAME)  (capturing to $(SCAVE_LOG))"
+	@$(VMSDRIVE) cmd 'RUN/NODEBUG $(SCAVE_NAME)' | tee $(SCAVE_LOG)
+	@echo ">>> exit status:"
+	@$(VMSDRIVE) cmd 'SHOW SYMBOL $$STATUS'
+	@$(MAKE) --no-print-directory vms-scave-cd-back
+
+vms-scave-debug: vms-scave-build vms-scave-cd
+	@echo ">>> RUN/DEBUG $(SCAVE_NAME)  (intro logged to $(SCAVE_LOG))"
+	@$(VMSDRIVE) cmd 'RUN/DEBUG $(SCAVE_NAME)' | tee $(SCAVE_LOG)
+	@echo ""
+	@echo "Now at DBG> prompt -- daemon stays in [.$(SCAVE_SUBDIR)] until"
+	@echo "you 'make vms-scave-cd-back' (or run another scave target)."
+	@echo "Drive the debugger with:"
+	@echo "  $(VMSDRIVE) dbg '<command>'"
+
+vms-scave-clean: vms-up vms-scave-cd
+	@for s in $(SCAVE_SRCS); do \
+	   echo ">>> purge $$s.*"; \
+	   $(VMSDRIVE) cmd "PURGE/KEEP=1 $$s.*"; \
+	 done
+	@$(VMSDRIVE) cmd 'PURGE/KEEP=1 $(SCAVE_NAME).EXE'
+	@$(MAKE) --no-print-directory vms-scave-cd-back

@@ -1,0 +1,869 @@
+	.TITLE	FIGHT	Multi-round per-pair combat resolution
+	.IDENT	/V0.1/
+
+;++
+; FIGHT.MAR
+;
+;   Replaces STRANGER.MAR's single-round DO_ATTACK with the rule-
+;   book combat loop.  Entered with SCAVE_FIGHT_FS set:
+;
+;       +1  party has surprise   (E_ATTACK)
+;       -1  strangers have surprise (hostile reaction test)
+;        0  no surprise          (other paths)
+;
+;   Each round:
+;
+;     1. Pair up: NF = min(living party, NS).  FA[i] = the i-th
+;        living party slot (PS < STONE).  FD[i] = CS[i].
+;        Unmatched living slots become background for magic-power
+;        bonus contribution.  Sorting by strength is deferred to v2
+;        -- v1 pairs in slot order.
+;
+;     2. Spectre rule: if any Spectre is in CS AND the party has
+;        zero total magical power AND no Magic Sword bearer, the
+;        top party fighter (FA[0]) dies before the per-pair rolls.
+;
+;     3. For each pair both sides roll a die and add their total
+;        strength.  Higher wins (loser killed); tie = both alive.
+;        Strangers that died are tagged with CS[i] = -1; party
+;        deaths set PS[slot] = DEAD.  Dragon-slayer credit
+;        (PK[slot]++) is given on any party win against a Dragon.
+;
+;     4. CS is compacted to remove -1s and NS adjusted.
+;
+;     5. Victory when NS = 0.  Defeat (GS = DEAD) when no living
+;        party member remains.  Otherwise prompt [F]ight on /
+;        [R]etreat; R moves the party back to PP.
+;
+;   Strength = FS + MP for both sides, plus:
+;     +1 round-1 surprise (only to the side that has it)
+;   Party only:
+;     +1 if any party member holds The Ring                (TR=10)
+;     -NC for curses
+;     +2 if fighter is HERO or W-HERO and party holds the
+;        Magic Sword;  +1 if fighter is MAN or WOMAN       (TR=3)
+;     +1 if fighter is PRIEST and party holds the Magic
+;        Staff;     +2 if fighter is WIZARD               (TR=9)
+;     +2 if fighter's slot == SCAVE_FIGHT_POTION           (TR=8)
+;     +PK[slot]   dragon-slayer accumulated bonus
+;     + sum-of-FB-MP applied to fighter 0 only (background magic)
+;
+; Public:
+;   DO_FIGHT  --  no args.  Modifies party/CS/GS.  R0 = SS$_NORMAL.
+;--
+
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	ERASE_ROW
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	PAINT_AT_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	ROLL_DIE
+	.EXTRN	HAS_ARTIFACT
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PP
+
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
+	.EXTRN	SCAVE_PARTY_PT
+	.EXTRN	SCAVE_STATE_NC
+	.EXTRN	SCAVE_STATE_GS
+
+	.EXTRN	SCAVE_CHAMBER_NS
+	.EXTRN	SCAVE_CHAMBER_CS
+
+	.EXTRN	SCAVE_FIGHT_FA
+	.EXTRN	SCAVE_FIGHT_FD
+	.EXTRN	SCAVE_FIGHT_FB
+	.EXTRN	SCAVE_FIGHT_NF
+	.EXTRN	SCAVE_FIGHT_FS
+	.EXTRN	SCAVE_FIGHT_RD
+	.EXTRN	SCAVE_FIGHT_POTION
+
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_CR_FS
+	.EXTRN	SCAVE_DATA_CR_MP
+
+	; Treasure index constants used here.  Source of truth for
+	; treasure-card semantics is DATA.MAR's SCAVE_DATA_TR_NAME_PTR;
+	; we only need the indices for the in-combat bonus lookups.
+	SCAVE$_TR_SWORD  = 3
+	SCAVE$_TR_POTION = 8
+	SCAVE$_TR_STAFF  = 9
+	SCAVE$_TR_RING   = 10
+
+	; Creature indices that gate the per-fighter bonus tiers.
+	SCAVE$_CR_HERO    = 0
+	SCAVE$_CR_WHERO   = 1
+	SCAVE$_CR_PRIEST  = 4
+	SCAVE$_CR_MAN     = 5
+	SCAVE$_CR_WOMAN   = 6
+	SCAVE$_CR_WIZARD  = 8
+	SCAVE$_CR_SPECTRE = 9
+	SCAVE$_CR_DRAGON  = 10
+
+	; Status code we set when a party member is killed.
+	SCAVE$_PS_DEAD    = 3
+
+
+	.PSECT	SCAVE_FIGHT_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+LINE_BUF:	.BLKB	120
+	.ALIGN	LONG
+LINE_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS LINE_BUF
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+	.ALIGN	LONG
+ROW_TMP:	.BLKL	1
+COL_FOUR:	.LONG	4
+COL_EIGHT:	.LONG	8
+
+	; Per-fight cached flags (refreshed each round to track
+	; treasure pickups that happen as we cull strangers).
+HAS_SWORD:	.BLKL	1
+HAS_STAFF:	.BLKL	1
+HAS_RING:	.BLKL	1
+
+	; Per-pair scratch.
+PARTY_STR:	.BLKL	1
+STRANGER_STR:	.BLKL	1
+PARTY_TOT:	.BLKL	1
+STRANGER_TOT:	.BLKL	1
+
+	; FAO scratch (longwords -- !UL pops by value).
+RD_VAL:		.BLKL	1
+PARTY_TOT_VAL:	.BLKL	1
+STRANGER_TOT_VAL: .BLKL	1
+SLAIN_NAME_PTR:	.BLKL	1			; descriptor address for spectre kill
+
+	; Descriptor pointer scratch -- holds the address of the
+	; outcome descriptor for the current pair so the FAO !AS can
+	; read it.
+PAIR_OUT_DSC:	.BLKL	1
+
+
+	.ALIGN	LONG
+DSC_HDR_FAO:		.ASCID	/-- COMBAT, ROUND !UL --/
+DSC_SURPRISE_US:	.ASCID	/We have surprise this round./
+DSC_SURPRISE_THEM:	.ASCID	/They have surprise this round./
+DSC_PAIR_FAO:		.ASCID	/!10AS !2UL    vs    !10AS !2UL     !AS/
+DSC_DEAD_PAIR:		.ASCID	/(none)/
+DSC_OUT_TIE:		.ASCID	/TIE/
+DSC_OUT_WIN:		.ASCID	/WIN/
+DSC_OUT_LOSE:		.ASCID	/LOSE/
+DSC_OUT_SLAIN:		.ASCID	/slain by spectre/
+DSC_SPECTRE_FAO:	.ASCID	/A spectre's chill strikes !AS dead./
+DSC_PROMPT_FR:		.ASCID	/[F]ight on    [R]etreat/
+DSC_VICTORY:		.ASCID	/Victory!  The chamber is yours./
+DSC_DEFEAT:		.ASCID	/DEFEAT.  Your party is no more./
+DSC_RETREAT:		.ASCID	/You retreat to the previous area./
+
+
+	.PSECT	SCAVE_FIGHT_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  DO_FIGHT  --  multi-round combat.  See file header.
+; ===========================================================
+;
+	.ENTRY	DO_FIGHT, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	MOVL	#1, SCAVE_FIGHT_RD
+
+R_LOOP:
+	; Refresh artifact flags each round -- chaining fights or
+	; future treasure-drop rules can shift these mid-fight.
+	BSBW	REFRESH_ARTIFACT_FLAGS
+
+	; Pair up.  Leaves NF set; FA[0..NF-1] = living party slots in
+	; slot order; FD[0..NF-1] = CS[0..NF-1]; FB[] = unmatched
+	; living slots.
+	BSBW	PAIR_UP
+
+	BSBW	PAINT_ROUND_HEADER
+
+	; Spectre rule: applied each round (the chill is a persistent
+	; aura while the spectre stands).
+	BSBW	APPLY_SPECTRE_RULE
+
+	; Per-pair rolls.
+	CLRL	R6				; pair index
+RP_LOOP:
+	CMPL	R6, SCAVE_FIGHT_NF
+	BLSS	RP_BODY
+	BRW	RP_DONE
+RP_BODY:
+	BSBW	RESOLVE_PAIR
+	INCL	R6
+	BRW	RP_LOOP
+RP_DONE:
+
+	BSBW	CULL_STRANGERS
+
+	; End-of-round checks.
+	BSBW	COUNT_LIVING_PARTY		; R0 = count
+	TSTL	R0
+	BNEQ	R_HAVE_PARTY
+	; Defeated.
+	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
+	MOVAB	DSC_DEFEAT, R5
+	BSBW	PAINT_STATUS_LINE
+	CALLS	#0, G^READ_KEY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+R_HAVE_PARTY:
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	R_BOTH_LIVE
+	; Victory.
+	MOVAB	DSC_VICTORY, R5
+	BSBW	PAINT_STATUS_LINE
+	CALLS	#0, G^READ_KEY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+R_BOTH_LIVE:
+	; Both sides have living members -- offer F/R.
+	BSBW	PROMPT_FR			; R0 = 0 fight, 1 retreat
+	TSTL	R0
+	BEQL	R_FIGHT_ON
+	; Retreat.
+	MOVL	SCAVE_MAP_PP, R0
+	BEQL	R_RET_NOMOVE			; no PP -- can't retreat physically
+	MOVL	R0, SCAVE_MAP_PA
+R_RET_NOMOVE:
+	MOVAB	DSC_RETREAT, R5
+	BSBW	PAINT_STATUS_LINE
+	CALLS	#0, G^READ_KEY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+R_FIGHT_ON:
+	INCL	SCAVE_FIGHT_RD
+	BRW	R_LOOP
+
+
+;
+; ===========================================================
+;  REFRESH_ARTIFACT_FLAGS  --  cache HAS_SWORD / HAS_STAFF /
+;                              HAS_RING by calling HAS_ARTIFACT.
+;                              Called once per round.
+; ===========================================================
+;
+REFRESH_ARTIFACT_FLAGS:
+	PUSHL	#SCAVE$_TR_SWORD
+	CALLS	#1, G^HAS_ARTIFACT
+	MOVL	R0, HAS_SWORD
+	PUSHL	#SCAVE$_TR_STAFF
+	CALLS	#1, G^HAS_ARTIFACT
+	MOVL	R0, HAS_STAFF
+	PUSHL	#SCAVE$_TR_RING
+	CALLS	#1, G^HAS_ARTIFACT
+	MOVL	R0, HAS_RING
+	RSB
+
+
+;
+; ===========================================================
+;  COUNT_LIVING_PARTY  --  R0 = number of slots in PARTY_PC[0..NP-1]
+;                          with PS < SCAVE$_PS_STONE.
+; ===========================================================
+;
+COUNT_LIVING_PARTY:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	2$
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	3$
+	INCL	R0
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAIR_UP  --  fills FA / FD / FB / NF.
+;
+;     FA[i]  for i in 0..NF-1   -- i-th living party slot
+;     FD[i]  for i in 0..NF-1   -- = CS[i]
+;     FB[i]                     -- unmatched living party slots
+;                                  (in slot order).  Used to add
+;                                  background MP to FA[0].
+;     entries past their count are set to -1.
+; ===========================================================
+;
+PAIR_UP:
+	; Clear FA, FD, FB to -1 (8 entries each).
+	MOVL	#8, R3
+	MOVAB	SCAVE_FIGHT_FA, R4
+	MOVAB	SCAVE_FIGHT_FD, R5
+	MOVAB	SCAVE_FIGHT_FB, R7
+1$:	MNEGL	#1, (R4)+
+	MNEGL	#1, (R5)+
+	MNEGL	#1, (R7)+
+	SOBGTR	R3, 1$
+
+	; Gather living party slots into a local list (in slot order
+	; -- no sort yet).  R6 = count; we collect up to 12.
+	CLRL	R6
+	CLRL	R2
+	MOVAB	SCAVE_FIGHT_FA, R4		; piggy-back on FA storage:
+						; first NF go into matched
+						; positions, rest will be
+						; copied to FB below.
+PU_GATHER:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	PU_HAVE_LIVING
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	PU_GATHER_NEXT
+	; Slot R2 is living.  Store it -- temporarily into FA.
+	CMPL	R6, #8
+	BGEQ	PU_GATHER_NEXT			; FA capped at 8
+	MOVL	R2, SCAVE_FIGHT_FA[R6]
+	INCL	R6
+PU_GATHER_NEXT:
+	INCL	R2
+	BRB	PU_GATHER
+PU_HAVE_LIVING:
+	; R6 = living-party count (capped at 8).  We need NF.
+	MOVL	SCAVE_CHAMBER_NS, R8
+	MOVL	R6, R0				; R0 = living
+	CMPL	R0, R8
+	BLEQ	1$
+	MOVL	R8, R0
+1$:	CMPL	R0, #8
+	BLEQ	2$
+	MOVL	#8, R0
+2$:	MOVL	R0, SCAVE_FIGHT_NF		; NF = min(living, NS, 8)
+
+	; FA[NF..R6-1] currently holds unmatched living slots.  Move
+	; them to FB and clear FA past NF.
+	MOVL	SCAVE_FIGHT_NF, R3		; R3 = NF
+	CLRL	R7				; FB index
+PU_FB:
+	CMPL	R3, R6
+	BGEQ	PU_FB_DONE
+	MOVL	SCAVE_FIGHT_FA[R3], SCAVE_FIGHT_FB[R7]
+	INCL	R3
+	INCL	R7
+	BRB	PU_FB
+PU_FB_DONE:
+	; Clear FA from NF onwards.
+	MOVL	SCAVE_FIGHT_NF, R3
+PU_FA_CLEAR:
+	CMPL	R3, #8
+	BGEQ	PU_FA_CLEAR_DONE
+	MNEGL	#1, SCAVE_FIGHT_FA[R3]
+	INCL	R3
+	BRB	PU_FA_CLEAR
+PU_FA_CLEAR_DONE:
+
+	; FD[i] = CS[i] for i in 0..NF-1.
+	CLRL	R3
+PU_FD:
+	CMPL	R3, SCAVE_FIGHT_NF
+	BGEQ	PU_FD_DONE
+	MOVL	SCAVE_CHAMBER_CS[R3], SCAVE_FIGHT_FD[R3]
+	INCL	R3
+	BRB	PU_FD
+PU_FD_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  BG_MP_TOTAL  --  R0 = sum of MP for living party members in
+;                   FB[].  Added to FA[0]'s strength as the v1
+;                   "background magic" contribution.
+; ===========================================================
+;
+BG_MP_TOTAL:
+	; Important: this routine is reached via BSBW from
+	; COMPUTE_PARTY_STR, which itself is reached from RESOLVE_PAIR
+	; with R6 = the current pair index.  BSBW does NOT save any
+	; registers (it just pushes a return address), so anything we
+	; clobber stays clobbered when we hand R6 back to RESOLVE_PAIR
+	; -- and RP_PARTY_WIN uses SCAVE_CHAMBER_CS[R6] / FD[R6].  Keep
+	; this routine's scratch set within R0/R3/R4/R5 to leave R6+
+	; alone.  An earlier version used R6 as the MOVAB target for
+	; the MP table and produced an ACCVIO at MNEGL CS[R6] on the
+	; very first pair when the party won (R6 then held the address
+	; of SCAVE_DATA_CR_MP).
+	CLRL	R0				; accumulator
+	CLRL	R3				; FB scan index
+	MOVAB	SCAVE_DATA_CR_MP, R5		; hoist table base out of loop
+1$:	CMPL	R3, #8
+	BGEQ	3$
+	MOVL	SCAVE_FIGHT_FB[R3], R4
+	CMPL	R4, #-1
+	BEQL	2$
+	MOVL	SCAVE_PARTY_PC[R4], R4		; reuse R4 for the creature index
+	ADDL2	(R5)[R4], R0
+2$:	INCL	R3
+	BRB	1$
+3$:	RSB
+
+
+;
+; ===========================================================
+;  PARTY_TOTAL_MP  --  R0 = MP of every living party member
+;                      summed.  Used by the Spectre rule.
+; ===========================================================
+;
+PARTY_TOTAL_MP:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	3$
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	2$				; stoned / dead contribute 0
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	ADDL2	(R4)[R3], R0
+2$:	INCL	R2
+	BRB	1$
+3$:	RSB
+
+
+;
+; ===========================================================
+;  HAS_SPECTRE  --  R0 = 1 if CS[0..NS-1] contains a Spectre.
+; ===========================================================
+;
+HAS_SPECTRE:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	3$
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	2$
+	MOVL	#1, R0
+	RSB
+2$:	INCL	R2
+	BRB	1$
+3$:	RSB
+
+
+;
+; ===========================================================
+;  APPLY_SPECTRE_RULE  --  if a spectre is present, party has no
+;                          magic, and no Magic Sword: kill FA[0].
+; ===========================================================
+;
+APPLY_SPECTRE_RULE:
+	BSBW	HAS_SPECTRE
+	TSTL	R0
+	BNEQ	1$
+	RSB					; no spectre, no rule
+1$:	BSBW	PARTY_TOTAL_MP
+	TSTL	R0
+	BEQL	2$
+	RSB					; we have MP, rule doesn't apply
+2$:	TSTL	HAS_SWORD
+	BEQL	3$
+	RSB					; sword overrides spectre
+3$:	; Conditions met.  Kill FA[0] (if any) and paint a status line.
+	MOVL	SCAVE_FIGHT_FA, R2
+	CMPL	R2, #-1
+	BNEQ	4$
+	RSB
+4$:	; Look up the doomed fighter's name.
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
+	MOVL	(R4)[R3], SLAIN_NAME_PTR
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
+	; FAO into LINE_BUF, then paint at row 15.
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_SPECTRE_FAO, outlen=FAO_OUTLEN, -
+		outbuf=LINE_DSC, p1=SLAIN_NAME_PTR
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVAB	LINE_DSC, R5
+	BSBW	PAINT_STATUS_LINE
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  RESOLVE_PAIR  --  R6 = pair index.  Reads FA[R6] / FD[R6].
+;                    Both still living -> roll dice, compare,
+;                    kill loser.  Paints one row per pair at
+;                    row 6+R6.
+; ===========================================================
+;
+RESOLVE_PAIR:
+	MOVL	SCAVE_FIGHT_FA[R6], R7		; party slot
+	MOVL	SCAVE_FIGHT_FD[R6], R8		; stranger creature index
+	; Skip if either side already dead (spectre may have already
+	; killed FA[0]; FD shouldn't be dead at this point but guard).
+	; Targets are far -- invert + BRW.
+	CMPL	R7, #-1
+	BNEQ	1$
+	BRW	RP_PAINT_GHOST
+1$:	CMPL	R8, #-1
+	BNEQ	2$
+	BRW	RP_PAINT_GHOST
+2$:	CMPL	SCAVE_PARTY_PS[R7], #2
+	BLSS	RP_DO_FIGHT
+	; Party fighter was slain before the dice by the spectre's chill
+	; (APPLY_SPECTRE_RULE).  No fight happens against this stranger, so
+	; label the row "slain by spectre" rather than the neutral "(none)"
+	; placeholder -- otherwise the 0-vs-0 reads like a mutual tie.
+	MOVAB	DSC_OUT_SLAIN, PAIR_OUT_DSC
+	BRW	RP_PAINT_VOID
+
+RP_DO_FIGHT:
+	; Compute party strength (without die).
+	MOVL	R7, R0				; arg: party slot
+	BSBW	COMPUTE_PARTY_STR		; R0 = strength
+	MOVL	R0, PARTY_STR
+
+	; Compute stranger strength (without die).
+	MOVL	R8, R0				; arg: stranger creature index
+	BSBW	COMPUTE_STRANGER_STR
+	MOVL	R0, STRANGER_STR
+
+	; Roll dice.
+	CALLS	#0, G^ROLL_DIE
+	ADDL3	PARTY_STR, R0, PARTY_TOT
+	CALLS	#0, G^ROLL_DIE
+	ADDL3	STRANGER_STR, R0, STRANGER_TOT
+
+	; Compare.
+	CMPL	PARTY_TOT, STRANGER_TOT
+	BEQL	RP_TIE
+	BGTR	RP_PARTY_WIN
+	BRB	RP_PARTY_LOSE
+
+RP_PARTY_WIN:
+	; Dragon-slayer bonus.
+	CMPL	R8, #SCAVE$_CR_DRAGON
+	BNEQ	1$
+	INCL	SCAVE_PARTY_PK[R7]
+1$:
+	; Mark stranger for removal.  CULL_STRANGERS keys off CS[R6]=-1;
+	; that is the only flag needed.  Do NOT touch FD[R6] -- it still
+	; holds this stranger's creature index, and PAINT_PAIR_LINE reads
+	; it to show the name of the creature we just defeated.  FD is
+	; rebuilt from CS every round in PAIR_UP, so there is nothing to
+	; "clean up" for later passes (the pair index only increments).
+	MNEGL	#1, SCAVE_CHAMBER_CS[R6]
+	MOVAB	DSC_OUT_WIN, PAIR_OUT_DSC
+	BRW	RP_PAINT
+
+RP_PARTY_LOSE:
+	; Death is recorded in PS[R7]; leave FA[R6] intact so the row
+	; still names the fighter who fell (same reasoning as the win
+	; path -- FA is rebuilt each round in PAIR_UP).
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R7]
+	MOVAB	DSC_OUT_LOSE, PAIR_OUT_DSC
+	BRB	RP_PAINT
+
+RP_TIE:
+	MOVAB	DSC_OUT_TIE, PAIR_OUT_DSC
+	BRB	RP_PAINT
+
+RP_PAINT_GHOST:
+	; One side already gone.  Paint a placeholder line so the row
+	; doesn't carry stale text.
+	MOVAB	DSC_DEAD_PAIR, PAIR_OUT_DSC
+RP_PAINT_VOID:
+	; Common tail for non-fights: zero the totals (no dice were rolled)
+	; and paint with whatever PAIR_OUT_DSC was set above.
+	CLRL	PARTY_TOT
+	CLRL	STRANGER_TOT
+	; Fall through.
+
+RP_PAINT:
+	BSBW	PAINT_PAIR_LINE
+	RSB
+
+
+;
+; ===========================================================
+;  COMPUTE_PARTY_STR  --  R0 (in) = party slot.  Returns total
+;                          fighting strength without the die roll.
+; ===========================================================
+;
+COMPUTE_PARTY_STR:
+	; All targets use local labels (N$) -- introducing any non-local
+	; label mid-routine would close the local scope and turn forward
+	; refs into UNDEFSYM at assembly time.
+	MOVL	R0, R10				; party slot
+	MOVL	SCAVE_PARTY_PC[R10], R11	; creature index
+
+	; Base = FS + MP.
+	MOVAB	SCAVE_DATA_CR_FS, R3
+	MOVL	(R3)[R11], R0
+	MOVAB	SCAVE_DATA_CR_MP, R3
+	ADDL2	(R3)[R11], R0
+
+	; Round-1 surprise (+1 if FS=+1).
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	10$
+	CMPL	SCAVE_FIGHT_FS, #1
+	BNEQ	10$
+	INCL	R0
+10$:
+	; Ring +1.
+	TSTL	HAS_RING
+	BEQL	20$
+	INCL	R0
+20$:
+	; Curses.
+	SUBL2	SCAVE_STATE_NC, R0
+
+	; Magic Sword (+2 Hero/W-Hero, +1 Man/Woman).
+	TSTL	HAS_SWORD
+	BEQL	30$
+	CMPL	R11, #SCAVE$_CR_HERO
+	BEQL	25$
+	CMPL	R11, #SCAVE$_CR_WHERO
+	BEQL	25$
+	CMPL	R11, #SCAVE$_CR_MAN
+	BEQL	26$
+	CMPL	R11, #SCAVE$_CR_WOMAN
+	BEQL	26$
+	BRB	30$
+25$:	ADDL2	#2, R0
+	BRB	30$
+26$:	INCL	R0
+30$:
+	; Magic Staff (+1 Priest, +2 Wizard).
+	TSTL	HAS_STAFF
+	BEQL	40$
+	CMPL	R11, #SCAVE$_CR_PRIEST
+	BEQL	35$
+	CMPL	R11, #SCAVE$_CR_WIZARD
+	BEQL	36$
+	BRB	40$
+35$:	INCL	R0
+	BRB	40$
+36$:	ADDL2	#2, R0
+40$:
+	; Strength Potion (+2 if this slot is the chosen potion-user).
+	CMPL	R10, SCAVE_FIGHT_POTION
+	BNEQ	50$
+	ADDL2	#2, R0
+50$:
+	; Dragon-slayer accumulated bonus.
+	ADDL2	SCAVE_PARTY_PK[R10], R0
+
+	; Background MP applied to FA[0] only.
+	CMPL	R10, SCAVE_FIGHT_FA
+	BNEQ	60$
+	MOVL	R0, R3				; save accumulated str
+	BSBW	BG_MP_TOTAL			; R0 = bg mp
+	ADDL2	R3, R0				; R0 = old + bg
+60$:
+	RSB
+
+
+;
+; ===========================================================
+;  COMPUTE_STRANGER_STR  --  R0 (in) = stranger creature index.
+;                            Returns total without die.
+; ===========================================================
+;
+COMPUTE_STRANGER_STR:
+	MOVL	R0, R11
+	MOVAB	SCAVE_DATA_CR_FS, R3
+	MOVL	(R3)[R11], R0
+	MOVAB	SCAVE_DATA_CR_MP, R3
+	ADDL2	(R3)[R11], R0
+	; Round-1 surprise (FS = -1).
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	1$
+	CMPL	SCAVE_FIGHT_FS, #-1
+	BNEQ	1$
+	INCL	R0
+1$:	RSB
+
+
+;
+; ===========================================================
+;  CULL_STRANGERS  --  compact CS[] in place, dropping entries
+;                      tagged with -1.  Updates NS.
+; ===========================================================
+;
+CULL_STRANGERS:
+	CLRL	R2				; read index
+	CLRL	R3				; write index
+CS_LOOP:
+	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	CS_DONE
+	MOVL	SCAVE_CHAMBER_CS[R2], R4
+	CMPL	R4, #-1
+	BEQL	CS_SKIP
+	MOVL	R4, SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+CS_SKIP:
+	INCL	R2
+	BRB	CS_LOOP
+CS_DONE:
+	MOVL	R3, SCAVE_CHAMBER_NS
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_ROUND_HEADER  --  ERASE_MAIN, paint round header at
+;                          row 3 and (round 1 only) the surprise
+;                          indicator at row 4.
+; ===========================================================
+;
+PAINT_ROUND_HEADER:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	SCAVE_FIGHT_RD, RD_VAL
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_HDR_FAO, outlen=FAO_OUTLEN, -
+		outbuf=LINE_DSC, p1=RD_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Surprise indicator (round 1 only).
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	1$
+	TSTL	SCAVE_FIGHT_FS
+	BEQL	1$
+	MOVL	#4, ROW_TMP
+	BGTR	2$
+	; FS < 0 -- strangers have surprise
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_SURPRISE_THEM
+	CALLS	#2, G^PAINT_CENTERED
+	BRB	1$
+2$:	; FS > 0 -- we have surprise
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_SURPRISE_US
+	CALLS	#2, G^PAINT_CENTERED
+1$:	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PAIR_LINE  --  R6 = pair index (0..NF-1).  Reads
+;                       FA[R6], FD[R6], PARTY_TOT, STRANGER_TOT,
+;                       PAIR_OUT_DSC.  Paints one row at 6+R6.
+; ===========================================================
+;
+PAINT_PAIR_LINE:
+	; Resolve the two names; an entry of -1 paints DSC_DEAD_PAIR.
+	; Party name -> R9.
+	MOVL	SCAVE_FIGHT_FA[R6], R0
+	CMPL	R0, #-1
+	BEQL	PPL_PARTY_DEAD
+	MOVL	SCAVE_PARTY_PC[R0], R3
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
+	MOVL	(R4)[R3], R9
+	BRB	PPL_HAVE_PARTY
+PPL_PARTY_DEAD:
+	MOVAB	DSC_DEAD_PAIR, R9
+PPL_HAVE_PARTY:
+	; Stranger name -> R10.
+	MOVL	SCAVE_FIGHT_FD[R6], R0
+	CMPL	R0, #-1
+	BEQL	PPL_STRANGER_DEAD
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
+	MOVL	(R4)[R0], R10
+	BRB	PPL_HAVE_STRANGER
+PPL_STRANGER_DEAD:
+	MOVAB	DSC_DEAD_PAIR, R10
+PPL_HAVE_STRANGER:
+
+	MOVL	PARTY_TOT, PARTY_TOT_VAL
+	MOVL	STRANGER_TOT, STRANGER_TOT_VAL
+
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_PAIR_FAO, outlen=FAO_OUTLEN, -
+		outbuf=LINE_DSC, -
+		p1=R9, p2=PARTY_TOT_VAL, -
+		p3=R10, p4=STRANGER_TOT_VAL, -
+		p5=PAIR_OUT_DSC
+	MOVW	FAO_OUTLEN, LINE_DSC
+
+	; Row = 6 + R6.
+	ADDL3	#6, R6, ROW_TMP
+
+	PUSHAL	COL_EIGHT
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_STATUS_LINE  --  R5 = descriptor address.  Erases
+;                         row 15 then paints centered.
+; ===========================================================
+;
+PAINT_STATUS_LINE:
+	MOVL	#15, ROW_TMP
+	PUSHAL	ROW_TMP
+	CALLS	#1, G^ERASE_ROW
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+
+;
+; ===========================================================
+;  PROMPT_FR  --  paints the [F]ight / [R]etreat prompt at row
+;                 17 and reads one keystroke.  R0 = 0 fight,
+;                 1 retreat.  Ignores anything but F/f/R/r.
+; ===========================================================
+;
+PROMPT_FR:
+	MOVL	#17, ROW_TMP
+	PUSHAL	ROW_TMP
+	CALLS	#1, G^ERASE_ROW
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_FR
+	CALLS	#2, G^PAINT_CENTERED
+PFR_READ:
+	CALLS	#0, G^READ_KEY
+	CMPL	R0, #^A/F/
+	BEQL	PFR_FIGHT
+	CMPL	R0, #^A/f/
+	BEQL	PFR_FIGHT
+	CMPL	R0, #^A/R/
+	BEQL	PFR_RETREAT
+	CMPL	R0, #^A/r/
+	BEQL	PFR_RETREAT
+	BRB	PFR_READ
+PFR_FIGHT:
+	CLRL	R0
+	RSB
+PFR_RETREAT:
+	MOVL	#1, R0
+	RSB
+
+	.END

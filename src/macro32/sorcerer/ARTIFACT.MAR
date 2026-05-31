@@ -1,0 +1,73 @@
+	.TITLE	ARTIFACT  Artifact-related helpers (passive effects, lookups)
+	.IDENT	/V0.1/
+
+;++
+; ARTIFACT.MAR
+;
+;   Treasure / artifact handling.  Stage 5 v1 only ships the
+;   passive-effect query that other modules need:
+;
+;       HAS_ARTIFACT(treasure_index) -> R0 = 1 if any living party
+;                                       member carries that treasure,
+;                                       else 0.
+;
+;   Future stages will add an interactive artifact menu (active
+;   effects: Magic Carpet, Lotus Dust, Healing Balm, Treasure
+;   Chest open, ...) and the per-routine bonus calculations
+;   (Magic Sword in DO_ATTACK, Ring +1, Magic Staff +mp, etc.).
+;--
+
+	$SSDEF
+
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PT
+
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
+
+	.PSECT	SCAVE_ARTIFACT_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  HAS_ARTIFACT  --  arg: treasure index (0..14) by value.
+;                   Walks every PARTY_PT slot of every living
+;                   (PS < SCAVE$_PS_STONE) party member.
+;                   Returns 1 in R0 if a match is found, else 0.
+; ===========================================================
+;
+	.ENTRY	HAS_ARTIFACT, ^M<R2,R3,R4,R5>
+
+	MOVL	4(AP), R5			; R5 = wanted treasure index
+	CLRL	R2				; party slot
+H_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	H_BODY
+	CLRL	R0
+	RET
+H_BODY:
+	; Skip stoned / dead members.
+	MOVL	SCAVE_PARTY_PS[R2], R0
+	CMPL	R0, #2				; STONE
+	BLSS	H_CHECK_SLOTS
+	BRB	H_NEXT_MEMBER
+H_CHECK_SLOTS:
+	; offset = R2 * stride + slot
+	MULL3	#SCAVE$_TREAS_PER, R2, R3
+	MOVL	#SCAVE$_TREAS_PER, R4
+H_SLOT:
+	CMPL	SCAVE_PARTY_PT[R3], R5
+	BNEQ	H_SLOT_NEXT
+	; Match -- bail out with R0 = 1.
+	MOVL	#1, R0
+	RET
+H_SLOT_NEXT:
+	INCL	R3
+	SOBGTR	R4, H_SLOT
+H_NEXT_MEMBER:
+	INCL	R2
+	BRB	H_LOOP
+
+	.END

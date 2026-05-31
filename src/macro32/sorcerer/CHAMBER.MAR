@@ -1,0 +1,1207 @@
+	.TITLE	CHAMBER	First-visit chamber draws + hazard dispatch
+	.IDENT	/V0.1/
+
+;++
+; CHAMBER.MAR
+;
+;   ENTER_CHAMBER is invoked when the party walks into a chamber
+;   for the first time.  It:
+;
+;     1. Computes the draw count from PL and the special-area type
+;        (level capped at 4; Tomb +1; Great Hall +2).
+;     2. Pulls that many cards from the small pack and classifies
+;        each as creature / treasure / hazard.
+;     3. Applies hazard effects in priority order:
+;          earthquake -> medusa -> ghouls -> mutiny -> trap
+;        (matches the rule book's "deal with hazards in this order").
+;     4. Auto-picks-up unguarded treasure (if there are no
+;        strangers).
+;     5. If strangers remain, calls STRANGER_ENCOUNTER (which is a
+;        withdraw-only stub at Stage 3 -- combat is Stage 4).
+;     6. Marks SCAVE_MAP_MV[PA] = 1 so the chamber is not redrawn
+;        on subsequent visits.
+;
+;   The chamber narration is rendered into a message log on the
+;   main display: row 5 = header, rows 6-12 = drawn cards / events,
+;   row 14 = "press any key" prompt.  Each ENTER_CHAMBER call
+;   consumes one keystroke at the end.
+;--
+
+	$SSDEF
+	$DSCDEF
+	$SMGDEF
+
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	PAINT_AT_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	ROLL_DIE
+
+	.EXTRN	SCAVE_DEC_AT
+	.EXTRN	SCAVE_DEC_AH
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_MV
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_FELL
+	.EXTRN	SCAVE_AREA_AC
+	.EXTRN	SCAVE_AREA_AF
+	.EXTRN	SCAVE_DECK_SP
+	.EXTRN	SCAVE_DECK_SI
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PT
+	.EXTRN	SCAVE_STATE_NC
+	.EXTRN	SCAVE_STATE_GS
+
+	; Carry-capacity model for manual treasure pickup.
+	.EXTRN	SCAVE_DATA_CR_CARRY
+	.EXTRN	SCAVE_DATA_TR_WT
+
+	; Per-chamber working set lives in STATE.MAR's SCAVE_CHAMBER_*
+	; globals so STRANGER.MAR can read SCAVE_CHAMBER_CS / SCAVE_CHAMBER_NS / etc.
+	.EXTRN	SCAVE_CHAMBER_NS
+	.EXTRN	SCAVE_CHAMBER_NT
+	.EXTRN	SCAVE_CHAMBER_NH
+	.EXTRN	SCAVE_CHAMBER_CS
+	.EXTRN	SCAVE_CHAMBER_CT
+	.EXTRN	SCAVE_CHAMBER_CH
+
+	.EXTRN	STRANGER_ENCOUNTER
+
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
+	.EXTRN	SCAVE_DATA_HZ_NAME_PTR
+
+	; `=` constants are file-local in MACRO-32 -- the assembler
+	; doesn't propagate them across modules and undefined uses turn
+	; into unresolved external references at LINK time.  Mirror the
+	; sizing constant we share with STATE.MAR's storage layout.  If
+	; you change this here, change it there too (and vice versa).
+	SCAVE$_AREA_ITEMS = 8
+
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	; The carry limit is by WEIGHT only; this is just the backing-array
+	; stride, sized large enough never to bind in play.
+	SCAVE$_TREAS_PER = 20
+
+
+	.PSECT	SCAVE_CHAMBER_DATA, NOEXE, WRT, LONG
+
+DRAW_COUNT:	.LONG	0			; cards to draw on this entry
+
+; The area whose chamber we are resolving, captured at ENTER_CHAMBER
+; entry.  A withdraw or retreat moves the party (overwriting
+; SCAVE_MAP_PA with PP) before SAVE_PERSISTED runs, so persistence
+; must key off this stable copy -- not the live SCAVE_MAP_PA -- or the
+; chamber's contents get filed under the area we retreated to and the
+; chamber itself comes back empty.
+CHAMBER_AREA:	.LONG	0
+
+;
+; Static strings + FAO controls.
+;
+	.ALIGN	LONG
+DSC_HDR_CHAMBER:	.ASCID	/-- ENTERING CHAMBER --/
+DSC_HDR_REENTRY:	.ASCID	/-- RE-ENTERING CHAMBER --/
+DSC_REENTRY_EMPTY:	.ASCID	/Nothing remains in this chamber./
+DSC_REENTRY_FAO:	.ASCID	/!UL item(s) remain from your last visit./
+DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
+DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
+DSC_PROMPT_GATHER:	.ASCID	/(press any key to gather treasure)/
+
+DSC_PFX_STRANGER:	.ASCID	/Stranger:/
+DSC_PFX_TREASURE:	.ASCID	/Treasure:/
+DSC_PFX_HAZARD:		.ASCID	/Hazard:/
+DSC_HZ_TRAP_MSG:	.ASCID	/!! TRAP -- party falls one level/
+DSC_HZ_TRAP_DWARF:	.ASCID	/!! TRAP -- the dwarf steps the party around it/
+DSC_HZ_QUAKE_MSG:	.ASCID	/!! EARTHQUAKE -- the way back collapses/
+DSC_HZ_MEDUSA_MSG:	.ASCID	/!! MEDUSA -- her glance turns flesh to stone/
+DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack with strength 2/
+DSC_HZ_MUTINY_MSG:	.ASCID	/!! MUTINY -- allies turn against you/
+DSC_TURNED_TO_STONE:	.ASCID	/  ... !AS turned to STONE!/
+DSC_GHOUL_KILL:		.ASCID	/  ... !AS slain by ghouls!/
+DSC_GHOUL_OK:		.ASCID	/  ... !AS holds them off./
+DSC_TREASURE_GAINED:	.ASCID	/  Picked up: !AS/
+DSC_DRAW_FAO:		.ASCID	/  !AS  !AS/
+DSC_DRAW_COUNT_FAO:	.ASCID	/Drew !UL chamber card(s) from the small pack./
+
+;
+; Working buffer + descriptor for FAO output.
+;
+	.ALIGN	LONG
+LINE_BUF:	.BLKB	120
+	.ALIGN	LONG
+LINE_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS LINE_BUF
+
+	.ALIGN	LONG
+ROW_TMP:	.BLKL	1
+COL_TWO:	.LONG	2
+COL_FOUR:	.LONG	4
+COL_SIX:	.LONG	6
+REENTRY_CNT:	.BLKL	1			; NS+NT for the re-entry FAO !UL
+
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+
+;
+; Manual treasure-pickup screen: strings, video attributes, and the
+; scratch cells the FAO calls read from.
+;
+	.ALIGN	LONG
+DSC_PICK_HDR:		.ASCID	/-- PICK UP TREASURE --/
+DSC_PICK_ITEM_FAO:	.ASCID	|Item !UL/!UL:  !AS  (!UL kg)|
+DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !2UL/!3UL kg  !UL held|
+DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
+DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
+DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
+MARK_SEL:		.ASCID	/> /
+MARK_NONE:		.ASCID	/  /
+
+	.ALIGN	LONG
+FLAGS_ZERO:	.LONG	0
+REND_REVERSE:	.LONG	SMG$M_REVERSE
+
+	; Pickup loop state + FAO value/pointer scratch.
+PT_ITEM:	.BLKL	1			; current chamber-treasure index
+PT_TRIDX:	.BLKL	1			; its treasure-card index
+PICK_SEL:	.BLKL	1			; highlighted roster position
+PICK_NLIVE:	.BLKL	1			; living-member count
+	.ALIGN	LONG
+PICK_SLOTS:	.BLKL	12			; menu position -> party slot
+PICK_ITEM_NO:	.BLKL	1
+PICK_WT_VAL:	.BLKL	1
+PICK_LOAD_VAL:	.BLKL	1
+PICK_CAP_VAL:	.BLKL	1
+PICK_HELD_VAL:	.BLKL	1
+PICK_NAME_PTR:	.BLKL	1
+PICK_MNAME_PTR:	.BLKL	1
+PICK_MARK_PTR:	.BLKL	1
+
+
+	.PSECT	SCAVE_CHAMBER_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  ENTER_CHAMBER  --  no args.
+;
+;     First visit (SCAVE_MAP_MV[PA] == 0): draw cards from the
+;     small pack, paint the contents, run hazards, then handle
+;     strangers / treasure, then save the leftovers to the
+;     area's persistent slots.
+;
+;     Re-entry (SCAVE_MAP_MV[PA] != 0): rebuild SCAVE_CHAMBER_*
+;     from the persistent slots and re-paint.  Strangers that
+;     remained from the prior visit are re-tested via the full
+;     W/A/T menu (the player picks again, the reaction die is
+;     rolled fresh).  Treasure that was left behind is offered
+;     up for pickup.  Hazards do NOT re-fire -- a Stage 6
+;     simplification; the rule book says some do (Trap, Medusa,
+;     Ghouls), but those are deferred.
+; ===========================================================
+;
+	.ENTRY	ENTER_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MOVL	R7, CHAMBER_AREA		; stable area id for persistence
+	CLRL	SCAVE_MAP_FELL			; no trap fall unless we set it below
+	TSTL	SCAVE_MAP_MV[R7]
+	BNEQ	C_REENTRY
+	BRW	C_FRESH
+
+C_REENTRY:
+	; Restore SCAVE_CHAMBER_* from the area's saved AC slots and
+	; re-paint the (possibly diminished) contents.  Hazards are
+	; not persisted; NH stays at 0.  Use a re-entry-specific header
+	; so the player doesn't see a stale "Drew N chamber cards"
+	; line referring to the original draw, especially on a chamber
+	; that has been cleared (where the lists below it would be
+	; empty).
+	BSBW	LOAD_PERSISTED
+	BSBW	PAINT_CHAMBER_REENTRY
+	BRW	C_PROCESS
+
+C_FRESH:
+	MOVL	#1, SCAVE_MAP_MV[R7]		; mark visited
+
+	; Compute draw count: min(PL, 4) + Tomb/Hall bonus
+	MOVL	SCAVE_MAP_PL, R0
+	CMPL	R0, #4
+	BLEQ	1$
+	MOVL	#4, R0
+1$:
+	CMPL	SCAVE_DEC_AT, #4
+	BNEQ	2$
+	INCL	R0				; Tomb of Kings: +1
+	BRB	3$
+2$:	CMPL	SCAVE_DEC_AT, #5
+	BNEQ	3$
+	ADDL2	#2, R0				; Great Hall: +2
+3$:
+	MOVL	R0, DRAW_COUNT
+	; Cap at 8 (slot arrays' max).
+	CMPL	R0, #8
+	BLEQ	4$
+	MOVL	#8, R0
+	MOVL	R0, DRAW_COUNT
+4$:
+
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+
+	; Pull DRAW_COUNT cards from the small pack.  Each is encoded
+	; as type*100 + index where type 1=creature, 2=treasure,
+	; 3=hazard.  Bucket into the chamber state.
+	CLRL	R6				; cards drawn so far
+DRAW_LOOP:
+	CMPL	R6, DRAW_COUNT
+	BLSS	5$
+	BRW	DRAW_DONE
+5$:
+	MOVL	SCAVE_DECK_SI, R3
+	CMPL	R3, #52
+	BLSS	6$
+	BRW	DRAW_DONE			; pack exhausted -- stop early
+6$:
+	MOVL	SCAVE_DECK_SP[R3], R4		; R4 = encoded card
+	INCL	SCAVE_DECK_SI
+
+	DIVL3	#100, R4, R5			; R5 = type
+	MULL3	#100, R5, R8
+	SUBL3	R8, R4, R8			; R8 = index within type
+
+	CMPL	R5, #1
+	BNEQ	7$
+	; creature
+	MOVL	SCAVE_CHAMBER_NS, R9
+	CMPL	R9, #8
+	BGEQ	NEXT_DRAW
+	MOVL	R8, SCAVE_CHAMBER_CS[R9]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	NEXT_DRAW
+7$:	CMPL	R5, #2
+	BNEQ	8$
+	; treasure
+	MOVL	SCAVE_CHAMBER_NT, R9
+	CMPL	R9, #8
+	BGEQ	NEXT_DRAW
+	MOVL	R8, SCAVE_CHAMBER_CT[R9]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	NEXT_DRAW
+8$:	CMPL	R5, #3
+	BNEQ	NEXT_DRAW
+	; hazard
+	MOVL	SCAVE_CHAMBER_NH, R9
+	CMPL	R9, #4
+	BGEQ	NEXT_DRAW
+	MOVL	R8, SCAVE_CHAMBER_CH[R9]
+	INCL	SCAVE_CHAMBER_NH
+NEXT_DRAW:
+	INCL	R6
+	BRW	DRAW_LOOP
+DRAW_DONE:
+
+	BSBW	PAINT_CHAMBER_INTRO
+
+	; Resolve hazards in priority order (first-visit only -- they
+	; are not persisted, so re-entry skips this).
+	BSBW	APPLY_HAZARDS
+
+	; Trap resolution (after the other hazards).  Count the traps drawn
+	; here; a single living dwarf lets the party step around one (the
+	; rules: "may ignore a trap, but not two drawn in the same
+	; chamber").  Any uncountered trap drops the whole party to the
+	; area directly below WITHOUT touching this chamber's strangers or
+	; treasure -- they remain here for a later visit.
+	BSBW	COUNT_TRAPS			; R0 = number of TRAP cards
+	TSTL	R0
+	BNEQ	1$
+	BRW	C_PROCESS			; no trap -- ordinary chamber
+1$:	MOVL	R0, R6				; R6 = trap count
+	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
+	TSTL	R0
+	BEQL	CT_FALL				; no dwarf -> the party falls
+	CMPL	R6, #1
+	BGTR	CT_FALL				; two+ traps -> a dwarf can't cope
+	; Single trap, dwarf present: stepped around, chamber plays normally.
+	MOVAB	DSC_HZ_TRAP_DWARF, R5
+	BSBW	PAINT_TRAP_LINE
+	BRW	C_PROCESS
+CT_FALL:
+	; The party falls.  Persist this chamber's untouched contents, flag
+	; the fall for MAIN to relocate + re-dispatch, and skip C_PROCESS.
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+C_PROCESS:
+	; Same logic for first visit and re-entry: if strangers remain,
+	; W/A/T encounter (a fresh reaction roll); otherwise the treasure
+	; is unguarded and may be picked up now.
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	9$
+	; No strangers guarding the chamber.  If there is treasure, let
+	; the player read the chamber contents first -- the pickup screen
+	; erases the display -- then run the manual pickup.  With nothing
+	; to collect, fall straight through to the end-of-chamber prompt
+	; so we don't show two "press any key" pauses on an empty room.
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	10$
+	BSBW	VIEW_CHAMBER_PAUSE
+	BSBW	PICKUP_TREASURE
+	BRB	10$
+9$:
+	CALLS	#0, G^STRANGER_ENCOUNTER
+	; Treasure is assigned only when every stranger in the chamber is
+	; either defeated or has joined the party -- both leave NS = 0.
+	; Any stranger left indifferent (or a withdraw/retreat) leaves
+	; NS > 0, so the loot stays in the chamber (rules: a party may
+	; leave "without picking up any treasure found there").  Also bail
+	; if the party died or the game ended (GS != PLAYING).
+	TSTL	SCAVE_STATE_GS
+	BNEQ	10$
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	10$
+	BSBW	PICKUP_TREASURE
+10$:
+
+	; Save the post-action state (whatever's left of strangers +
+	; uncollected treasure) so the next visit can rehydrate it.
+	BSBW	SAVE_PERSISTED
+
+	; Wait for the user before returning to the turn loop.
+	MOVL	#16, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_CONT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^READ_KEY
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_CHAMBER_INTRO  --  draw header, drawn-card list, hazards
+;                            list.  Call before APPLY_HAZARDS so
+;                            the player sees the contents first.
+; ===========================================================
+;
+PAINT_CHAMBER_INTRO:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_CHAMBER
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Card-count line
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DRAW_COUNT_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=DRAW_COUNT
+	MOVW	FAO_OUTLEN, LINE_DSC
+
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; List drawn items: hazards first, then strangers, then treasure.
+	MOVL	#7, R7				; current paint row
+	BSBW	PAINT_HAZARD_LIST
+	BSBW	PAINT_STRANGER_LIST
+	BSBW	PAINT_TREASURE_LIST
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_CHAMBER_REENTRY  --  header + "N items remain" (or
+;                              "Nothing remains") + persisted
+;                              contents.  Hazards are not
+;                              persisted, so NH=0 here.
+; ===========================================================
+;
+PAINT_CHAMBER_REENTRY:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_REENTRY
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Sub-header reflecting what's actually left.  If both NS and
+	; NT are zero, say so plainly; otherwise show the count.
+	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, REENTRY_CNT
+	MOVL	#5, ROW_TMP
+	TSTL	REENTRY_CNT
+	BNEQ	1$
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_REENTRY_EMPTY
+	CALLS	#2, G^PAINT_CENTERED
+	BRB	2$
+1$:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_REENTRY_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=REENTRY_CNT
+	MOVW	FAO_OUTLEN, LINE_DSC
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+2$:
+
+	; List remaining items.  NH is always zero on re-entry but
+	; calling PAINT_HAZARD_LIST is harmless and keeps the order
+	; identical to the fresh-visit screen.
+	MOVL	#7, R7
+	BSBW	PAINT_HAZARD_LIST
+	BSBW	PAINT_STRANGER_LIST
+	BSBW	PAINT_TREASURE_LIST
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; PAINT_HAZARD_LIST  --  R7 = next paint row (in/out).
+;
+PAINT_HAZARD_LIST:
+	CLRL	R6
+PHL_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NH
+	BLSS	PHL_BODY
+	RSB
+PHL_BODY:
+	; descriptor address for hazard name
+	MOVAB	SCAVE_DATA_HZ_NAME_PTR, R0
+	MOVL	SCAVE_CHAMBER_CH[R6], R1
+	MOVL	(R0)[R1], R5			; R5 = name desc addr
+	BSBW	PAINT_PFX_NAME			; prefix=DSC_PFX_HAZARD, name=R5
+	INCL	R6
+	BRB	PHL_LOOP
+
+PAINT_STRANGER_LIST:
+	CLRL	R6
+PSL_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BLSS	PSL_BODY
+	RSB
+PSL_BODY:
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R0
+	MOVL	SCAVE_CHAMBER_CS[R6], R1
+	MOVL	(R0)[R1], R5
+	BSBW	PAINT_PFX_NAME_STRANGER
+	INCL	R6
+	BRB	PSL_LOOP
+
+PAINT_TREASURE_LIST:
+	CLRL	R6
+PTL_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NT
+	BLSS	PTL_BODY
+	RSB
+PTL_BODY:
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R0
+	MOVL	SCAVE_CHAMBER_CT[R6], R1
+	MOVL	(R0)[R1], R5
+	BSBW	PAINT_PFX_NAME_TREASURE
+	INCL	R6
+	BRB	PTL_LOOP
+
+
+;
+; PAINT_PFX_NAME variants -- format "<prefix> <name>" via FAO and
+; paint at column 4, row R7; advance R7.
+;
+PAINT_PFX_NAME:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DRAW_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=#DSC_PFX_HAZARD, p2=R5
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+	RSB
+
+PAINT_PFX_NAME_STRANGER:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DRAW_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=#DSC_PFX_STRANGER, p2=R5
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+	RSB
+
+PAINT_PFX_NAME_TREASURE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DRAW_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=#DSC_PFX_TREASURE, p2=R5
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+	RSB
+
+
+;
+; ===========================================================
+;  APPLY_HAZARDS  --  walk SCAVE_CHAMBER_CH and dispatch to per-hazard
+;                     handlers.  Order: earthquake (2), medusa
+;                     (3), ghouls (4), mutiny (0), trap (1) --
+;                     priority sequence per the rule book.
+; ===========================================================
+;
+APPLY_HAZARDS:
+	; For each priority, iterate SCAVE_CHAMBER_CH looking for that hazard
+	; and run the handler.  Idempotent for repeats (e.g. two
+	; traps run the trap handler twice).
+	MOVL	#2, R0				; earthquake
+	BSBW	APPLY_ONE_HAZARD
+	MOVL	#3, R0				; medusa
+	BSBW	APPLY_ONE_HAZARD
+	MOVL	#4, R0				; ghouls
+	BSBW	APPLY_ONE_HAZARD
+	MOVL	#0, R0				; mutiny
+	BSBW	APPLY_ONE_HAZARD
+	; Traps are resolved by ENTER_CHAMBER after this pipeline -- the
+	; fall/dwarf decision needs the whole-chamber trap count -- so the
+	; trap hazard index is deliberately not dispatched here.
+	RSB
+
+APPLY_ONE_HAZARD:
+	; R0 = hazard index to look for
+	MOVL	R0, R8				; save target index
+	CLRL	R6				; loop index
+AOH_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NH
+	BLSS	AOH_BODY
+	RSB
+AOH_BODY:
+	CMPL	SCAVE_CHAMBER_CH[R6], R8
+	BNEQ	AOH_NEXT
+	; Dispatch via a CASE jump table.  Each .WORD must be a
+	; signed-word displacement *from the start of the table*, not
+	; from its own location -- VAX CASEL adds the displacement to
+	; the address of the first entry.  Using `HAZ_X - .` (current
+	; PC of THIS entry) gave each entry a different reference base
+	; and the table landed N*2 bytes early on entry N -- so MEDUSA
+	; (idx 3) jumped 6 bytes before HAZ_MEDUSA, mid-HAZ_QUAKE.
+	CASEL	R8, #0, #4
+HAZ_TBL:
+	.WORD	HAZ_MUTINY - HAZ_TBL
+	.WORD	HAZ_TRAP   - HAZ_TBL
+	.WORD	HAZ_QUAKE  - HAZ_TBL
+	.WORD	HAZ_MEDUSA - HAZ_TBL
+	.WORD	HAZ_GHOULS - HAZ_TBL
+AOH_NEXT:
+	INCL	R6
+	BRB	AOH_LOOP
+
+;
+; Hazard handlers.  Each returns to AOH_NEXT.
+;
+
+HAZ_QUAKE:
+	; Earthquake: zero MP[PP] (collapse the previous area entirely).
+	MOVL	SCAVE_MAP_PP, R0
+	BEQL	1$				; no PP yet (first move)
+	CLRL	SCAVE_MAP_MP[R0]
+1$:
+	BRW	AOH_NEXT
+
+HAZ_MEDUSA:
+	; Medusa: roll a die per party member; on 1 or 2 set PS = STONE.
+	CLRL	R5
+HM_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	HM_BODY
+	BRW	AOH_NEXT
+HM_BODY:
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
+	CMPL	R0, #2
+	BGTR	HM_NEXT				; safe
+	; Stone this creature.
+	MOVL	#2, SCAVE_PARTY_PS[R5]
+HM_NEXT:
+	INCL	R5
+	BRB	HM_LOOP
+
+HAZ_GHOULS:
+	; Ghouls: each living party member fights str-2 ghouls one round.
+	CLRL	R5
+HG_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	HG_BODY
+	BRW	AOH_NEXT
+HG_BODY:
+	; Skip stone or already-dead members.
+	MOVL	SCAVE_PARTY_PS[R5], R0
+	CMPL	R0, #2
+	BGEQ	HG_NEXT				; STONE or DEAD
+	; Roll dice
+	CALLS	#0, G^ROLL_DIE
+	MOVL	R0, R6				; party roll
+	CALLS	#0, G^ROLL_DIE
+	; Compare: party_roll + party_str  vs  ghoul_roll + 2
+	; For Stage 3 simplification, fight str = 1 (every creature
+	; pulls its weight by at least 1).  This is a placeholder --
+	; full Stage 4 will use creature stats.
+	ADDL2	#1, R6				; party_total = roll + 1
+	ADDL2	#2, R0				; ghoul_total = roll + 2
+	CMPL	R6, R0
+	BGEQ	HG_NEXT				; survived (tie = no kill)
+	; Slain.
+	MOVL	#3, SCAVE_PARTY_PS[R5]
+HG_NEXT:
+	INCL	R5
+	BRB	HG_LOOP
+
+HAZ_MUTINY:
+	; Mutiny: every PS=ALLY (1) becomes PS=DEAD (3).  Simplified --
+	; the rules say allies "join any strangers in the chamber"; we
+	; just remove them.  Stage 5 will hook them onto SCAVE_CHAMBER_CS.
+	CLRL	R5
+HMT_LOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BLSS	HMT_BODY
+	BRW	AOH_NEXT
+HMT_BODY:
+	CMPL	SCAVE_PARTY_PS[R5], #1
+	BNEQ	HMT_NEXT
+	MOVL	#3, SCAVE_PARTY_PS[R5]
+HMT_NEXT:
+	INCL	R5
+	BRB	HMT_LOOP
+
+HAZ_TRAP:
+	; Traps are resolved by ENTER_CHAMBER after the hazard pipeline
+	; (it weighs the trap count against a dwarf's negation before
+	; deciding the fall), so this handler is intentionally inert.
+	; Kept as a valid CASE-table target should index 1 ever dispatch.
+	BRW	AOH_NEXT
+
+
+;
+; ===========================================================
+;  COUNT_TRAPS  --  R0 = number of TRAP cards (hazard index 1) drawn
+;                   into this chamber (SCAVE_CHAMBER_CH[0..NH-1]).
+; ===========================================================
+;
+COUNT_TRAPS:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_CHAMBER_NH
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CH[R2], #1		; 1 = TRAP
+	BNEQ	3$
+	INCL	R0
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  HAS_DWARF  --  R0 = 1 if a living (PS < STONE) Dwarf (creature
+;                 index 7) is in the party, else 0.
+; ===========================================================
+;
+HAS_DWARF:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	2$
+	CMPL	SCAVE_PARTY_PS[R2], #2		; STONE/DEAD can't act
+	BGEQ	3$
+	CMPL	SCAVE_PARTY_PC[R2], #7		; 7 = DWARF
+	BNEQ	3$
+	MOVL	#1, R0
+	RSB
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAINT_TRAP_LINE  --  R5 = descriptor address.  Paint it centered on
+;                       row 14 (below the chamber-contents list) and
+;                       wait for a keystroke so the player reads the
+;                       trap result before the screen changes.
+; ===========================================================
+;
+PAINT_TRAP_LINE:
+	MOVL	#14, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  VIEW_CHAMBER_PAUSE  --  the chamber-contents screen is already
+;                          painted; drop a prompt on row 16 and wait
+;                          for a keystroke so the player can read what
+;                          was found before the pickup screen clears
+;                          the display.
+; ===========================================================
+;
+VIEW_CHAMBER_PAUSE:
+	MOVL	#16, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_GATHER
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  PICKUP_TREASURE  --  manual, weight-limited distribution of the
+;                       chamber's treasure (SCAVE_CHAMBER_CT[0..NT-1])
+;                       among living party members.  For each item the
+;                       player drives a highlighted cursor over the
+;                       roster (Up/Dn) and presses Enter to give it to
+;                       the selected member, or L to leave it.  An item
+;                       left behind keeps its CT entry, so SAVE_PERSISTED
+;                       leaves it in the chamber for a later visit.
+;
+;  Weight model: heavy treasure (SCAVE_DATA_TR_WT > 0; sacks are 25 kg,
+;  the Chest 100 kg) may not push a member's carried load past its
+;  SCAVE_DATA_CR_CARRY capacity.  Artifacts (weight 0) are free but
+;  still consume one of the member's four pack slots.
+;
+;  Treasure Chest joint-carry (rules: two creatures may share it) is
+;  not modelled in v1 -- it is treated as a single 100 kg load, so only
+;  a giant (150 kg) can take it alone; otherwise it is left behind.
+; ===========================================================
+;
+PICKUP_TREASURE:
+	BSBW	BUILD_LIVING_LIST		; -> PICK_SLOTS[], PICK_NLIVE
+	TSTL	PICK_NLIVE
+	BNEQ	1$
+	RSB					; nobody left to carry anything
+1$:	CLRL	PT_ITEM
+PKT_LOOP:
+	CMPL	PT_ITEM, SCAVE_CHAMBER_NT
+	BLSS	2$
+	RSB
+2$:	MOVL	PT_ITEM, R0
+	MOVL	SCAVE_CHAMBER_CT[R0], R1
+	CMPL	R1, #-1
+	BEQL	PKT_NEXT			; already consumed
+	MOVL	R1, PT_TRIDX
+	BSBW	SELECT_FOR_ITEM
+PKT_NEXT:
+	INCL	PT_ITEM
+	BRB	PKT_LOOP
+
+
+;
+; ===========================================================
+;  BUILD_LIVING_LIST  --  PICK_SLOTS[0..PICK_NLIVE-1] = the party
+;                         slots with PS < STONE (i.e. living), in
+;                         slot order.  Stable for the whole pickup.
+; ===========================================================
+;
+BUILD_LIVING_LIST:
+	CLRL	R0				; menu count
+	CLRL	R1				; party slot
+BLL_LOOP:
+	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	BLL_DONE
+	CMPL	SCAVE_PARTY_PS[R1], #2		; >= STONE -> skip
+	BGEQ	BLL_NEXT
+	MOVL	R1, PICK_SLOTS[R0]
+	INCL	R0
+BLL_NEXT:
+	INCL	R1
+	BRB	BLL_LOOP
+BLL_DONE:
+	MOVL	R0, PICK_NLIVE
+	RSB
+
+
+;
+; ===========================================================
+;  SELECT_FOR_ITEM  --  drive the cursor menu for the item named by
+;                       PT_ITEM / PT_TRIDX.  Returns when the item is
+;                       assigned (Enter on a member that can take it)
+;                       or left (L).  Uses PICK_SEL as the highlight.
+; ===========================================================
+;
+SELECT_FOR_ITEM:
+	CLRL	PICK_SEL
+SI_LOOP:
+	BSBW	PAINT_PICKUP_SCREEN
+	CALLS	#0, G^READ_KEY			; R0 = terminator / char code
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	DECL	PICK_SEL
+	BGEQ	SI_LOOP
+	MOVL	PICK_NLIVE, R1			; wrap to last
+	DECL	R1
+	MOVL	R1, PICK_SEL
+	BRW	SI_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	INCL	PICK_SEL
+	CMPL	PICK_SEL, PICK_NLIVE
+	BLSS	SI_LOOP
+	CLRL	PICK_SEL			; wrap to first
+	BRW	SI_LOOP
+20$:	CMPL	R0, #SMG$K_TRM_CR		; Enter = give
+	BEQL	25$
+	CMPL	R0, #^A/ /			; Space also gives
+	BNEQ	30$
+25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 rejected
+	TSTL	R0
+	BNEQ	26$
+	BRW	SI_LOOP				; rejected -- keep choosing
+26$:	RSB					; assigned -- next item
+30$:	CMPL	R0, #^A/L/			; leave this item behind
+	BEQL	SI_LEAVE
+	CMPL	R0, #^A/l/
+	BEQL	SI_LEAVE
+	BRW	SI_LOOP
+SI_LEAVE:
+	RSB
+
+
+;
+; ===========================================================
+;  TRY_ASSIGN  --  attempt to give the current item (PT_TRIDX, chamber
+;                  slot PT_ITEM) to the highlighted member
+;                  (PICK_SLOTS[PICK_SEL]).  Validates a free pack slot
+;                  and, for heavy treasure, the carry-weight limit.
+;                  On success places the item, marks CT[PT_ITEM] = -1,
+;                  returns R0 = 1.  On failure paints an error line and
+;                  returns R0 = 0.
+; ===========================================================
+;
+TRY_ASSIGN:
+	MOVL	PICK_SEL, R0
+	MOVL	PICK_SLOTS[R0], R3		; party slot (preserved by helper)
+	; Weight is the only carry limit.  Heavy treasure must fit the
+	; member's kg capacity; weightless artifacts are always accepted.
+	MOVL	PT_TRIDX, R6
+	MOVAB	SCAVE_DATA_TR_WT, R2
+	MOVL	(R2)[R6], R4			; item weight
+	BEQL	TA_PLACE			; weightless artifact -- no limit
+	BSBW	GET_LOAD_USED			; R0 = current load (R3 kept)
+	MOVL	SCAVE_PARTY_PC[R3], R5		; creature index
+	MOVAB	SCAVE_DATA_CR_CARRY, R2
+	ADDL3	R0, R4, R1			; prospective load
+	CMPL	R1, (R2)[R5]
+	BLEQ	TA_PLACE
+	MOVAB	DSC_ERR_WEIGHT, R5
+	BRW	TA_REJECT
+
+TA_PLACE:
+	; Store in the first free backing slot (index = R3*stride + k).
+	; With the weight-only model the stride is large enough that it
+	; never binds in play; the full-array branch is a defensive guard.
+	MULL3	#SCAVE$_TREAS_PER, R3, R7
+	CLRL	R8
+TAP_FIND:
+	ADDL3	R7, R8, R9
+	CMPL	SCAVE_PARTY_PT[R9], #-1
+	BEQL	TAP_GOT
+	INCL	R8
+	CMPL	R8, #SCAVE$_TREAS_PER
+	BLSS	TAP_FIND
+	MOVAB	DSC_ERR_SLOTS, R5		; defensive -- backing array full
+	BRW	TA_REJECT
+TAP_GOT:
+	MOVL	PT_TRIDX, R0
+	MOVL	R0, SCAVE_PARTY_PT[R9]
+	MOVL	PT_ITEM, R1
+	MNEGL	#1, SCAVE_CHAMBER_CT[R1]		; consume from the chamber
+	MOVL	#1, R0
+	RSB
+TA_REJECT:
+	BSBW	PAINT_PICK_ERR			; R5 = error descriptor
+	CLRL	R0
+	RSB
+
+
+;
+; ===========================================================
+;  GET_LOAD_USED  --  in: R3 = party slot.  out: R0 = heavy-treasure
+;                     load (kg) the member currently carries, R1 =
+;                     count of items held.  Clobbers R0,R1,R2,R4,R5;
+;                     preserves R3 and R6-R11.
+; ===========================================================
+;
+GET_LOAD_USED:
+	CLRL	R0				; load
+	CLRL	R1				; held count
+	MOVAB	SCAVE_DATA_TR_WT, R5
+	CLRL	R2				; k = 0..stride-1
+GLF_LOOP:
+	CMPL	R2, #SCAVE$_TREAS_PER
+	BGEQ	GLF_DONE
+	MULL3	#SCAVE$_TREAS_PER, R3, R4
+	ADDL2	R2, R4				; R4 = slot*stride + k
+	MOVL	SCAVE_PARTY_PT[R4], R4
+	CMPL	R4, #-1
+	BEQL	GLF_NEXT
+	INCL	R1				; held++
+	ADDL2	(R5)[R4], R0			; load += TR_WT[item]
+GLF_NEXT:
+	INCL	R2
+	BRB	GLF_LOOP
+GLF_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PICKUP_SCREEN  --  redraw the pickup panel for the current
+;                           item with the roster and the highlighted
+;                           selection.  Reads PT_ITEM, PT_TRIDX,
+;                           PICK_SEL, PICK_NLIVE, PICK_SLOTS.
+; ===========================================================
+;
+PAINT_PICKUP_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	; Header (row 3).
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PICK_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Item line (row 5): "Item n/N:  <name>  (w kg)".
+	MOVL	PT_TRIDX, R0
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R0], PICK_WT_VAL
+	ADDL3	#1, PT_ITEM, PICK_ITEM_NO	; 1-based item number
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_PICK_ITEM_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_ITEM_NO, p2=SCAVE_CHAMBER_NT, -
+		p3=PICK_NAME_PTR, p4=PICK_WT_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Roster rows, one per living member, starting at row 7.
+	CLRL	R6				; menu position (preserved by CALLS)
+PPS_MLOOP:
+	CMPL	R6, PICK_NLIVE
+	BLSS	PPS_MBODY
+	BRW	PPS_MDONE
+PPS_MBODY:
+	MOVL	PICK_SLOTS[R6], R3		; party slot
+	BSBW	GET_LOAD_USED			; R0 = load, R1 = held (R3,R6 kept)
+	MOVL	R0, PICK_LOAD_VAL
+	MOVL	R1, PICK_HELD_VAL
+	MOVL	SCAVE_PARTY_PC[R3], R0		; creature index
+	MOVAB	SCAVE_DATA_CR_CARRY, R1
+	MOVL	(R1)[R0], PICK_CAP_VAL
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_MNAME_PTR
+	; Selection marker.
+	CMPL	R6, PICK_SEL
+	BNEQ	1$
+	MOVAB	MARK_SEL, PICK_MARK_PTR
+	BRB	2$
+1$:	MOVAB	MARK_NONE, PICK_MARK_PTR
+2$:	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_PICK_MEMBER_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MARK_PTR, p2=PICK_MNAME_PTR, p3=PICK_LOAD_VAL, -
+		p4=PICK_CAP_VAL, p5=PICK_HELD_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	ADDL3	#7, R6, ROW_TMP			; row = 7 + menu position
+	; Selected row in reverse video; others plain.
+	CMPL	R6, PICK_SEL
+	BNEQ	3$
+	PUSHAL	REND_REVERSE
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	BRB	4$
+3$:	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+4$:	INCL	R6
+	BRW	PPS_MLOOP
+PPS_MDONE:
+	; Prompt (row 20 -- below a full 12-member roster, which fills
+	; rows 7..18).
+	MOVL	#20, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PICK_PROMPT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PICK_ERR  --  R5 = error descriptor.  Paint it centered on
+;                      row 19 and wait for a keystroke so the player
+;                      sees why the assignment was refused (the next
+;                      repaint erases it).
+; ===========================================================
+;
+PAINT_PICK_ERR:
+	MOVL	#19, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  LOAD_PERSISTED  --  rebuild SCAVE_CHAMBER_{NS,NT,NH,CS,CT}
+;                      from the area's saved AC slots.  Hazards
+;                      (NH) are not persisted -- they're treated
+;                      as consumed by the first visit.
+; ===========================================================
+;
+LOAD_PERSISTED:
+	MOVL	CHAMBER_AREA, R7
+	MOVAB	SCAVE_AREA_AC, R8
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0	; bytes per area = 8 * 4
+	ADDL2	R0, R8				; R8 = base of this area's AC
+
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; remaining slots
+LP_LOOP:
+	TSTL	R3
+	BLEQ	LP_DONE
+	MOVL	(R8)+, R0			; encoded value
+	BEQL	LP_NEXT				; 0 = empty
+	; Decode: 100..199 -> creature, 200..299 -> treasure
+	DIVL3	#100, R0, R1
+	MULL3	#100, R1, R2
+	SUBL3	R2, R0, R2			; R2 = index within type
+	CMPL	R1, #1
+	BNEQ	LP_TR
+	; Append creature to CS
+	MOVL	SCAVE_CHAMBER_NS, R4
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	LP_NEXT
+LP_TR:
+	CMPL	R1, #2
+	BNEQ	LP_NEXT				; ignore unknown encodings
+	MOVL	SCAVE_CHAMBER_NT, R4
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+LP_NEXT:
+	DECL	R3
+	BRB	LP_LOOP
+LP_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  SAVE_PERSISTED  --  write the post-encounter contents back to
+;                      the area's AC slots.  Strangers come first
+;                      (CS[0..NS-1] -> 100+i), then non-consumed
+;                      treasure (CT[i] != -1 -> 200+CT[i]).  Any
+;                      slots beyond the budget are dropped (rare
+;                      in practice -- max draw is 6 cards before
+;                      Tomb/Hall bonus).
+; ===========================================================
+;
+SAVE_PERSISTED:
+	MOVL	CHAMBER_AREA, R7
+	MOVAB	SCAVE_AREA_AC, R8
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	ADDL2	R0, R8				; R8 = base of this area's AC
+
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; remaining slots in AC
+	CLRL	R6				; loop in CS
+SP_S:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	SP_T
+	TSTL	R3
+	BLEQ	SP_PAD				; out of room
+	ADDL3	#100, SCAVE_CHAMBER_CS[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	SP_S
+SP_T:
+	CLRL	R6
+SP_T_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NT
+	BGEQ	SP_PAD
+	TSTL	R3
+	BLEQ	SP_PAD
+	MOVL	SCAVE_CHAMBER_CT[R6], R0
+	BLSS	SP_T_NEXT			; -1 = consumed, skip
+	ADDL3	#200, R0, (R8)+
+	DECL	R3
+SP_T_NEXT:
+	INCL	R6
+	BRB	SP_T_LOOP
+SP_PAD:
+	; Zero out any unused tail slots so a previous visit's longer
+	; contents don't leak through.
+	TSTL	R3
+	BLEQ	SP_DONE
+	CLRL	(R8)+
+	DECL	R3
+	BRB	SP_PAD
+SP_DONE:
+	RSB
+
+
+	.END

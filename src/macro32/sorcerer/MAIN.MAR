@@ -1,0 +1,756 @@
+	.TITLE	MAIN	The Sorcerer's Cave -- entry point and turn dispatch
+	.IDENT	/V0.3/
+
+;++
+; MAIN.MAR
+;
+;   Image entry point.  After Stage 2 the flow is:
+;
+;     1. SETUP_INIT      -- RNG, SMG$, title splash, party pick,
+;                           deck shuffle, gateway placement.
+;     2. TURN_DISPATCH   -- per-turn loop:
+;                            paint current location summary
+;                            read a key
+;                            handle  N/E/S/W/U/D  -> TRY_MOVE
+;                            handle  q / Q       -> exit
+;                            other keys are ignored
+;     3. TEARDOWN        -- delete SMG$ display + pasteboard.
+;
+;   Stage 3+ will hook chamber draws into the move-success path.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+
+;
+; UI helpers (UI.MAR)
+;
+	.EXTRN	TEARDOWN_DISPLAY
+	.EXTRN	ERASE_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	PAINT_AT_MAIN
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+;
+; Setup pipeline (SETUP.MAR)
+;
+	.EXTRN	SETUP_INIT
+
+;
+; Map / movement (MAP.MAR)
+;
+	.EXTRN	DECODE_AREA
+	.EXTRN	TRY_MOVE
+	.EXTRN	FALL_TO_BELOW
+	.EXTRN	SCAVE_DEC_AN
+	.EXTRN	SCAVE_DEC_AE
+	.EXTRN	SCAVE_DEC_AS
+	.EXTRN	SCAVE_DEC_AW
+	.EXTRN	SCAVE_DEC_AU
+	.EXTRN	SCAVE_DEC_AD
+	.EXTRN	SCAVE_DEC_AH
+	.EXTRN	SCAVE_DEC_AT
+
+;
+; Chamber dispatch (CHAMBER.MAR)
+;
+	.EXTRN	ENTER_CHAMBER
+
+;
+; Special-area dispatch (SPECIAL.MAR)
+;
+	.EXTRN	ENTER_SPECIAL
+
+;
+; End-game scoring (SCORE.MAR)
+;
+	.EXTRN	SHOW_SCORE
+
+;
+; Game state (STATE.MAR)
+;
+	.EXTRN	SCAVE_STATE_GS
+	.EXTRN	SCAVE_STATE_TN
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PT
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_NM
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_FELL
+	.EXTRN	SCAVE_MAP_DEADEND
+
+;
+; Static data (DATA.MAR)
+;
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_WT
+	.EXTRN	SCAVE_DATA_SP_NAME_PTR
+
+;
+; SMG$ direct calls + SYS$FAO
+;
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SMG$DRAW_RECTANGLE
+	.EXTRN	SYS$FAO
+
+
+	SCAVE$_GS_QUIT  = 3
+	SCAVE$_GS_ESCAPED = 1
+
+	; Per-creature treasure backing slots -- MUST match STATE.MAR's
+	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
+	SCAVE$_TREAS_PER = 20
+
+
+	.PSECT	MAIN_DATA, NOEXE, WRT, LONG
+
+;
+; FAO control strings
+;
+	.ALIGN	LONG
+HEADER_FAO:	.ASCID	/L!UL #!UL  !AS    Turn !UL    Areas !UL/
+EXITS_FAO:	.ASCID	/Exits: !AS    Stairs: !AS/
+TYPE_FAO:	.ASCID	/!AS!AS/
+PARTY_FAO:	.ASCID	/Party (!UL): !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS/
+
+; One-creature inventory line: name, then four item names (or
+; empty descriptors when the slot is unused).
+PMEM_FAO:	.ASCID	/!10AS  !3UL kg  !AS !AS !AS !AS !AS/
+OVF_FAO:	.ASCID	/+!UL/
+
+;
+; Static prompt and helper descriptors.
+;
+PROMPT_DSC:	.ASCID	/[N E S W U D] move    [Q] quit/
+DEADEND_DSC:	.ASCID	/That way is a dead end -- the party stays put./
+	.ALIGN	LONG
+DEADEND_ROW:	.LONG	19
+EMPTY_DSC:	.ASCID	//
+TUNNEL_DSC:	.ASCID	/Tunnel/
+CHAMBER_DSC:	.ASCID	/Chamber/
+
+;
+; Output buffers + descriptors for FAO targets.
+;
+	.ALIGN	LONG
+HEADER_BUF:	.BLKB	120
+	.ALIGN	LONG
+HEADER_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS HEADER_BUF
+
+	.ALIGN	LONG
+EXITS_BUF:	.BLKB	80
+	.ALIGN	LONG
+EXITS_DSC:	.WORD	80
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS EXITS_BUF
+
+	.ALIGN	LONG
+TYPE_BUF:	.BLKB	40
+	.ALIGN	LONG
+TYPE_DSC:	.WORD	40
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS TYPE_BUF
+
+	.ALIGN	LONG
+PARTY_BUF:	.BLKB	160
+	.ALIGN	LONG
+PARTY_DSC:	.WORD	160
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS PARTY_BUF
+
+;
+; Per-creature inventory line buffer.  Used by PAINT_PARTY_ROWS to
+; render one row per living party member ("HERO  M.SWORD  GOLD ...").
+;
+	.ALIGN	LONG
+PMEM_BUF:	.BLKB	120
+	.ALIGN	LONG
+PMEM_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS PMEM_BUF
+
+; Four-entry array of treasure-name descriptor addresses, refilled
+; for each member before the FAO call.  Empty slots point at
+; EMPTY_DSC so the !AS placeholders consume nothing.
+	.ALIGN	LONG
+ITEM_DSC_BUF:	.BLKL	4
+
+; Per-member carried weight + overflow ("+N") for the roster line.
+PMEM_WT_VAL:	.BLKL	1
+PMEM_OVF_VAL:	.BLKL	1
+PMEM_OVF_PTR:	.BLKL	1			; descriptor addr: OVF_DSC or EMPTY_DSC
+	.ALIGN	LONG
+OVF_BUF:	.BLKB	16
+	.ALIGN	LONG
+OVF_DSC:	.WORD	16
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS OVF_BUF
+
+; Static columns + first-row index for the inventory listing.
+PMEM_COL:	.LONG	4
+PMEM_FIRST_ROW:	.LONG	7
+
+;
+; Small static buffers for the exit/stair direction-list strings.
+; "NESW" / "UD" with one char per flag.  Built each frame.
+;
+	.ALIGN	LONG
+EXITSTR_BUF:	.BLKB	5
+	.ALIGN	LONG
+EXITSTR_DSC:	.WORD	0
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS EXITSTR_BUF
+	.ALIGN	LONG
+STAIRSTR_BUF:	.BLKB	3
+	.ALIGN	LONG
+STAIRSTR_DSC:	.WORD	0
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS STAIRSTR_BUF
+
+;
+; Row constants used by the painters.
+;
+HEADER_ROW:	.LONG	2
+EXITS_ROW:	.LONG	5
+TYPE_ROW:	.LONG	7
+PARTY_ROW:	.LONG	10
+PROMPT_ROW:	.LONG	21
+
+;
+; Party-panel box geometry (1-based rows/cols inside the main
+; display interior).  The top edge sits one row above the first
+; member row (PMEM_FIRST_ROW = 7); PARTY_BOX_BOT is the bottom edge,
+; filled in by PAINT_PARTY_ROWS once it knows how many members were
+; drawn (= 7 + living-count).  The label is overlaid on the top edge.
+;
+PBOX_TOP:	.LONG	6
+PBOX_LEFT:	.LONG	2
+PBOX_RIGHT:	.LONG	68
+PBOX_LABEL_COL:	.LONG	4
+PARTY_BOX_BOT:	.BLKL	1
+	.ALIGN	LONG
+PARTY_TITLE_DSC:	.ASCID	/ Party /
+
+;
+; Slot table for the party FAO (12 longwords; each holds the
+; address of a name descriptor).
+;
+	.ALIGN	LONG
+SLOT_BUF:	.BLKL	12
+
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+
+
+	.PSECT	MAIN_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  SCAVE  -- image entry point
+; ===========================================================
+;
+	.ENTRY	SCAVE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CALLS	#0, G^SETUP_INIT
+	BLBS	R0, 1$
+	CALLS	#0, G^TEARDOWN_DISPLAY
+	RET
+1$:
+	CALLS	#0, TURN_DISPATCH
+
+	; Show the end-game screen unless the player simply quit
+	; mid-game (we treat Q as "abandon" -- still painted but minimal).
+	CALLS	#0, G^SHOW_SCORE
+
+	CALLS	#0, G^TEARDOWN_DISPLAY
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  TURN_DISPATCH  --  the per-turn input/redraw loop.
+;                     Returns to caller when the user presses Q
+;                     or when SCAVE_STATE_GS goes non-zero for
+;                     any other reason (escaped, dead, etc.).
+; ===========================================================
+;
+	.ENTRY	TURN_DISPATCH, ^M<R2,R3,R4,R5,R6>
+
+T_LOOP:
+	; If anything has flipped the game-state out of PLAYING (combat
+	; defeat, hazards killing the whole party, X-leave, Q-quit) we
+	; bail out of dispatch immediately so the score screen runs.
+	TSTL	SCAVE_STATE_GS
+	BEQL	T_GO
+	MOVL	#SS$_NORMAL, R0
+	RET
+T_GO:
+	BSBW	PAINT_TURN
+
+	CALLS	#0, READ_KEY
+	; R0 = terminator code (low half is the byte for ASCII keys)
+	MOVL	R0, R6				; save -- READ_KEY clobbered
+
+	; q / Q -> mark quit and exit
+	CMPL	R6, #^A/q/
+	BNEQ	100$
+	BRW	T_QUIT
+100$:	CMPL	R6, #^A/Q/
+	BNEQ	101$
+	BRW	T_QUIT
+101$:
+	; x / X -> leave the cave (only if on level 1 with stair-up)
+	CMPL	R6, #^A/x/
+	BEQL	102$
+	CMPL	R6, #^A/X/
+	BEQL	102$
+	BRB	103$
+102$:
+	; Validate: must be on level 1 with an up-stair on the current
+	; area card.  Decode + check.
+	MOVL	SCAVE_MAP_PA, R5
+	PUSHL	SCAVE_MAP_MP[R5]
+	CALLS	#1, G^DECODE_AREA
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	T_LOOP				; not on level 1
+	TSTL	SCAVE_DEC_AU
+	BEQL	T_LOOP				; no up-stair here
+	; Mark escaped and break out of the loop.
+	MOVL	#1, SCAVE_STATE_GS		; SCAVE$_GS_ESCAPED
+	MOVL	#SS$_NORMAL, R0
+	RET
+103$:
+
+	; map N/E/S/W/U/D (upper or lower) to direction 1..6
+	MOVL	#0, R5				; default: no direction
+	CMPL	R6, #^A/N/
+	BNEQ	2$
+	MOVL	#1, R5
+	BRW	T_DO_DIR
+2$:	CMPL	R6, #^A/n/
+	BNEQ	3$
+	MOVL	#1, R5
+	BRW	T_DO_DIR
+3$:	CMPL	R6, #^A/E/
+	BNEQ	4$
+	MOVL	#2, R5
+	BRW	T_DO_DIR
+4$:	CMPL	R6, #^A/e/
+	BNEQ	5$
+	MOVL	#2, R5
+	BRW	T_DO_DIR
+5$:	CMPL	R6, #^A/S/
+	BNEQ	6$
+	MOVL	#3, R5
+	BRW	T_DO_DIR
+6$:	CMPL	R6, #^A/s/
+	BNEQ	7$
+	MOVL	#3, R5
+	BRW	T_DO_DIR
+7$:	CMPL	R6, #^A/W/
+	BNEQ	8$
+	MOVL	#4, R5
+	BRW	T_DO_DIR
+8$:	CMPL	R6, #^A/w/
+	BNEQ	9$
+	MOVL	#4, R5
+	BRW	T_DO_DIR
+9$:	CMPL	R6, #^A/U/
+	BNEQ	10$
+	MOVL	#5, R5
+	BRW	T_DO_DIR
+10$:	CMPL	R6, #^A/u/
+	BNEQ	11$
+	MOVL	#5, R5
+	BRW	T_DO_DIR
+11$:	CMPL	R6, #^A/D/
+	BNEQ	12$
+	MOVL	#6, R5
+	BRW	T_DO_DIR
+12$:	CMPL	R6, #^A/d/
+	BNEQ	13$
+	MOVL	#6, R5
+	BRW	T_DO_DIR
+13$:
+	; not a recognised key -- ignore
+	BRW	T_LOOP
+
+T_DO_DIR:
+	TSTL	R5
+	BNEQ	200$				; defensive (shouldn't happen)
+	BRW	T_LOOP
+200$:	PUSHL	R5
+	CALLS	#1, G^TRY_MOVE
+	; R0 = 1 on move, 0 on dead-end / no-exit / pack-empty.  Either
+	; way, refresh the display next iteration.  Increment the turn
+	; counter only on a successful move (matching the Casio).
+	BLBS	R0, 201$
+	; Move failed.  If the chosen doorway turned out to be a dead end
+	; (TRY_MOVE placed a face-down card and pruned the exit), say so --
+	; otherwise the vanished exit and bumped area count look like a bug.
+	; A plain "that wasn't an exit" press changes nothing and stays quiet.
+	TSTL	SCAVE_MAP_DEADEND
+	BEQL	206$
+	PUSHAL	DEADEND_ROW
+	PUSHAL	DEADEND_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+206$:	BRW	T_LOOP
+201$:	INCL	SCAVE_STATE_TN
+T_DISPATCH:
+	; Decode the area the party now occupies, then dispatch:
+	;   AT == 2  -> Deep Pool   (SPECIAL)
+	;   AT == 3  -> Viper Pit   (SPECIAL)
+	;   AH == 1  -> Chamber     (CHAMBER, first-visit only -- the
+	;                            routine itself checks SCAVE_MAP_MV)
+	;   else     -> tunnel/corridor, nothing else to do this turn
+	MOVL	SCAVE_MAP_PA, R2
+	PUSHL	SCAVE_MAP_MP[R2]
+	CALLS	#1, G^DECODE_AREA
+
+	CMPL	SCAVE_DEC_AT, #2
+	BEQL	202$
+	CMPL	SCAVE_DEC_AT, #3
+	BEQL	202$
+	BRB	203$
+202$:
+	CALLS	#0, G^ENTER_SPECIAL
+	BRW	T_LOOP
+203$:
+	TSTL	SCAVE_DEC_AH
+	BNEQ	204$
+	BRW	T_LOOP
+204$:
+	CALLS	#0, G^ENTER_CHAMBER
+	; A trap in the chamber drops the party to the area directly below
+	; (SCAVE_MAP_FELL set), leaving this chamber's contents untouched.
+	; Relocate and re-dispatch within the same turn -- the rules have
+	; the party "proceed normally with the turn in the area below."
+	; Chained traps simply loop back through here.
+	TSTL	SCAVE_MAP_FELL
+	BEQL	205$
+	CLRL	SCAVE_MAP_FELL
+	CALLS	#0, G^FALL_TO_BELOW		; R0 = 1 placed, 0 = pack empty
+	BLBC	R0, 205$			; no area below -> end the turn
+	BRW	T_DISPATCH
+205$:
+	BRW	T_LOOP
+
+T_QUIT:
+	MOVL	#SCAVE$_GS_QUIT, SCAVE_STATE_GS
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_TURN  --  full repaint of the per-turn display.
+;
+;     Decodes the current area, builds the header / exits /
+;     party / prompt strings via $FAO, and writes them all
+;     inside one batched pasteboard update.
+; ===========================================================
+;
+PAINT_TURN:
+	; Decode current card.  TRY_MOVE already calls DECODE_AREA at
+	; its entry, but we are here on a frame where TRY_MOVE may not
+	; have run (first frame, or input was 'q').  Decode it ourselves.
+	MOVL	SCAVE_MAP_PA, R2
+	PUSHL	SCAVE_MAP_MP[R2]
+	CALLS	#1, G^DECODE_AREA
+
+	BSBW	BUILD_EXITSTR
+	BSBW	BUILD_STAIRSTR
+
+	; Header line.  Pick the area-name descriptor: special name if
+	; SCAVE_DEC_AT > 0, else "Tunnel" / "Chamber".
+	MOVL	SCAVE_DEC_AT, R2
+	BNEQ	1$
+	; AT == 0: pick tunnel or chamber by AH
+	TSTL	SCAVE_DEC_AH
+	BEQL	2$
+	MOVAB	CHAMBER_DSC, R3
+	BRB	3$
+2$:	MOVAB	TUNNEL_DSC, R3
+	BRB	3$
+1$:
+	MOVAB	SCAVE_DATA_SP_NAME_PTR, R3
+	MOVL	(R3)[R2], R3			; R3 = ptr to special-name descriptor
+3$:
+
+	MOVW	#120, HEADER_DSC
+	$FAO_S	ctrstr=HEADER_FAO, outlen=FAO_OUTLEN, outbuf=HEADER_DSC, -
+		p1=SCAVE_MAP_PL, p2=SCAVE_MAP_PA, p3=R3, -
+		p4=SCAVE_STATE_TN, p5=SCAVE_MAP_NM
+	MOVW	FAO_OUTLEN, HEADER_DSC
+
+	; Exits line: "Exits: NESW    Stairs: UD".  !AS arguments are
+	; descriptor *addresses*; use #DSC so the macro pushes the
+	; immediate address rather than the first longword of the
+	; descriptor.
+	MOVW	#80, EXITS_DSC
+	$FAO_S	ctrstr=EXITS_FAO, outlen=FAO_OUTLEN, outbuf=EXITS_DSC, -
+		p1=#EXITSTR_DSC, p2=#STAIRSTR_DSC
+	MOVW	FAO_OUTLEN, EXITS_DSC
+
+	; Now paint everything in a single batch.
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	PUSHAL	HEADER_ROW
+	PUSHAL	HEADER_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	PUSHAL	EXITS_ROW
+	PUSHAL	EXITS_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Per-creature inventory rows: one PUSHAL per living member at
+	; column PMEM_COL, starting at row PMEM_FIRST_ROW.  Also flips
+	; SCAVE_STATE_GS to DEAD if no living members remain.
+	BSBW	PAINT_PARTY_ROWS
+
+	; Frame the roster with a titled "Party" box.
+	BSBW	DRAW_PARTY_BOX
+
+	PUSHAL	PROMPT_ROW
+	PUSHAL	PROMPT_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  BUILD_EXITSTR  --  fill EXITSTR_BUF / EXITSTR_DSC with the
+;                     subset of "NESW" matching the decoded flags.
+; ===========================================================
+;
+BUILD_EXITSTR:
+	MOVAB	EXITSTR_BUF, R2			; R2 = dst pointer
+	CLRL	R3				; R3 = length so far
+	TSTL	SCAVE_DEC_AN
+	BEQL	1$
+	MOVB	#^A/N/, (R2)+
+	INCL	R3
+1$:	TSTL	SCAVE_DEC_AE
+	BEQL	2$
+	MOVB	#^A/E/, (R2)+
+	INCL	R3
+2$:	TSTL	SCAVE_DEC_AS
+	BEQL	3$
+	MOVB	#^A/S/, (R2)+
+	INCL	R3
+3$:	TSTL	SCAVE_DEC_AW
+	BEQL	4$
+	MOVB	#^A/W/, (R2)+
+	INCL	R3
+4$:
+	; Pad the buffer with spaces in case earlier frames wrote more
+	; chars (SMG$ doesn't auto-erase between paints when the new
+	; descriptor is shorter).  We reset the length below anyway.
+	MOVW	R3, EXITSTR_DSC			; trim descriptor length
+	RSB
+
+
+;
+; ===========================================================
+;  BUILD_STAIRSTR  --  fill STAIRSTR_BUF with subset of "UD".
+; ===========================================================
+;
+BUILD_STAIRSTR:
+	MOVAB	STAIRSTR_BUF, R2
+	CLRL	R3
+	TSTL	SCAVE_DEC_AU
+	BEQL	1$
+	MOVB	#^A/U/, (R2)+
+	INCL	R3
+1$:	TSTL	SCAVE_DEC_AD
+	BEQL	2$
+	MOVB	#^A/D/, (R2)+
+	INCL	R3
+2$:
+	MOVW	R3, STAIRSTR_DSC
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_PARTY_ROWS  --  one row per living party member,
+;                        starting at PMEM_FIRST_ROW (= row 7),
+;                        column PMEM_COL.  Each row reads
+;                        "<NAME>  <item1>  <item2>  <item3>  <item4>"
+;                        with empty descriptors filling unused
+;                        treasure slots.  Rows for stoned / dead
+;                        members are skipped entirely.
+;
+;     Side effect: if no living members remain after the walk,
+;     SCAVE_STATE_GS flips to DEAD.  This used to be the job of
+;     BUILD_PARTYSTR; preserved here so combat / Medusa / Ghouls
+;     losses still end the game.
+; ===========================================================
+;
+PAINT_PARTY_ROWS:
+	MOVL	PMEM_FIRST_ROW, R7		; next row to paint
+	CLRL	R9				; living count
+	CLRL	R6				; party slot
+PR_LOOP:
+	CMPL	R6, SCAVE_PARTY_NP
+	BLSS	PR_BODY
+	BRW	PR_TAIL
+PR_BODY:
+	; Skip stoned / dead.
+	CMPL	SCAVE_PARTY_PS[R6], #2
+	BLSS	PR_LIVING
+	BRW	PR_NEXT
+PR_LIVING:
+	INCL	R9
+
+	; Pull this member's name descriptor address into R5.
+	MOVL	SCAVE_PARTY_PC[R6], R0		; creature index
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R1
+	MOVL	(R1)[R0], R5
+
+	; Scan this member's treasure slots: collect up to 4 item names
+	; for display (ITEM_DSC_BUF), count all held items (R8), and sum
+	; heavy-treasure weight (R10).  Items past the 4th are summarised
+	; as "+N".  R5 (member name) is preserved across this block.
+	MOVAB	ITEM_DSC_BUF, R1
+	MOVAB	EMPTY_DSC, R2
+	MOVL	R2, (R1)			; clear the four display slots
+	MOVL	R2, 4(R1)
+	MOVL	R2, 8(R1)
+	MOVL	R2, 12(R1)
+	MULL3	#SCAVE$_TREAS_PER, R6, R0	; PT base (element index)
+	CLRL	R3				; slot k
+	CLRL	R8				; items held
+	CLRL	R10				; carried weight
+PR_ITEM:
+	CMPL	R3, #SCAVE$_TREAS_PER
+	BGEQ	PR_ITEM_DONE
+	ADDL3	R0, R3, R1			; element index = base + k
+	MOVL	SCAVE_PARTY_PT[R1], R4
+	BLSS	PR_ITEM_NEXT			; -1 = empty
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	ADDL2	(R1)[R4], R10			; weight += TR_WT[item]
+	CMPL	R8, #4
+	BGEQ	1$				; already captured 4 names
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R4], R11			; name descriptor address
+	MOVAB	ITEM_DSC_BUF, R1
+	MOVL	R11, (R1)[R8]			; ITEM_DSC_BUF[held] = name
+1$:	INCL	R8
+PR_ITEM_NEXT:
+	INCL	R3
+	BRB	PR_ITEM
+PR_ITEM_DONE:
+	MOVL	R10, PMEM_WT_VAL
+
+	; Overflow indicator: "+N" when more than four items are held.
+	MOVAB	EMPTY_DSC, R0
+	MOVL	R0, PMEM_OVF_PTR
+	CMPL	R8, #4
+	BLEQ	2$
+	SUBL3	#4, R8, PMEM_OVF_VAL		; N = held - 4
+	MOVW	#16, OVF_DSC
+	$FAO_S	ctrstr=OVF_FAO, outlen=FAO_OUTLEN, outbuf=OVF_DSC, -
+		p1=PMEM_OVF_VAL
+	MOVW	FAO_OUTLEN, OVF_DSC
+	MOVAB	OVF_DSC, R0
+	MOVL	R0, PMEM_OVF_PTR
+2$:
+	; Format the row into PMEM_BUF.
+	MOVW	#120, PMEM_DSC
+	$FAO_S	ctrstr=PMEM_FAO, outlen=FAO_OUTLEN, outbuf=PMEM_DSC, -
+		p1=R5, p2=PMEM_WT_VAL, -
+		p3=ITEM_DSC_BUF+0, p4=ITEM_DSC_BUF+4, -
+		p5=ITEM_DSC_BUF+8, p6=ITEM_DSC_BUF+12, -
+		p7=PMEM_OVF_PTR
+	MOVW	FAO_OUTLEN, PMEM_DSC
+
+	; Paint at (R7, PMEM_COL).
+	MOVL	R7, ROW_TMP_PMEM
+	PUSHAL	PMEM_COL
+	PUSHAL	ROW_TMP_PMEM
+	PUSHAL	PMEM_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+
+	INCL	R7
+PR_NEXT:
+	INCL	R6
+	BRW	PR_LOOP
+
+PR_TAIL:
+	; R7 now = PMEM_FIRST_ROW + living-count = the row just past the
+	; last member painted.  That is exactly where DRAW_PARTY_BOX wants
+	; the bottom border.  Stash it for that routine.
+	MOVL	R7, PARTY_BOX_BOT
+	; All slots scanned.  If R9 == 0, flip GS to DEAD.
+	TSTL	R9
+	BNEQ	PR_RSB
+	MOVL	#2, SCAVE_STATE_GS		; SCAVE$_GS_DEAD
+PR_RSB:
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_PARTY_BOX  --  draw a titled rectangle around the party
+;                      roster.  PARTY_BOX_BOT (set by
+;                      PAINT_PARTY_ROWS) is the bottom border row;
+;                      when it is still <= the first member row no
+;                      living members were painted, so skip the box.
+;                      Must run inside the pasteboard batch so the
+;                      box and roster reach the screen together.
+; ===========================================================
+;
+DRAW_PARTY_BOX:
+	CMPL	PARTY_BOX_BOT, #7		; PMEM_FIRST_ROW
+	BGTR	1$
+	RSB					; no living members -- no box
+1$:
+	; SMG$DRAW_RECTANGLE display-id, start-row, start-col,
+	;                    end-row, end-col   (all by reference)
+	PUSHAL	PBOX_RIGHT
+	PUSHAL	PARTY_BOX_BOT
+	PUSHAL	PBOX_LEFT
+	PUSHAL	PBOX_TOP
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#5, G^SMG$DRAW_RECTANGLE
+
+	; Overlay the title on the top edge.
+	; SMG$PUT_CHARS display-id, text, row, column.
+	PUSHAL	PBOX_LABEL_COL
+	PUSHAL	PBOX_TOP
+	PUSHAL	PARTY_TITLE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+	.PSECT	MAIN_DATA, NOEXE, WRT, LONG
+	.ALIGN	LONG
+ROW_TMP_PMEM:	.BLKL	1
+	.PSECT	MAIN_CODE, EXE, NOWRT, LONG
+
+	.END	SCAVE
