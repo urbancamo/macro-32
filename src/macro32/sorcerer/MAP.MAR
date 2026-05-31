@@ -33,6 +33,7 @@
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_DEADEND
 	.EXTRN	SCAVE_MAP_NM
 	.EXTRN	SCAVE_MAP_MP
 	.EXTRN	SCAVE_MAP_ML
@@ -122,6 +123,7 @@ CARD_VAL:	.LONG	0
 
 	MOVL	4(AP), R6			; R6 = direction
 	SUBL3	#1, R6, R5			; R5 = direction-1 = 0..5
+	CLRL	SCAVE_MAP_DEADEND		; assume not a dead end
 
 	; Decode the current card to find its exits.
 	MOVL	SCAVE_MAP_PA, R7		; R7 = current PA
@@ -200,6 +202,7 @@ M_USE_EXISTING:
 	MOVAB	DEAD_MASK, R0
 	MOVL	(R0)[R5], R0
 	BICL2	R0, SCAVE_MAP_MP[R7]		; current card -- clear that exit
+	MOVL	#1, SCAVE_MAP_DEADEND		; adjacent area has no way in here
 	BRW	M_FAIL
 
 M_DO_MOVE_EXISTING:
@@ -264,6 +267,7 @@ M_PLACE_DEADEND:
 	MOVL	(R0)[R5], R0
 	BICL2	R0, SCAVE_MAP_MP[R7]		; clear that exit on the current card
 
+	MOVL	#1, SCAVE_MAP_DEADEND		; chosen doorway led to a dead end
 	CLRL	R0
 	RET
 

@@ -84,6 +84,7 @@
 	.EXTRN	SCAVE_MAP_NM
 	.EXTRN	SCAVE_MAP_MP
 	.EXTRN	SCAVE_MAP_FELL
+	.EXTRN	SCAVE_MAP_DEADEND
 
 ;
 ; Static data (DATA.MAR)
@@ -129,6 +130,9 @@ OVF_FAO:	.ASCID	/+!UL/
 ; Static prompt and helper descriptors.
 ;
 PROMPT_DSC:	.ASCID	/[N E S W U D] move    [Q] quit/
+DEADEND_DSC:	.ASCID	/That way is a dead end -- the party stays put./
+	.ALIGN	LONG
+DEADEND_ROW:	.LONG	19
 EMPTY_DSC:	.ASCID	//
 TUNNEL_DSC:	.ASCID	/Tunnel/
 CHAMBER_DSC:	.ASCID	/Chamber/
@@ -400,7 +404,17 @@ T_DO_DIR:
 	; way, refresh the display next iteration.  Increment the turn
 	; counter only on a successful move (matching the Casio).
 	BLBS	R0, 201$
-	BRW	T_LOOP
+	; Move failed.  If the chosen doorway turned out to be a dead end
+	; (TRY_MOVE placed a face-down card and pruned the exit), say so --
+	; otherwise the vanished exit and bumped area count look like a bug.
+	; A plain "that wasn't an exit" press changes nothing and stays quiet.
+	TSTL	SCAVE_MAP_DEADEND
+	BEQL	206$
+	PUSHAL	DEADEND_ROW
+	PUSHAL	DEADEND_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+206$:	BRW	T_LOOP
 201$:	INCL	SCAVE_STATE_TN
 T_DISPATCH:
 	; Decode the area the party now occupies, then dispatch:

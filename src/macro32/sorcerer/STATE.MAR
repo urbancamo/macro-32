@@ -113,6 +113,10 @@ SCAVE_MAP_PP::		.LONG	0			; previous area (for earthquake)
 SCAVE_MAP_FELL::	.LONG	0			; set by ENTER_CHAMBER when a trap
 							; drops the party; MAIN relocates one
 							; level down and re-dispatches the turn
+SCAVE_MAP_DEADEND::	.LONG	0			; set by TRY_MOVE when a move fails
+							; because the chosen doorway led to a
+							; dead end (card placed face-down, exit
+							; pruned); 0 = plain no-exit / success
 
 	.ALIGN	LONG
 SCAVE_MAP_MP::		.BLKL	SCAVE$_AREA_COUNT	; area-card value at each placed slot
