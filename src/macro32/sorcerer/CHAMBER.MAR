@@ -178,6 +178,9 @@ COL_SIX:	.LONG	6
 GHOUL_NAME_PTR:	.BLKL	1			; member name descriptor for the FAO !AS
 MUT_KEEP:	.BLKL	1			; mutiny: must keep one ally loyal?
 MUT_KEPT:	.BLKL	1			; mutiny: have we kept one yet?
+DWARF_TRAP:	.BLKL	1			; this visit a dwarf stepped past a trap
+						; (if the dwarf then dies in a fight the
+						; party falls on leaving)
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
@@ -392,6 +395,20 @@ C_PROCESS:
 	; if the party died or the game ended (GS != PLAYING).
 	TSTL	SCAVE_STATE_GS
 	BNEQ	10$
+	; If a dwarf stepped the party past a trap this visit but was then
+	; slain in the fight, the party falls down the trap on leaving.
+	TSTL	DWARF_TRAP
+	BEQL	35$
+	BSBW	HAS_DWARF
+	TSTL	R0
+	BNEQ	35$				; a dwarf still lives -> no late fall
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#SS$_NORMAL, R0
+	RET
+35$:
 	TSTL	SCAVE_CHAMBER_NS
 	BNEQ	10$
 	BSBW	PICKUP_TREASURE
@@ -1014,6 +1031,7 @@ APPLY_QUAKE:
 ; ===========================================================
 ;
 RESOLVE_TRAPS:
+	CLRL	DWARF_TRAP			; assume no "dwarf-negated trap" pending
 	BSBW	COUNT_TRAPS			; R0 = trap count
 	TSTL	R0
 	BNEQ	1$
@@ -1025,7 +1043,9 @@ RESOLVE_TRAPS:
 	BEQL	RT_FALL				; no dwarf -> the party falls
 	CMPL	R6, #1
 	BGTR	RT_FALL				; two+ traps -> a dwarf can't cope
-	; single trap, dwarf present -- stepped around
+	; single trap, dwarf present -- stepped around for now.  Remember it:
+	; if the dwarf is slain in a fight here, the party falls on leaving.
+	MOVL	#1, DWARF_TRAP
 	MOVAB	DSC_HZ_TRAP_DWARF, R5
 	BSBW	PAINT_TRAP_LINE
 	CLRL	R0				; no fall
