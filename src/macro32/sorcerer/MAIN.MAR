@@ -136,6 +136,10 @@ OVF_FAO:	.ASCID	/+!UL/
 ; Static prompt and helper descriptors.
 ;
 PROMPT_DSC:	.ASCID	/[NESWUD] move   [M] map   [Q] quit/
+DSC_EXIT_CONFIRM: .ASCID	/Climb the gateway stair and leave the cave?  (Y or N)/
+DSC_QUIT_CONFIRM: .ASCID	/Quit the game now?  (Y or N)/
+	.ALIGN	LONG
+EXIT_ROW:	.LONG	19
 DEADEND_DSC:	.ASCID	/That way is a dead end -- the party stays put./
 	.ALIGN	LONG
 DEADEND_ROW:	.LONG	19
@@ -316,13 +320,17 @@ T_GO:
 	; R0 = terminator code (low half is the byte for ASCII keys)
 	MOVL	R0, R6				; save -- READ_KEY clobbered
 
-	; q / Q -> mark quit and exit
+	; q / Q -> confirm, then quit (guard against an accidental press)
 	CMPL	R6, #^A/q/
-	BNEQ	100$
-	BRW	T_QUIT
-100$:	CMPL	R6, #^A/Q/
+	BEQL	90$
+	CMPL	R6, #^A/Q/
 	BNEQ	101$
+90$:	MOVAB	DSC_QUIT_CONFIRM, R1
+	BSBW	CONFIRM_PROMPT			; R0 = 1 quit, 0 stay
+	TSTL	R0
+	BEQL	91$
 	BRW	T_QUIT
+91$:	BRW	T_LOOP
 101$:
 	; x / X -> leave the cave (only if on level 1 with stair-up)
 	CMPL	R6, #^A/x/
@@ -353,6 +361,29 @@ T_GO:
 104$:	CALLS	#0, G^SHOW_MAP
 	BRW	T_LOOP
 105$:
+	; U/u at the gateway up-staircase (the only up-stair on level 1)
+	; means leaving the cave: confirm, then escape to final scoring.
+	; Elsewhere U is an ordinary up move (handled by the mapping below).
+	CMPL	R6, #^A/U/
+	BEQL	110$
+	CMPL	R6, #^A/u/
+	BNEQ	112$
+110$:	MOVL	SCAVE_MAP_PA, R5
+	PUSHL	SCAVE_MAP_MP[R5]
+	CALLS	#1, G^DECODE_AREA
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	112$				; not level 1 -> normal up move
+	TSTL	SCAVE_DEC_AU
+	BEQL	112$				; no up-stair here -> normal
+	MOVAB	DSC_EXIT_CONFIRM, R1
+	BSBW	CONFIRM_PROMPT			; R0 = 1 leave, 0 stay
+	TSTL	R0
+	BNEQ	111$
+	BRW	T_LOOP				; stay
+111$:	MOVL	#SCAVE$_GS_ESCAPED, SCAVE_STATE_GS
+	MOVL	#SS$_NORMAL, R0
+	RET
+112$:
 
 	; map N/E/S/W/U/D (upper or lower) to direction 1..6
 	MOVL	#0, R5				; default: no direction
@@ -473,6 +504,34 @@ T_QUIT:
 	MOVL	#SCAVE$_GS_QUIT, SCAVE_STATE_GS
 	MOVL	#SS$_NORMAL, R0
 	RET
+
+
+;
+; ===========================================================
+;  CONFIRM_PROMPT  --  R1 = descriptor of a yes/no question.  Paints
+;                      it on row 19 and reads a key.  R0 = 1 if the
+;                      player confirms (Y/y), 0 otherwise (N/n).
+; ===========================================================
+;
+CONFIRM_PROMPT:
+	PUSHAL	EXIT_ROW
+	PUSHL	R1
+	CALLS	#2, G^PAINT_CENTERED
+CE_READ:
+	CALLS	#0, READ_KEY
+	CMPL	R0, #^A/Y/
+	BEQL	CE_YES
+	CMPL	R0, #^A/y/
+	BEQL	CE_YES
+	CMPL	R0, #^A/N/
+	BEQL	CE_NO
+	CMPL	R0, #^A/n/
+	BEQL	CE_NO
+	BRB	CE_READ
+CE_YES:	MOVL	#1, R0
+	RSB
+CE_NO:	CLRL	R0
+	RSB
 
 
 ;
