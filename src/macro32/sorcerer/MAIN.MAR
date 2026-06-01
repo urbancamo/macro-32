@@ -129,7 +129,7 @@ PARTY_FAO:	.ASCID	/Party (!UL): !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS/
 
 ; One-creature inventory line: name, then four item names (or
 ; empty descriptors when the slot is unused).
-PMEM_FAO:	.ASCID	/!10AS !3UL kg/
+PMEM_FAO:	.ASCID	/!10AS !3UL kg !AS !AS !AS !AS!AS/
 OVF_FAO:	.ASCID	/+!UL/
 
 ;
