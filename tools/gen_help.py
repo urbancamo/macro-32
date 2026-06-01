@@ -12,10 +12,12 @@ ASCII-only, pre-wrapped text file with a trivial line-tag grammar:
     ...
 
 HELP.MAR scans for the "*TOPIC|" prefix to build its topic index, and
-pages the body lines that follow each header.  All the markdown work
-happens here, at build time, so the runtime needs no markdown parser --
-just a line scan.  Everything is ASCII-sanitized and wrapped to the
-display width so the MACRO-32 side can paint lines verbatim.
+pages the body lines that follow each header.  A body line beginning
+"*H|" is a heading: the pager strips the marker and paints the rest in
+bold.  All the markdown work happens here, at build time, so the runtime
+needs no markdown parser -- just a line scan.  Everything is ASCII-
+sanitized and wrapped to the display width so the MACRO-32 side can paint
+lines verbatim.
 """
 import os
 import re
@@ -32,7 +34,7 @@ WIDTH = 76
 TOPICS = [
     ("How to Play",       "H", "help/how-to-play.md"),
     ("Artifact Glossary", "A", "help/artifact-glossary.md"),
-    ("Complete Manual",   "M", "reference/sorcerors-cave/sorcerers-cave-rules.md"),
+    ("Original Manual",   "M", "reference/sorcerors-cave/sorcerers-cave-rules.md"),
 ]
 
 OUT = "src/macro32/sorcerer/SCAVEHLP.TXT"
@@ -103,7 +105,9 @@ def convert(md):
             title = strip_inline(h.group(2)).strip().rstrip("#").strip()
             if out and out[-1] != "":
                 out.append("")
-            out.append(title.upper() if level <= 2 else title)
+            # Tag headings with a leading "*H|" marker so the pager can
+            # render them in bold; HELP.MAR strips the marker before paint.
+            out.append("*H|" + (title.upper() if level <= 2 else title))
             out.append("")
             continue
         b = re.match(r"^\s*[-*+]\s+(.*)$", line)

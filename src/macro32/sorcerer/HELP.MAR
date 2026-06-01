@@ -165,7 +165,7 @@ DSC_IDX0:	.ASCID	/[H] How to Play/
 DSC_IDX1:	.ASCID	/[C] Character Chart/
 DSC_IDX2:	.ASCID	/[T] Creature Attributes/
 DSC_IDX3:	.ASCID	/[A] Artifact Glossary/
-DSC_IDX4:	.ASCID	/[M] Complete Manual/
+DSC_IDX4:	.ASCID	/[M] Original Manual/
 
 ;
 ; -- screen strings --
@@ -214,7 +214,9 @@ HROW:		.BLKL	1
 HCOL:		.BLKL	1
 TROW:		.BLKL	1			; scratch row for centered paints
 REND_REV:	.LONG	SMG$M_REVERSE
+REND_BOLD:	.LONG	SMG$M_BOLD
 FLAGS0:		.LONG	0
+HEAD_TAG:	.ASCII	/*H|/			; heading-line marker (3 bytes)
 
 ;
 ; -- FAO parameter cells for the pager status line --
@@ -547,8 +549,22 @@ PP_LOOP:
 	MOVL	LINE_LEN[R7], R3		; R3 = length
 	ADDL3	#HELP$_BODY_TOP, R6, R4		; R4 = row
 	MOVL	#3, R5				; R5 = column
-	BSBW	PAINT_AT
-	INCL	R6
+	; Heading?  A "*H|"-prefixed line is painted bold, marker stripped.
+	; (CMPB-only test -- avoids the R0-R3 clobber CMPC3 would cause.)
+	CMPL	R3, #3
+	BLSS	1$
+	CMPB	(R2), #^A/*/
+	BNEQ	1$
+	CMPB	1(R2), #^A/H/
+	BNEQ	1$
+	CMPB	2(R2), #^A/|/
+	BNEQ	1$
+	ADDL2	#3, R2				; skip the marker
+	SUBL2	#3, R3
+	BSBW	PAINT_BOLD_AT
+	BRB	2$
+1$:	BSBW	PAINT_AT
+2$:	INCL	R6
 	BRW	PP_LOOP
 PP_DONE:
 	MOVL	#HELP$_FOOT_ROW, TROW
@@ -577,6 +593,27 @@ PAINT_AT:
 	PUSHAL	HLINE_DSC
 	PUSHAL	SCAVE_UI_DSP_MAP
 	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_BOLD_AT  --  like PAINT_AT, but renders the text in bold
+;                     (used for heading lines in the prose pager).
+; -----------------------------------------------------------
+;
+PAINT_BOLD_AT:
+	MOVW	R3, HLINE_DSC			; length word
+	MOVL	R2, HLINE_DSC+4			; pointer
+	MOVL	R4, HROW
+	MOVL	R5, HCOL
+	PUSHAL	REND_BOLD
+	PUSHAL	FLAGS0
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHAL	HLINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
 	RSB
 
 
