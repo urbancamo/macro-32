@@ -50,6 +50,7 @@
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_PP2
 	.EXTRN	SCAVE_MAP_MV
 	.EXTRN	SCAVE_MAP_MP
 	.EXTRN	SCAVE_MAP_FELL
@@ -60,6 +61,7 @@
 	.EXTRN	SCAVE_PARTY_NP
 	.EXTRN	SCAVE_PARTY_PC
 	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
 	.EXTRN	SCAVE_PARTY_PT
 	.EXTRN	SCAVE_STATE_NC
 	.EXTRN	SCAVE_STATE_GS
@@ -67,6 +69,8 @@
 	; Carry-capacity model for manual treasure pickup.
 	.EXTRN	SCAVE_DATA_CR_CARRY
 	.EXTRN	SCAVE_DATA_TR_WT
+	; Fighting strength (ghouls now match each member at its real FS).
+	.EXTRN	SCAVE_DATA_CR_FS
 
 	; Per-chamber working set lives in STATE.MAR's SCAVE_CHAMBER_*
 	; globals so STRANGER.MAR can read SCAVE_CHAMBER_CS / SCAVE_CHAMBER_NS / etc.
@@ -89,6 +93,20 @@
 	; sizing constant we share with STATE.MAR's storage layout.  If
 	; you change this here, change it there too (and vice versa).
 	SCAVE$_AREA_ITEMS = 8
+
+	; Max strangers / treasure per chamber (mirror of STATE.MAR's
+	; SCAVE$_CHAMBER_MAX) -- the cap for dropping treasure into CT.
+	SCAVE$_CHAMBER_MAX = 8
+
+	; Creature index of the Wizard (Magic Staff wards Medusa) and the
+	; treasure index of the Magic Staff itself.
+	SCAVE$_CR_WIZARD = 8
+	SCAVE$_TR_STAFF  = 9
+
+	; Party-status sentinel used while mutiny rebuilds the party: a
+	; member tagged GONE has deserted to the strangers and is dropped
+	; by COMPACT_PARTY.  (PS_ORIG=0, ALLY=1, STONE=2, DEAD=3.)
+	SCAVE$_PS_GONE = 4
 
 	; Per-creature treasure backing slots -- MUST match STATE.MAR's
 	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
@@ -124,12 +142,19 @@ DSC_PFX_HAZARD:		.ASCID	/Hazard:/
 DSC_HZ_TRAP_MSG:	.ASCID	/!! TRAP -- party falls one level/
 DSC_HZ_TRAP_DWARF:	.ASCID	/!! TRAP -- the dwarf steps the party around it/
 DSC_HZ_QUAKE_MSG:	.ASCID	/!! EARTHQUAKE -- the way back collapses/
+DSC_HZ_QUAKE2_MSG:	.ASCID	/!! EARTHQUAKE -- the last two areas collapse/
 DSC_HZ_MEDUSA_MSG:	.ASCID	/!! MEDUSA -- her glance turns flesh to stone/
-DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack with strength 2/
-DSC_HZ_MUTINY_MSG:	.ASCID	/!! MUTINY -- allies turn against you/
-DSC_TURNED_TO_STONE:	.ASCID	/  ... !AS turned to STONE!/
+DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack -- each member fights/
+DSC_HZ_MUTINY_MSG:	.ASCID	/!! MUTINY -- your allies turn against you/
+DSC_TURNED_TO_STONE:	.ASCID	/  ... !AS is turned to STONE!/
+DSC_MEDUSA_WARD:	.ASCID	/  ... !AS's staff wards off her glance./
+DSC_MEDUSA_NONE:	.ASCID	/  ... the party meets her glance and survives./
 DSC_GHOUL_KILL:		.ASCID	/  ... !AS slain by ghouls!/
 DSC_GHOUL_OK:		.ASCID	/  ... !AS holds them off./
+DSC_GHOUL_DROP:		.ASCID	/  Heavy treasure is dropped, then recovered after./
+DSC_MUTINY_DESERT:	.ASCID	/  ... !AS deserts to the strangers!/
+DSC_MUTINY_LOYAL:	.ASCID	/  ... !AS stays loyal to you./
+DSC_DROPPED_TREASURE:	.ASCID	/  ... !AS's treasure is left in the chamber./
 DSC_TREASURE_GAINED:	.ASCID	/  Picked up: !AS/
 DSC_DRAW_FAO:		.ASCID	/  !AS  !AS/
 DSC_DRAW_COUNT_FAO:	.ASCID	/Drew !UL chamber card(s) from the small pack./
@@ -151,6 +176,8 @@ COL_TWO:	.LONG	2
 COL_FOUR:	.LONG	4
 COL_SIX:	.LONG	6
 GHOUL_NAME_PTR:	.BLKL	1			; member name descriptor for the FAO !AS
+MUT_KEEP:	.BLKL	1			; mutiny: must keep one ally loyal?
+MUT_KEPT:	.BLKL	1			; mutiny: have we kept one yet?
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
@@ -563,11 +590,11 @@ PAINT_PFX_NAME_TREASURE:
 ; ===========================================================
 ;
 APPLY_HAZARDS:
-	; For each priority, iterate SCAVE_CHAMBER_CH looking for that hazard
-	; and run the handler.  Idempotent for repeats (e.g. two
-	; traps run the trap handler twice).
-	MOVL	#2, R0				; earthquake
-	BSBW	APPLY_ONE_HAZARD
+	; Earthquake is handled by its own routine so it fires once even if
+	; (in a variant pack) two quake cards are drawn together.
+	BSBW	APPLY_QUAKE
+	; The rest dispatch per matching card via the CASE table.  Only one
+	; of each exists in the stock pack, so each runs once.
 	MOVL	#3, R0				; medusa
 	BSBW	APPLY_ONE_HAZARD
 	MOVL	#4, R0				; ghouls
@@ -613,110 +640,172 @@ AOH_NEXT:
 ;
 
 HAZ_QUAKE:
-	; Earthquake: zero MP[PP] (collapse the previous area entirely).
-	MOVL	SCAVE_MAP_PP, R0
-	BEQL	1$				; no PP yet (first move)
-	CLRL	SCAVE_MAP_MP[R0]
-1$:
+	; Earthquake is processed once by APPLY_QUAKE (not per-card), so the
+	; CASE target for index 2 is inert -- like HAZ_TRAP below.
 	BRW	AOH_NEXT
 
 HAZ_MEDUSA:
-	; Medusa: roll a die per party member; on 1 or 2 set PS = STONE.
-	CLRL	R5
+	; Medusa: roll a die per living member; 1 or 2 turns that creature to
+	; stone.  A wizard bearing the Magic Staff is immune.  A petrified
+	; member's treasure drops into the chamber, recoverable later.  Every
+	; outcome is reported on its own line.
+	MOVAB	DSC_HZ_MEDUSA_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, R9				; next result row
+	CLRL	R5				; party slot
 HM_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HM_BODY
-	BRW	AOH_NEXT
+	BRW	HM_END
 HM_BODY:
+	CMPL	SCAVE_PARTY_PS[R5], #2		; skip stone/dead
+	BLSS	HM_ALIVE
+	BRW	HM_NEXT
+HM_ALIVE:
+	; Magic Staff wards a wizard from her glance.
+	CMPL	SCAVE_PARTY_PC[R5], #SCAVE$_CR_WIZARD
+	BNEQ	HM_ROLL
+	MOVL	#SCAVE$_TR_STAFF, R0
+	BSBW	MEMBER_HAS_TREASURE		; R1 = 1 if this member holds it
+	BLBC	R1, HM_ROLL
+	MOVAB	DSC_MEDUSA_WARD, R3
+	BSBW	NAME_LINE			; render "<name>'s staff wards..."
+	BSBW	SHOW_RESULT_LINE
+	BRW	HM_NEXT
+HM_ROLL:
 	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
 	CMPL	R0, #2
-	BGTR	HM_NEXT				; safe
-	; Stone this creature.
-	MOVL	#2, SCAVE_PARTY_PS[R5]
+	BGTR	HM_NEXT				; 3-6 -> safe, no line
+	MOVL	#2, SCAVE_PARTY_PS[R5]		; STONE
+	MOVAB	DSC_TURNED_TO_STONE, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	; Drop the petrified member's treasure into the chamber.
+	BSBW	DROP_MEMBER_TREASURE		; R0 = items moved
+	TSTL	R0
+	BEQL	HM_NEXT
+	MOVAB	DSC_DROPPED_TREASURE, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
 HM_NEXT:
 	INCL	R5
-	BRB	HM_LOOP
+	BRW	HM_LOOP
+HM_END:
+	CMPL	R9, #5				; nothing reported -> all survived
+	BNEQ	HM_FIN
+	MOVL	#6, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_MEDUSA_NONE
+	CALLS	#2, G^PAINT_CENTERED
+HM_FIN:
+	BSBW	HZ_END
+	BRW	AOH_NEXT
 
 HAZ_GHOULS:
-	; Ghouls: each living party member fights ghouls of strength 2 for
-	; one round.  Paint the per-member outcome and pause, so the player
-	; sees who fell rather than just noticing the party has shrunk.
-	; (R6 is the hazard-scan loop index in APPLY_ONE_HAZARD -- keep it
-	; intact here; the die roll lives in R7.)
-	MOVL	#14, ROW_TMP
+	; Ghouls: each living member fights one round, its real fighting
+	; strength + a die against the ghouls' strength 2 + a die.  Slain
+	; members are removed and drop their treasure into the chamber.
+	; (R6/R8 are the APPLY scan state -- left intact by every call here.)
+	MOVAB	DSC_HZ_GHOULS_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, ROW_TMP			; the heavy-treasure note
 	PUSHAL	ROW_TMP
-	PUSHAL	DSC_HZ_GHOULS_MSG
+	PUSHAL	DSC_GHOUL_DROP
 	CALLS	#2, G^PAINT_CENTERED
-	MOVL	#15, R9				; next result row
+	MOVL	#7, R9				; next result row
 	CLRL	R5				; party slot
 HG_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HG_BODY
 	BRW	HG_END
 HG_BODY:
-	; Skip stone or already-dead members.
-	CMPL	SCAVE_PARTY_PS[R5], #2
+	CMPL	SCAVE_PARTY_PS[R5], #2		; skip stone/dead
 	BLSS	HG_FIGHT
 	BRW	HG_NEXT
 HG_FIGHT:
 	CALLS	#0, G^ROLL_DIE
 	MOVL	R0, R7				; party roll
-	CALLS	#0, G^ROLL_DIE			; ghoul roll in R0
-	; Stage simplification: party fight strength = 1, ghouls = 2.
-	ADDL2	#1, R7				; party total
-	ADDL2	#2, R0				; ghoul total
-	; This member's name for the result line.
 	MOVL	SCAVE_PARTY_PC[R5], R1
-	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
-	MOVL	(R2)[R1], GHOUL_NAME_PTR
+	MOVAB	SCAVE_DATA_CR_FS, R2
+	ADDL2	(R2)[R1], R7			; + member's fighting strength
+	CALLS	#0, G^ROLL_DIE			; ghoul roll
+	ADDL2	#2, R0				; + ghoul strength 2
+	MOVAB	DSC_GHOUL_OK, R3
 	CMPL	R7, R0
-	BLSS	HG_SLAIN			; party < ghoul -> slain
-	; Survived (tie = no kill).
-	MOVW	#120, LINE_DSC
-	$FAO_S	ctrstr=DSC_GHOUL_OK, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
-		p1=GHOUL_NAME_PTR
-	BRW	HG_SHOW
-HG_SLAIN:
-	MOVL	#3, SCAVE_PARTY_PS[R5]
-	MOVW	#120, LINE_DSC
-	$FAO_S	ctrstr=DSC_GHOUL_KILL, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
-		p1=GHOUL_NAME_PTR
+	BGEQ	HG_SHOW				; tie or better -> holds them off
+	; slain
+	MOVL	#3, SCAVE_PARTY_PS[R5]		; DEAD
+	MOVAB	DSC_GHOUL_KILL, R3
 HG_SHOW:
-	MOVW	FAO_OUTLEN, LINE_DSC
-	CMPL	R9, #20				; don't run into the prompt row
-	BGTR	HG_NEXT
-	MOVL	R9, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	LINE_DSC
-	CALLS	#2, G^PAINT_CENTERED
-	INCL	R9
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	CMPL	SCAVE_PARTY_PS[R5], #3		; if slain, drop its treasure
+	BNEQ	HG_NEXT
+	BSBW	DROP_MEMBER_TREASURE
 HG_NEXT:
 	INCL	R5
 	BRW	HG_LOOP
 HG_END:
-	MOVL	#21, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_PROMPT_CONT
-	CALLS	#2, G^PAINT_CENTERED
-	CALLS	#0, G^READ_KEY
+	BSBW	HZ_END
 	BRW	AOH_NEXT
 
 HAZ_MUTINY:
-	; Mutiny: every PS=ALLY (1) becomes PS=DEAD (3).  Simplified --
-	; the rules say allies "join any strangers in the chamber"; we
-	; just remove them.  Stage 5 will hook them onto SCAVE_CHAMBER_CS.
-	CLRL	R5
+	; Mutiny: living allies revert to strangers -- they join the
+	; chamber's strangers (to be retested) and drop any treasure they
+	; carried into the chamber.  If the party is entirely allies (no
+	; living original member), one ally of our choice stays loyal.
+	MOVAB	DSC_HZ_MUTINY_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, R9				; next result row
+	BSBW	HAS_LIVING_ORIG			; R0 = 1 if a living original exists
+	MOVL	#1, MUT_KEEP			; must keep one ally loyal?
+	TSTL	R0
+	BEQL	HMT_INIT
+	CLRL	MUT_KEEP			; originals remain -> no loyalty
+HMT_INIT:
+	CLRL	MUT_KEPT			; have we kept one loyal yet?
+	CLRL	R5				; party slot
 HMT_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HMT_BODY
-	BRW	AOH_NEXT
+	BRW	HMT_DONE
 HMT_BODY:
-	CMPL	SCAVE_PARTY_PS[R5], #1
-	BNEQ	HMT_NEXT
-	MOVL	#3, SCAVE_PARTY_PS[R5]
+	CMPL	SCAVE_PARTY_PS[R5], #1		; ALLY?
+	BEQL	HMT_ALLY
+	BRW	HMT_NEXT
+HMT_ALLY:
+	TSTL	MUT_KEEP			; keeping one loyal?
+	BEQL	HMT_CONVERT
+	TSTL	MUT_KEPT			; already kept one?
+	BNEQ	HMT_CONVERT
+	MOVL	#1, MUT_KEPT			; this ally stays loyal
+	MOVAB	DSC_MUTINY_LOYAL, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	BRW	HMT_NEXT
+HMT_CONVERT:
+	MOVL	SCAVE_PARTY_PC[R5], R7		; creature index of the deserter
+	MOVL	SCAVE_CHAMBER_NS, R0		; add to strangers if room
+	CMPL	R0, #SCAVE$_CHAMBER_MAX
+	BGEQ	HMT_DROP
+	MOVL	R7, SCAVE_CHAMBER_CS[R0]
+	INCL	SCAVE_CHAMBER_NS
+HMT_DROP:
+	BSBW	DROP_MEMBER_TREASURE		; drop its treasure into the chamber
+	MOVL	#SCAVE$_PS_GONE, SCAVE_PARTY_PS[R5]
+	MOVL	R7, R1				; name from the saved creature index
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], GHOUL_NAME_PTR
+	MOVAB	DSC_MUTINY_DESERT, R3
+	BSBW	NAME_LINE_PRESET		; name ptr already set
+	BSBW	SHOW_RESULT_LINE
 HMT_NEXT:
 	INCL	R5
-	BRB	HMT_LOOP
+	BRW	HMT_LOOP
+HMT_DONE:
+	BSBW	COMPACT_PARTY			; drop the GONE entries, fix NP
+	BSBW	HZ_END
+	BRW	AOH_NEXT
 
 HAZ_TRAP:
 	; Traps are resolved by ENTER_CHAMBER after the hazard pipeline
@@ -724,6 +813,205 @@ HAZ_TRAP:
 	; deciding the fall), so this handler is intentionally inert.
 	; Kept as a valid CASE-table target should index 1 ever dispatch.
 	BRW	AOH_NEXT
+
+
+;
+; ===========================================================
+;  Hazard feedback scaffolding and shared helpers.
+; ===========================================================
+;
+
+; HZ_BEGIN -- R5 = header descriptor addr.  Begin a pasteboard update,
+;             clear the main display, paint the header on row 3.
+HZ_BEGIN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+; HZ_END -- continue prompt on row 21, flush the batch, wait for a key.
+HZ_END:
+	MOVL	#21, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_CONT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+; SHOW_RESULT_LINE -- paint the prepared LINE_DSC at row R9 (when it fits
+;                     above the prompt) and advance R9.
+SHOW_RESULT_LINE:
+	CMPL	R9, #19
+	BGTR	1$
+	MOVL	R9, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	INCL	R9
+1$:	RSB
+
+; NAME_LINE -- R5 = party slot, R3 = control-string descriptor addr.
+;              Render "<member name>" through that control string into
+;              LINE_DSC.  NAME_LINE_PRESET skips the lookup (GHOUL_NAME_PTR
+;              already set by the caller).
+NAME_LINE:
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], GHOUL_NAME_PTR
+NAME_LINE_PRESET:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=(R3), outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=GHOUL_NAME_PTR
+	MOVW	FAO_OUTLEN, LINE_DSC
+	RSB
+
+; MEMBER_HAS_TREASURE -- R5 = slot, R0 = treasure index.  R1 = 1 if that
+;                        member carries it, else 0.
+MEMBER_HAS_TREASURE:
+	MOVL	R0, R3
+	MULL3	#SCAVE$_TREAS_PER, R5, R1
+	MOVL	#SCAVE$_TREAS_PER, R2
+1$:	TSTL	R2
+	BLEQ	2$
+	CMPL	SCAVE_PARTY_PT[R1], R3
+	BEQL	3$
+	INCL	R1
+	DECL	R2
+	BRB	1$
+2$:	CLRL	R1
+	RSB
+3$:	MOVL	#1, R1
+	RSB
+
+; DROP_MEMBER_TREASURE -- R5 = slot.  Move that member's treasure into the
+;                         chamber (CT, capped) and clear its pack slots.
+;                         R0 = items moved.  Clobbers R0-R4 (preserves R5+).
+DROP_MEMBER_TREASURE:
+	CLRL	R3				; items moved
+	MULL3	#SCAVE$_TREAS_PER, R5, R1	; PT base index for this member
+	MOVL	#SCAVE$_TREAS_PER, R2		; slots to scan
+DMT_LOOP:
+	TSTL	R2
+	BLEQ	DMT_DONE
+	MOVL	SCAVE_PARTY_PT[R1], R0
+	BLSS	DMT_SKIP			; -1 = empty slot
+	MOVL	SCAVE_CHAMBER_NT, R4
+	CMPL	R4, #SCAVE$_CHAMBER_MAX
+	BGEQ	DMT_CLR				; chamber full -> the item is lost
+	MOVL	R0, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+DMT_CLR:
+	MNEGL	#1, SCAVE_PARTY_PT[R1]		; clear the member's slot
+	INCL	R3
+DMT_SKIP:
+	INCL	R1
+	DECL	R2
+	BRB	DMT_LOOP
+DMT_DONE:
+	MOVL	R3, R0
+	RSB
+
+; HAS_LIVING_ORIG -- R0 = 1 if any living original member (PS = ORIG = 0).
+HAS_LIVING_ORIG:
+	CLRL	R1
+1$:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	2$
+	TSTL	SCAVE_PARTY_PS[R1]
+	BNEQ	3$
+	MOVL	#1, R0
+	RSB
+3$:	INCL	R1
+	BRB	1$
+2$:	CLRL	R0
+	RSB
+
+; COMPACT_PARTY -- drop PS = GONE members, shifting PC/PS/PK and the
+;                  per-member PT block down, and fix NP.  Clobbers R0-R5.
+COMPACT_PARTY:
+	CLRL	R1				; dst slot
+	CLRL	R2				; src slot
+CP_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	CP_DONE
+	CMPL	SCAVE_PARTY_PS[R2], #SCAVE$_PS_GONE
+	BEQL	CP_SKIP
+	CMPL	R1, R2
+	BEQL	CP_ADV				; already in place
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R1]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R1]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R1]
+	MULL3	#<SCAVE$_TREAS_PER*4>, R2, R3
+	MOVAB	SCAVE_PARTY_PT, R4
+	ADDL2	R4, R3				; R3 = src PT-block addr
+	MULL3	#<SCAVE$_TREAS_PER*4>, R1, R0
+	ADDL2	R4, R0				; R0 = dst PT-block addr
+	PUSHR	#^M<R1,R2>			; MOVC3 clobbers R0-R5
+	MOVC3	#<SCAVE$_TREAS_PER*4>, (R3), (R0)
+	POPR	#^M<R1,R2>
+CP_ADV:
+	INCL	R1
+CP_SKIP:
+	INCL	R2
+	BRB	CP_LOOP
+CP_DONE:
+	MOVL	R1, SCAVE_PARTY_NP
+	RSB
+
+; COUNT_QUAKES -- R0 = number of EARTHQUAKE cards (index 2) in CH.
+COUNT_QUAKES:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_CHAMBER_NH
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CH[R2], #2
+	BNEQ	3$
+	INCL	R0
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+; COLLAPSE_AREA -- R5 = area index.  Wipe its card (MP), flags (AF) and
+;                  persisted contents (AC).  No-op for area 0.
+COLLAPSE_AREA:
+	TSTL	R5
+	BEQL	CA_DONE
+	CLRL	SCAVE_MAP_MP[R5]
+	CLRL	SCAVE_AREA_AF[R5]
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R5, R0
+	MOVAB	SCAVE_AREA_AC, R1
+	ADDL2	R0, R1
+	MOVL	#SCAVE$_AREA_ITEMS, R2
+CA_CLR:	CLRL	(R1)+
+	SOBGTR	R2, CA_CLR
+CA_DONE:
+	RSB
+
+; APPLY_QUAKE -- earthquake, fired once.  One quake collapses the previous
+;                area; two (variant packs) collapse the last two.  Feedback.
+APPLY_QUAKE:
+	BSBW	COUNT_QUAKES			; R0 = quake cards present
+	TSTL	R0
+	BNEQ	1$
+	RSB					; no earthquake here
+1$:	MOVL	R0, R7				; quake count
+	CMPL	R7, #1
+	BGTR	2$
+	MOVAB	DSC_HZ_QUAKE_MSG, R5
+	BRB	3$
+2$:	MOVAB	DSC_HZ_QUAKE2_MSG, R5
+3$:	BSBW	HZ_BEGIN
+	MOVL	SCAVE_MAP_PP, R5
+	BSBW	COLLAPSE_AREA
+	CMPL	R7, #1
+	BLEQ	4$
+	MOVL	SCAVE_MAP_PP2, R5
+	BSBW	COLLAPSE_AREA
+4$:	BSBW	HZ_END
+	RSB
 
 
 ;
