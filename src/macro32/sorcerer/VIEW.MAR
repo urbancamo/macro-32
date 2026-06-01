@@ -53,6 +53,7 @@
 	.EXTRN	SCAVE_MAP_MP
 	.EXTRN	SCAVE_MAP_ML
 	.EXTRN	SCAVE_AREA_AC
+	.EXTRN	SCAVE_AREA_DROP_SIDE
 
 	; UI helpers used by the map screen.
 	.EXTRN	BEGIN_BATCH
@@ -231,8 +232,44 @@ DCA_NOTSPECIAL:
 DCA_TUNNEL:
 	BSBW	DRAW_TUNNEL
 DCA_DONE:
+	BSBW	DRAW_DROP_MARKER		; '$' if heavy treasure lies in a doorway
 	MOVL	#SS$_NORMAL, R0
 	RET
+
+
+;
+; ===========================================================
+;  DRAW_DROP_MARKER  --  if the current area has heavy treasure left
+;                        in a doorway (SCAVE_AREA_DROP_SIDE), draw a
+;                        '$' just inside that doorway.
+; ===========================================================
+;
+DRAW_DROP_MARKER:
+	MOVL	SCAVE_MAP_PA, R0
+	MOVL	SCAVE_AREA_DROP_SIDE[R0], R1
+	BNEQ	1$
+	RSB					; no dropped treasure here
+1$:	MOVB	#^A/$/, CHARBUF
+	CMPL	R1, #1				; North
+	BNEQ	2$
+	MOVL	#<CH_RT+1>, DSP_ROW
+	MOVL	#CTR_COL, DSP_COL
+	BRB	DDM_PAINT
+2$:	CMPL	R1, #3				; South
+	BNEQ	3$
+	MOVL	#<CH_RB-1>, DSP_ROW
+	MOVL	#CTR_COL, DSP_COL
+	BRB	DDM_PAINT
+3$:	CMPL	R1, #2				; East
+	BNEQ	4$
+	MOVL	#CTR_ROW, DSP_ROW
+	MOVL	#<CH_CR-1>, DSP_COL
+	BRB	DDM_PAINT
+4$:	MOVL	#CTR_ROW, DSP_ROW		; West (4)
+	MOVL	#<CH_CL+1>, DSP_COL
+DDM_PAINT:
+	BSBW	PAINT_CHAR
+	RSB
 
 
 ;

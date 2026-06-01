@@ -47,8 +47,16 @@
 	.EXTRN	SCAVE_UI_DSP_MAP
 
 	.EXTRN	ROLL_DIE
+	.EXTRN	DECODE_AREA
 
 	.EXTRN	SCAVE_DEC_AT
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_ML
+	.EXTRN	SCAVE_AREA_DROP_SIDE
+	.EXTRN	SCAVE_AREA_DROP_PT
 
 	.EXTRN	SCAVE_PARTY_NP
 	.EXTRN	SCAVE_PARTY_PC
@@ -56,8 +64,14 @@
 	.EXTRN	SCAVE_PARTY_PT
 
 	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_WT
+	.EXTRN	SCAVE_DATA_CR_CARRY
 
 	.EXTRN	HAS_ARTIFACT
+
+	; Giant creature index (carries heavy treasure across the pool).
+	SCAVE$_CR_GIANT = 12
 
 	; Per-creature treasure backing slots -- MUST match STATE.MAR's
 	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
@@ -81,6 +95,29 @@ DSC_POOL_DROP:		.ASCID	/  ... !AS drops their heavy treasure at the edge./
 DSC_POOL_SAFE:		.ASCID	/  ... !AS wades across./
 DSC_POOL_GIANT:		.ASCID	/  ... !AS the GIANT carries everyone's load./
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
+
+; Deep-pool edge (arrival) + crossing narration.
+DSC_POOL_EDGE:		.ASCID	/You reach the edge of the deep pool, but cannot cross with heavy loads./
+DSC_POOL_OPT1:		.ASCID	/Next turn: go back the way you came to keep your treasure,/
+DSC_POOL_OPT2:		.ASCID	/or cross to another doorway -- heavy treasure is left in that doorway/
+DSC_POOL_OPT3:		.ASCID	/(a giant can carry it across).  It can be reclaimed from the doorway./
+DSC_POOL_LEFT:		.ASCID	/Heavy treasure is left in the doorway behind you./
+DSC_POOL_GIANT_CARRY:	.ASCID	/The giant hefts the heavy treasure and carries it across./
+DSC_POOL_CROSSED:	.ASCID	/You wade across the deep pool./
+DSC_POOL_RECLAIM_Q:	.ASCID	/Reclaim the treasure left in the doorway?  (Y or N)/
+DSC_POOL_GOT:		.ASCID	/  ... !AS is taken back up./
+DSC_POOL_NOROOM:	.ASCID	/  ... !AS is too heavy to carry; it stays./
+DSC_POOL_HDR_CROSS:	.ASCID	/-- CROSSING THE DEEP POOL --/
+DSC_POOL_HDR_RECL:	.ASCID	/-- TREASURE IN THE DOORWAY --/
+
+	; Deep-pool move bookkeeping (set before a move out of a pool,
+	; applied after the move succeeds).
+	.ALIGN	LONG
+POOL_LEAVING:	.BLKL	1			; 1 if leaving a deep pool this move
+POOL_AREA:	.BLKL	1			; the pool area being left
+POOL_DIR:	.BLKL	1			; the move direction (1..4)
+POOL_ENTRY:	.BLKL	1			; doorway we entered the pool by
+DROP_NAME_PTR:	.BLKL	1			; treasure name descriptor for FAO !AS
 
 ;
 ; FAO buffer.
@@ -208,83 +245,443 @@ V_FINISH:
 
 ;
 ; ===========================================================
-;  HANDLE_POOL  --  drop heavy treasure for non-Giants.
-;                  Giants (creature index 12) keep their load.
+;  HANDLE_POOL  --  ARRIVAL turn.  The party reaches the edge of the
+;                   pool but does not cross yet (rules: "move your
+;                   token onto it, but not across the water").  Narrate
+;                   the choice for next turn -- go back (keep treasure)
+;                   or cross to another doorway (heavy treasure is left
+;                   in the doorway unless a giant carries it).  The
+;                   actual drop/cross happens on the next move and is
+;                   driven by POOL_PRE_MOVE / POOL_AFTER_MOVE.
 ; ===========================================================
 ;
 HANDLE_POOL:
 	CALLS	#0, G^BEGIN_BATCH
 	CALLS	#0, G^ERASE_MAIN
-
 	MOVL	#3, ROW_TMP
 	PUSHAL	ROW_TMP
 	PUSHAL	DSC_HDR_POOL
 	CALLS	#2, G^PAINT_CENTERED
-
 	MOVL	#5, ROW_TMP
 	PUSHAL	ROW_TMP
-	PUSHAL	DSC_POOL_INTRO
+	PUSHAL	DSC_POOL_EDGE
 	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#7, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_OPT1
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#8, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_OPT2
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#9, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_OPT3
+	CALLS	#2, G^PAINT_CENTERED
+	BSBW	PAINT_PROMPT_AND_WAIT
+	RSB
 
-	MOVL	#7, R7				; next paint row
-	CLRL	R5				; slot
-P_LOOP:
+
+;
+; ===========================================================
+;  POOL_PRE_MOVE  --  arg: move direction (1..6).  Called by MAIN just
+;                     before TRY_MOVE.  If the party is leaving a deep
+;                     pool laterally, record the pool area, the move
+;                     direction and the doorway we entered by, so
+;                     POOL_AFTER_MOVE can drop / reclaim once the move
+;                     has succeeded.
+; ===========================================================
+;
+	.ENTRY	POOL_PRE_MOVE, ^M<R2,R3,R4,R5,R6,R7>
+	CLRL	POOL_LEAVING
+	MOVL	4(AP), R5			; direction
+	TSTL	R5
+	BLEQ	1$
+	CMPL	R5, #4
+	BGTR	1$				; not a lateral move
+	MOVL	SCAVE_MAP_PA, R0
+	PUSHL	SCAVE_MAP_MP[R0]
+	CALLS	#1, G^DECODE_AREA
+	CMPL	SCAVE_DEC_AT, #2
+	BNEQ	1$				; current area not a deep pool
+	MOVL	#1, POOL_LEAVING
+	MOVL	SCAVE_MAP_PA, POOL_AREA
+	MOVL	R5, POOL_DIR
+	BSBW	COMPUTE_ENTRY_SIDE		; R0 = doorway toward PP
+	MOVL	R0, POOL_ENTRY
+1$:	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  POOL_AFTER_MOVE  --  no args.  Called by MAIN after a move that
+;                       succeeded.  If we just left a deep pool: leaving
+;                       by the doorway that holds dropped treasure
+;                       reclaims it; leaving by any doorway other than
+;                       the one we entered drops heavy treasure there.
+; ===========================================================
+;
+	.ENTRY	POOL_AFTER_MOVE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	TSTL	POOL_LEAVING
+	BNEQ	1$
+	BRW	PAM_DONE
+1$:	MOVL	POOL_AREA, R0
+	CMPL	SCAVE_AREA_DROP_SIDE[R0], POOL_DIR
+	BNEQ	2$
+	BSBW	POOL_RECLAIM			; left via the treasure doorway
+	BRB	PAM_DONE
+2$:	CMPL	POOL_DIR, POOL_ENTRY
+	BEQL	PAM_DONE			; went back the way we came
+	BSBW	POOL_CROSS_DROP			; crossed -> drop heavy treasure
+PAM_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  COMPUTE_ENTRY_SIDE  --  R0 = direction (1=N 2=E 3=S 4=W) from the
+;                          current area toward the previous area (PP),
+;                          i.e. the doorway we came in by.  0 if no PP.
+;                          ML = level*10000 + y*100 + x.
+; ===========================================================
+;
+COMPUTE_ENTRY_SIDE:
+	MOVL	SCAVE_MAP_PP, R1
+	BNEQ	CES_HAVE
+	CLRL	R0
+	RSB
+CES_HAVE:
+	MOVL	SCAVE_MAP_PA, R0
+	MOVL	SCAVE_MAP_ML[R0], R2		; PA coords
+	MOVL	SCAVE_MAP_ML[R1], R3		; PP coords
+	; xa = R2 mod 100 ; ya = (R2/100) mod 100
+	DIVL3	#100, R2, R4
+	MULL3	#100, R4, R0
+	SUBL3	R0, R2, R0			; R0 = xa
+	DIVL3	#100, R4, R5
+	MULL3	#100, R5, R5
+	SUBL3	R5, R4, R4			; R4 = ya
+	; xb / yb from PP
+	DIVL3	#100, R3, R5
+	MULL3	#100, R5, R2
+	SUBL3	R2, R3, R2			; R2 = xb
+	DIVL3	#100, R5, R6
+	MULL3	#100, R6, R6
+	SUBL3	R6, R5, R5			; R5 = yb
+	SUBL2	R0, R2				; R2 = dx = xb - xa
+	SUBL2	R4, R5				; R5 = dy = yb - ya
+	CMPL	R2, #1
+	BNEQ	1$
+	MOVL	#2, R0				; East
+	RSB
+1$:	CMPL	R2, #-1
+	BNEQ	2$
+	MOVL	#4, R0				; West
+	RSB
+2$:	CMPL	R5, #1
+	BNEQ	3$
+	MOVL	#3, R0				; South
+	RSB
+3$:	CMPL	R5, #-1
+	BNEQ	CES_NONE
+	MOVL	#1, R0				; North
+	RSB
+CES_NONE:
+	CLRL	R0
+	RSB
+
+
+;
+; ===========================================================
+;  HAS_LIVING_GIANT  --  R0 = 1 if a living Giant is in the party.
+; ===========================================================
+;
+HAS_LIVING_GIANT:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	2$
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	3$
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_GIANT
+	BNEQ	3$
+	MOVL	#1, R0
+	RSB
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  POOL_CROSS_DROP  --  the party crossed the water.  A living giant
+;                       carries all the heavy treasure; otherwise each
+;                       member's heavy treasure (TR_WT > 0) is left in
+;                       the entry doorway (POOL_ENTRY) of POOL_AREA.
+; ===========================================================
+;
+POOL_CROSS_DROP:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_HDR_CROSS
+	CALLS	#2, G^PAINT_CENTERED
+	BSBW	HAS_LIVING_GIANT
+	TSTL	R0
+	BEQL	PCD_DROP
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_GIANT_CARRY
+	CALLS	#2, G^PAINT_CENTERED
+	BSBW	PAINT_PROMPT_AND_WAIT
+	RSB
+PCD_DROP:
+	MOVL	#7, R7				; paint row
+	CLRL	R5				; party slot
+	CLRL	R6				; total items dropped
+PCD_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
-	BLSS	P_BODY
-	BRW	P_FINISH
-P_BODY:
-	MOVL	SCAVE_PARTY_PS[R5], R0
-	CMPL	R0, #2
-	BLSS	P_DO_MEMBER
-	BRW	P_NEXT
-P_DO_MEMBER:
-	; Pull creature index + name descriptor address.
+	BLSS	PCD_BODY
+	BRW	PCD_END
+PCD_BODY:
+	CMPL	SCAVE_PARTY_PS[R5], #2
+	BLSS	PCD_DO
+	BRW	PCD_NEXT
+PCD_DO:
+	BSBW	DROP_MEMBER_HEAVY		; R0 = items dropped
+	ADDL2	R0, R6
+	TSTL	R0
+	BEQL	PCD_NEXT
 	MOVL	SCAVE_PARTY_PC[R5], R1
 	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
-	MOVL	(R2)[R1], R3			; R3 = name desc addr
-
-	CMPL	R1, #12
-	BEQL	P_GIANT				; Giant: keep load
-
-	; Non-Giant: clear any heavy-treasure slot (indices 0..2).
-	BSBW	DROP_HEAVY_FOR_SLOT
+	MOVL	(R2)[R1], R3
 	MOVAB	DSC_POOL_DROP, R4
 	BSBW	PAINT_PER_CREATURE
-	BRW	P_NEXT
-P_GIANT:
-	MOVAB	DSC_POOL_GIANT, R4
-	BSBW	PAINT_PER_CREATURE
-P_NEXT:
+PCD_NEXT:
 	INCL	R5
-	BRW	P_LOOP
-
-P_FINISH:
+	BRW	PCD_LOOP
+PCD_END:
+	TSTL	R6
+	BEQL	PCD_NOHEAVY
+	; Something was dropped -- record the doorway it sits in and say so.
+	MOVL	POOL_AREA, R0
+	MOVL	POOL_ENTRY, SCAVE_AREA_DROP_SIDE[R0]
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_LEFT
+	CALLS	#2, G^PAINT_CENTERED
+	BRB	PCD_FIN
+PCD_NOHEAVY:
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_CROSSED
+	CALLS	#2, G^PAINT_CENTERED
+PCD_FIN:
 	BSBW	PAINT_PROMPT_AND_WAIT
 	RSB
 
 
 ;
 ; -----------------------------------------------------------
-;  DROP_HEAVY_FOR_SLOT  --  R5 = party slot.  Walk PT[R5*4..+3]
-;                           and clear any entry whose treasure
-;                           index is < 3 (Silver/Gold/Gems).
-;                           Stage 5 simplification: dropped items
-;                           are not yet stored on the area card.
+;  DROP_MEMBER_HEAVY  --  R5 = party slot.  Move each heavy-treasure
+;                         item (TR_WT > 0) from the member into the
+;                         POOL_AREA drop store (up to 4 total).  R0 =
+;                         number moved.  Preserves R5 and R7.
 ; -----------------------------------------------------------
 ;
-DROP_HEAVY_FOR_SLOT:
-	MULL3	#SCAVE$_TREAS_PER, R5, R0	; offset of first slot
-	MOVL	#SCAVE$_TREAS_PER, R1		; slots per member
-1$:
-	MOVL	SCAVE_PARTY_PT[R0], R2
-	CMPL	R2, #0
-	BLSS	2$				; -1 = empty
-	CMPL	R2, #3
-	BGEQ	2$				; not heavy treasure
-	MNEGL	#1, SCAVE_PARTY_PT[R0]		; clear slot
-2$:
-	INCL	R0
-	SOBGTR	R1, 1$
+DROP_MEMBER_HEAVY:
+	CLRL	R8				; count
+	MULL3	#SCAVE$_TREAS_PER, R5, R9	; member PT base
+	CLRL	R10				; slot k
+DMH_LOOP:
+	CMPL	R10, #SCAVE$_TREAS_PER
+	BGEQ	DMH_DONE
+	ADDL3	R9, R10, R11			; PT element index
+	MOVL	SCAVE_PARTY_PT[R11], R0
+	BLSS	DMH_NEXT			; -1 empty
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	TSTL	(R1)[R0]
+	BEQL	DMH_NEXT			; weightless artifact -> keep
+	BSBW	STORE_DROP			; R0 = tr in; R1 = 1 if stored
+	TSTL	R1
+	BEQL	DMH_NEXT			; store full -> can't drop, keep
+	MNEGL	#1, SCAVE_PARTY_PT[R11]		; remove from member
+	INCL	R8
+DMH_NEXT:
+	INCL	R10
+	BRB	DMH_LOOP
+DMH_DONE:
+	MOVL	R8, R0
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  STORE_DROP  --  R0 = treasure index.  Store it (as index+1) in the
+;                  first free DROP_PT slot of POOL_AREA.  R1 = 1 if
+;                  stored, 0 if the 4 slots are full.  Preserves R5-R11.
+; -----------------------------------------------------------
+;
+STORE_DROP:
+	MOVL	POOL_AREA, R2
+	MULL3	#4, R2, R2			; DROP_PT base = area*4
+	CLRL	R3				; k
+SD_LOOP:
+	CMPL	R3, #4
+	BGEQ	SD_FULL
+	ADDL3	R2, R3, R1
+	TSTL	SCAVE_AREA_DROP_PT[R1]
+	BNEQ	SD_NEXT
+	ADDL3	#1, R0, SCAVE_AREA_DROP_PT[R1]	; store index+1
+	MOVL	#1, R1
+	RSB
+SD_NEXT:
+	INCL	R3
+	BRB	SD_LOOP
+SD_FULL:
+	CLRL	R1
+	RSB
+
+
+;
+; ===========================================================
+;  POOL_RECLAIM  --  the party left via the doorway holding dropped
+;                    treasure.  Offer to take it back; on Y, give each
+;                    item to the first living member with a free slot.
+; ===========================================================
+;
+POOL_RECLAIM:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_HDR_RECL
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_RECLAIM_Q
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+PR_READ:
+	CALLS	#0, G^READ_KEY
+	CMPL	R0, #^A/Y/
+	BEQL	PR_YES
+	CMPL	R0, #^A/y/
+	BEQL	PR_YES
+	CMPL	R0, #^A/N/
+	BEQL	PR_NO
+	CMPL	R0, #^A/n/
+	BEQL	PR_NO
+	BRB	PR_READ
+PR_NO:
+	RSB					; leave it in the doorway
+PR_YES:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_POOL_HDR_RECL
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	POOL_AREA, R0
+	MULL3	#4, R0, R6			; DROP_PT base
+	MOVL	#7, R7				; paint row
+	CLRL	R8				; k
+PR_LOOP:
+	CMPL	R8, #4
+	BGEQ	PR_END
+	ADDL3	R6, R8, R9
+	MOVL	SCAVE_AREA_DROP_PT[R9], R0
+	BEQL	PR_LNEXT			; empty
+	DECL	R0				; treasure index (stored as +1)
+	MOVL	R0, R10				; remember it for the name
+	BSBW	AUTO_GIVE			; R0 = tr; R1 = 1 if given
+	TSTL	R1
+	BEQL	PR_NOROOM
+	CLRL	SCAVE_AREA_DROP_PT[R9]		; taken
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R10], R3
+	MOVAB	DSC_POOL_GOT, R4
+	BSBW	PAINT_PER_CREATURE
+	BRB	PR_LNEXT
+PR_NOROOM:
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R10], R3
+	MOVAB	DSC_POOL_NOROOM, R4
+	BSBW	PAINT_PER_CREATURE
+PR_LNEXT:
+	INCL	R8
+	BRB	PR_LOOP
+PR_END:
+	BSBW	DROP_SLOTS_EMPTY		; R0 = 1 if all taken
+	TSTL	R0
+	BEQL	1$
+	MOVL	POOL_AREA, R0
+	CLRL	SCAVE_AREA_DROP_SIDE[R0]
+1$:	BSBW	PAINT_PROMPT_AND_WAIT
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  AUTO_GIVE  --  R0 = treasure index.  Give it to the first living
+;                 member with a free pack slot.  R1 = 1 if given, 0 if
+;                 no room.  (Reclaiming the party's own dropped load,
+;                 so no fresh weight check.)  Preserves R5-R11.
+; -----------------------------------------------------------
+;
+AUTO_GIVE:
+	MOVL	R0, R4				; treasure index
+	CLRL	R2				; member slot
+AG_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	AG_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	AG_NEXT
+	MULL3	#SCAVE$_TREAS_PER, R2, R0
+	CLRL	R1				; k
+AG_SLOT:
+	CMPL	R1, #SCAVE$_TREAS_PER
+	BGEQ	AG_NEXT				; this member full
+	ADDL3	R0, R1, R3
+	CMPL	SCAVE_PARTY_PT[R3], #-1
+	BEQL	AG_PLACE
+	INCL	R1
+	BRB	AG_SLOT
+AG_PLACE:
+	MOVL	R4, SCAVE_PARTY_PT[R3]
+	MOVL	#1, R1
+	RSB
+AG_NEXT:
+	INCL	R2
+	BRB	AG_LOOP
+AG_NO:
+	CLRL	R1
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  DROP_SLOTS_EMPTY  --  R0 = 1 if all 4 DROP_PT slots of POOL_AREA
+;                        are empty.  Preserves R5-R11.
+; -----------------------------------------------------------
+;
+DROP_SLOTS_EMPTY:
+	MOVL	POOL_AREA, R1
+	MULL3	#4, R1, R1
+	CLRL	R2
+1$:	CMPL	R2, #4
+	BGEQ	2$
+	ADDL3	R1, R2, R3
+	TSTL	SCAVE_AREA_DROP_PT[R3]
+	BEQL	3$
+	CLRL	R0
+	RSB
+3$:	INCL	R2
+	BRB	1$
+2$:	MOVL	#1, R0
 	RSB
 
 

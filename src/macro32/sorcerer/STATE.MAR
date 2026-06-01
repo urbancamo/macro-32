@@ -138,6 +138,15 @@ SCAVE_AREA_AI::		.BLKL	SCAVE$_AREA_COUNT	; indifference test count
 							; chamber's stranger encounter; on
 							; the 3rd, set AF_PERMINDIFF)
 
+; Heavy treasure left "in the doorway" at the Deep Pool (rules): the
+; party drops it crossing the water and reclaims it by leaving via that
+; doorway again.  DROP_SIDE = the doorway direction (1=N 2=E 3=S 4=W),
+; 0 = nothing dropped here.  DROP_PT = up to 4 dropped treasure indices,
+; stored as index+1 (0 = empty slot).
+	.ALIGN	LONG
+SCAVE_AREA_DROP_SIDE::	.BLKL	SCAVE$_AREA_COUNT
+SCAVE_AREA_DROP_PT::	.BLKL	<SCAVE$_AREA_COUNT*4>
+
 ;
 ; ===========================================================
 ;  Party

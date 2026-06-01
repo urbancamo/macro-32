@@ -52,6 +52,12 @@
 ;
 	.EXTRN	DRAW_CURRENT_AREA
 	.EXTRN	SHOW_MAP
+
+;
+; Deep-pool crossing hooks (SPECIAL.MAR)
+;
+	.EXTRN	POOL_PRE_MOVE
+	.EXTRN	POOL_AFTER_MOVE
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -462,7 +468,11 @@ T_DO_DIR:
 	TSTL	R5
 	BNEQ	200$				; defensive (shouldn't happen)
 	BRW	T_LOOP
-200$:	PUSHL	R5
+200$:	; Note whether this move leaves a deep pool (and by which doorway)
+	; before TRY_MOVE overwrites PP -- POOL_AFTER_MOVE uses it.
+	PUSHL	R5
+	CALLS	#1, G^POOL_PRE_MOVE
+	PUSHL	R5
 	CALLS	#1, G^TRY_MOVE
 	; R0 = 1 on move, 0 on dead-end / no-exit / pack-empty.  Either
 	; way, refresh the display next iteration.  Increment the turn
@@ -480,6 +490,9 @@ T_DO_DIR:
 	CALLS	#0, G^READ_KEY
 206$:	BRW	T_LOOP
 201$:	INCL	SCAVE_STATE_TN
+	; If we just crossed/left a deep pool, drop or reclaim the heavy
+	; treasure left in the doorway.
+	CALLS	#0, G^POOL_AFTER_MOVE
 T_DISPATCH:
 	; Decode the area the party now occupies, then dispatch:
 	;   AT == 2  -> Deep Pool   (SPECIAL)
