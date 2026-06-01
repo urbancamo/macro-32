@@ -387,7 +387,26 @@ T_GO:
 
 	; map N/E/S/W/U/D (upper or lower) to direction 1..6
 	MOVL	#0, R5				; default: no direction
-	CMPL	R6, #^A/N/
+
+	; Arrow keys are an alternative to N/E/S/W: Up=N Down=S Left=W
+	; Right=E.  (The U/D stairs stay on the letter keys.)
+	CMPL	R6, #SMG$K_TRM_UP
+	BNEQ	20$
+	MOVL	#1, R5				; North
+	BRW	T_DO_DIR
+20$:	CMPL	R6, #SMG$K_TRM_DOWN
+	BNEQ	21$
+	MOVL	#3, R5				; South
+	BRW	T_DO_DIR
+21$:	CMPL	R6, #SMG$K_TRM_LEFT
+	BNEQ	22$
+	MOVL	#4, R5				; West
+	BRW	T_DO_DIR
+22$:	CMPL	R6, #SMG$K_TRM_RIGHT
+	BNEQ	23$
+	MOVL	#2, R5				; East
+	BRW	T_DO_DIR
+23$:	CMPL	R6, #^A/N/
 	BNEQ	2$
 	MOVL	#1, R5
 	BRW	T_DO_DIR
