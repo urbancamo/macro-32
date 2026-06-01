@@ -46,6 +46,11 @@
 	.EXTRN	DECODE_AREA
 	.EXTRN	TRY_MOVE
 	.EXTRN	FALL_TO_BELOW
+
+;
+; Area visualization (VIEW.MAR)
+;
+	.EXTRN	DRAW_CURRENT_AREA
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -123,13 +128,13 @@ PARTY_FAO:	.ASCID	/Party (!UL): !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS !AS/
 
 ; One-creature inventory line: name, then four item names (or
 ; empty descriptors when the slot is unused).
-PMEM_FAO:	.ASCID	/!10AS  !3UL kg  !AS !AS !AS !AS !AS/
+PMEM_FAO:	.ASCID	/!10AS !3UL kg/
 OVF_FAO:	.ASCID	/+!UL/
 
 ;
 ; Static prompt and helper descriptors.
 ;
-PROMPT_DSC:	.ASCID	/[N E S W U D] move    [Q] quit/
+PROMPT_DSC:	.ASCID	/[NESWUD] move   [M] map   [Q] quit/
 DEADEND_DSC:	.ASCID	/That way is a dead end -- the party stays put./
 	.ALIGN	LONG
 DEADEND_ROW:	.LONG	19
@@ -203,7 +208,7 @@ OVF_DSC:	.WORD	16
 		.ADDRESS OVF_BUF
 
 ; Static columns + first-row index for the inventory listing.
-PMEM_COL:	.LONG	4
+PMEM_COL:	.LONG	32
 PMEM_FIRST_ROW:	.LONG	7
 
 ;
@@ -242,9 +247,9 @@ PROMPT_ROW:	.LONG	21
 ; drawn (= 7 + living-count).  The label is overlaid on the top edge.
 ;
 PBOX_TOP:	.LONG	6
-PBOX_LEFT:	.LONG	2
-PBOX_RIGHT:	.LONG	68
-PBOX_LABEL_COL:	.LONG	4
+PBOX_LEFT:	.LONG	30
+PBOX_RIGHT:	.LONG	78
+PBOX_LABEL_COL:	.LONG	32
 PARTY_BOX_BOT:	.BLKL	1
 	.ALIGN	LONG
 PARTY_TITLE_DSC:	.ASCID	/ Party /
@@ -520,9 +525,9 @@ PAINT_TURN:
 	PUSHAL	HEADER_DSC
 	CALLS	#2, G^PAINT_CENTERED
 
-	PUSHAL	EXITS_ROW
-	PUSHAL	EXITS_DSC
-	CALLS	#2, G^PAINT_CENTERED
+	; Draw the current area diagram on the left (replaces the old text
+	; "Exits:" line -- the diagram shows exits and stairs visually).
+	CALLS	#0, G^DRAW_CURRENT_AREA
 
 	; Per-creature inventory rows: one PUSHAL per living member at
 	; column PMEM_COL, starting at row PMEM_FIRST_ROW.  Also flips
