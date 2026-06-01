@@ -248,18 +248,29 @@ PICK_MARK_PTR:	.BLKL	1
 	BRW	C_FRESH
 
 C_REENTRY:
-	; Restore SCAVE_CHAMBER_* from the area's saved AC slots.  Hazards
-	; are not persisted; NH stays at 0.
+	; Restore SCAVE_CHAMBER_* -- strangers, treasure AND the persisted
+	; re-firing hazards (Trap/Medusa/Ghouls) -- from the saved AC slots.
 	BSBW	LOAD_PERSISTED
-	; A cleared chamber has nothing to show: don't paint a blank
-	; re-entry screen or pause for a keystroke -- just return to the
-	; turn loop, which repaints the area.
+	; A truly empty chamber (no strangers, treasure or hazards) has
+	; nothing to show or do: return to the turn loop without painting a
+	; blank screen or pausing for a keystroke.
 	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, R0
+	ADDL2	SCAVE_CHAMBER_NH, R0
 	BNEQ	1$
 	MOVL	#SS$_NORMAL, R0
 	RET
 1$:	BSBW	PAINT_CHAMBER_REENTRY
+	; Re-fire the persisted hazards: Medusa re-rolls and Ghouls re-fight
+	; each time the chamber is entered; earthquake and mutiny are
+	; one-shot and were never persisted.  Then the trap, which
+	; "continues in effect", is re-checked below.
+	BSBW	APPLY_HAZARDS
+	BSBW	RESOLVE_TRAPS			; R0 = 1 if the party fell
+	TSTL	R0
+	BNEQ	2$
 	BRW	C_PROCESS
+2$:	MOVL	#SS$_NORMAL, R0			; fell: RESOLVE_TRAPS set FELL + saved
+	RET
 
 C_FRESH:
 	MOVL	#1, SCAVE_MAP_MV[R7]		; mark visited
@@ -344,38 +355,15 @@ DRAW_DONE:
 
 	BSBW	PAINT_CHAMBER_INTRO
 
-	; Resolve hazards in priority order (first-visit only -- they
-	; are not persisted, so re-entry skips this).
+	; Resolve hazards in priority order, then the trap.  An uncountered
+	; trap drops the party a level (RESOLVE_TRAPS persists this chamber
+	; untouched and sets FELL); otherwise play continues in C_PROCESS.
 	BSBW	APPLY_HAZARDS
-
-	; Trap resolution (after the other hazards).  Count the traps drawn
-	; here; a single living dwarf lets the party step around one (the
-	; rules: "may ignore a trap, but not two drawn in the same
-	; chamber").  Any uncountered trap drops the whole party to the
-	; area directly below WITHOUT touching this chamber's strangers or
-	; treasure -- they remain here for a later visit.
-	BSBW	COUNT_TRAPS			; R0 = number of TRAP cards
+	BSBW	RESOLVE_TRAPS			; R0 = 1 if the party fell
 	TSTL	R0
-	BNEQ	1$
-	BRW	C_PROCESS			; no trap -- ordinary chamber
-1$:	MOVL	R0, R6				; R6 = trap count
-	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
-	TSTL	R0
-	BEQL	CT_FALL				; no dwarf -> the party falls
-	CMPL	R6, #1
-	BGTR	CT_FALL				; two+ traps -> a dwarf can't cope
-	; Single trap, dwarf present: stepped around, chamber plays normally.
-	MOVAB	DSC_HZ_TRAP_DWARF, R5
-	BSBW	PAINT_TRAP_LINE
+	BNEQ	30$
 	BRW	C_PROCESS
-CT_FALL:
-	; The party falls.  Persist this chamber's untouched contents, flag
-	; the fall for MAIN to relocate + re-dispatch, and skip C_PROCESS.
-	MOVAB	DSC_HZ_TRAP_MSG, R5
-	BSBW	PAINT_TRAP_LINE
-	BSBW	SAVE_PERSISTED
-	MOVL	#1, SCAVE_MAP_FELL
-	MOVL	#SS$_NORMAL, R0
+30$:	MOVL	#SS$_NORMAL, R0
 	RET
 
 C_PROCESS:
@@ -1016,6 +1004,43 @@ APPLY_QUAKE:
 
 ;
 ; ===========================================================
+;  RESOLVE_TRAPS  --  weigh the chamber's trap count against a living
+;                     dwarf and decide the fall.  A single living dwarf
+;                     steps the party around one trap (not two).  On a
+;                     fall: paint the message, persist the chamber
+;                     untouched, set SCAVE_MAP_FELL, and return R0 = 1.
+;                     Otherwise return R0 = 0.  Shared by the fresh visit
+;                     and re-entry (a trap "continues in effect").
+; ===========================================================
+;
+RESOLVE_TRAPS:
+	BSBW	COUNT_TRAPS			; R0 = trap count
+	TSTL	R0
+	BNEQ	1$
+	CLRL	R0				; no trap -> no fall
+	RSB
+1$:	MOVL	R0, R6				; R6 = trap count
+	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
+	TSTL	R0
+	BEQL	RT_FALL				; no dwarf -> the party falls
+	CMPL	R6, #1
+	BGTR	RT_FALL				; two+ traps -> a dwarf can't cope
+	; single trap, dwarf present -- stepped around
+	MOVAB	DSC_HZ_TRAP_DWARF, R5
+	BSBW	PAINT_TRAP_LINE
+	CLRL	R0				; no fall
+	RSB
+RT_FALL:
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED			; keep this chamber's contents
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#1, R0				; signal: fell
+	RSB
+
+
+;
+; ===========================================================
 ;  COUNT_TRAPS  --  R0 = number of TRAP cards (hazard index 1) drawn
 ;                   into this chamber (SCAVE_CHAMBER_CH[0..NH-1]).
 ; ===========================================================
@@ -1423,7 +1448,7 @@ LP_LOOP:
 	BLEQ	LP_DONE
 	MOVL	(R8)+, R0			; encoded value
 	BEQL	LP_NEXT				; 0 = empty
-	; Decode: 100..199 -> creature, 200..299 -> treasure
+	; Decode: 100s -> creature, 200s -> treasure, 300s -> hazard
 	DIVL3	#100, R0, R1
 	MULL3	#100, R1, R2
 	SUBL3	R2, R0, R2			; R2 = index within type
@@ -1436,10 +1461,18 @@ LP_LOOP:
 	BRB	LP_NEXT
 LP_TR:
 	CMPL	R1, #2
-	BNEQ	LP_NEXT				; ignore unknown encodings
+	BNEQ	LP_HZ
 	MOVL	SCAVE_CHAMBER_NT, R4
 	MOVL	R2, SCAVE_CHAMBER_CT[R4]
 	INCL	SCAVE_CHAMBER_NT
+	BRB	LP_NEXT
+LP_HZ:
+	CMPL	R1, #3
+	BNEQ	LP_NEXT				; ignore unknown encodings
+	; Re-firing hazard left here from a prior visit (Trap/Medusa/Ghouls).
+	MOVL	SCAVE_CHAMBER_NH, R4
+	MOVL	R2, SCAVE_CHAMBER_CH[R4]
+	INCL	SCAVE_CHAMBER_NH
 LP_NEXT:
 	DECL	R3
 	BRB	LP_LOOP
@@ -1479,7 +1512,7 @@ SP_T:
 	CLRL	R6
 SP_T_LOOP:
 	CMPL	R6, SCAVE_CHAMBER_NT
-	BGEQ	SP_PAD
+	BGEQ	SP_H				; done with treasure -> hazards
 	TSTL	R3
 	BLEQ	SP_PAD
 	MOVL	SCAVE_CHAMBER_CT[R6], R0
@@ -1489,6 +1522,29 @@ SP_T_LOOP:
 SP_T_NEXT:
 	INCL	R6
 	BRB	SP_T_LOOP
+SP_H:
+	; Persist only the re-firing hazards (TRAP=1, MEDUSA=3, GHOULS=4) as
+	; 300+i, so a later visit re-applies them.  MUTINY(0) and
+	; EARTHQUAKE(2) are one-shot and are deliberately not saved.
+	CLRL	R6
+SP_H_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NH
+	BGEQ	SP_PAD
+	TSTL	R3
+	BLEQ	SP_PAD
+	MOVL	SCAVE_CHAMBER_CH[R6], R0
+	CMPL	R0, #1
+	BEQL	SP_H_KEEP
+	CMPL	R0, #3
+	BEQL	SP_H_KEEP
+	CMPL	R0, #4
+	BNEQ	SP_H_NEXT
+SP_H_KEEP:
+	ADDL3	#300, R0, (R8)+
+	DECL	R3
+SP_H_NEXT:
+	INCL	R6
+	BRB	SP_H_LOOP
 SP_PAD:
 	; Zero out any unused tail slots so a previous visit's longer
 	; contents don't leak through.
