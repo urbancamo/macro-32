@@ -51,6 +51,7 @@
 ; Area visualization (VIEW.MAR)
 ;
 	.EXTRN	DRAW_CURRENT_AREA
+	.EXTRN	SHOW_MAP
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -344,6 +345,14 @@ T_GO:
 	MOVL	#SS$_NORMAL, R0
 	RET
 103$:
+	; m / M -> open the navigable dungeon map, then repaint the turn.
+	CMPL	R6, #^A/m/
+	BEQL	104$
+	CMPL	R6, #^A/M/
+	BNEQ	105$
+104$:	CALLS	#0, G^SHOW_MAP
+	BRW	T_LOOP
+105$:
 
 	; map N/E/S/W/U/D (upper or lower) to direction 1..6
 	MOVL	#0, R5				; default: no direction
