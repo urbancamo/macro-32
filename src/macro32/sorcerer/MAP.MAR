@@ -227,7 +227,15 @@ M_DRAW:
 	MOVL	SCAVE_DATA_AREA_CARDS[R0], R0	; R0 = packed card value
 	MOVL	R0, CARD_VAL
 
-	PUSHL	R0
+	; No up-staircases on level 1 except the gateway: the only way up
+	; from the first level is out through the gateway, so a freshly
+	; drawn level-1 card never keeps its up-stair.  (R8 = target level.)
+	CMPL	R8, #1
+	BNEQ	M_DRAW_LVLOK
+	BICL2	#^X20, CARD_VAL			; clear AU (bit 5)
+M_DRAW_LVLOK:
+
+	PUSHL	CARD_VAL
 	CALLS	#1, DECODE_AREA
 
 	; Stair moves: place the new card open, no matter what the

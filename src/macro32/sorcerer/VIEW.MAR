@@ -1,0 +1,1063 @@
+	.TITLE	VIEW	Area visualization (current tunnel/chamber) + map screen
+	.IDENT	/V0.2/
+
+;++
+; VIEW.MAR
+;
+;   Visualization routines for The Sorcerer's Cave.
+;
+;     DRAW_CURRENT_AREA  --  draw the area the party occupies as SMG$
+;                            line art into the left of the main
+;                            display.  Passages are drawn as width-3
+;                            corridors (two parallel walls with a gap),
+;                            not single lines: a chamber is a rectangle
+;                            with width-3 doorways and short corridor
+;                            stubs; a tunnel is a small crossroads of
+;                            the same corridors; a special area is a
+;                            labelled rectangle.  Up/down staircases are
+;                            shown as U / D.  Chamber contents are
+;                            single-letter mnemonics: creatures
+;                            top-left, stairs top-right, party centre,
+;                            treasure bottom-left.
+;
+;   Shared "box with width-3 exit openings + corridor arms" primitive:
+;   DRAW_BOX_WITH_EXITS (R6=top R7=bottom R8=left R9=right rows/cols;
+;   reads SCAVE_DEC_AN/AE/AS/AW).  SMG$DRAW_LINE forms the proper corner
+;   and T junctions automatically where walls meet.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SMG$DRAW_LINE
+	.EXTRN	SMG$ERASE_DISPLAY
+	.EXTRN	SYS$FAO
+
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+	.EXTRN	DECODE_AREA
+	.EXTRN	SCAVE_DEC_AN
+	.EXTRN	SCAVE_DEC_AE
+	.EXTRN	SCAVE_DEC_AS
+	.EXTRN	SCAVE_DEC_AW
+	.EXTRN	SCAVE_DEC_AU
+	.EXTRN	SCAVE_DEC_AD
+	.EXTRN	SCAVE_DEC_AH
+	.EXTRN	SCAVE_DEC_AT
+
+	.EXTRN	SCAVE_MAP_PA
+	.EXTRN	SCAVE_MAP_PL
+	.EXTRN	SCAVE_MAP_NM
+	.EXTRN	SCAVE_MAP_MP
+	.EXTRN	SCAVE_MAP_ML
+	.EXTRN	SCAVE_AREA_AC
+	.EXTRN	SCAVE_AREA_DROP_SIDE
+
+	; UI helpers used by the map screen.
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	ERASE_MAIN
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	READ_KEY
+
+	.EXTRN	SCAVE_PARTY_NP
+	.EXTRN	SCAVE_PARTY_PC
+	.EXTRN	SCAVE_PARTY_PS
+
+	; Shared sizing constant (file-local in MACRO-32 -- mirror STATE).
+	SCAVE$_AREA_ITEMS = 8
+
+	; Special-area type codes (SCAVE_DEC_AT).
+	SCAVE$_AT_GATEWAY = 1
+	SCAVE$_AT_POOL    = 2
+	SCAVE$_AT_VIPER   = 3
+
+	; Corridor arm lengths (cells beyond the box edge).  Terminal cells
+	; are taller than wide, so the horizontal arm is longer to look
+	; balanced against the vertical one.
+	ARM_V = 1
+	ARM_H = 4
+
+	; Chamber / special box (rows x cols, 1-based in the main display).
+	CH_RT = 5
+	CH_RB = 11
+	CH_CL = 6
+	CH_CR = 24
+
+	; Tunnel crossroads: a small 5x5 junction (3x3 open centre).
+	TU_RT = 6
+	TU_RB = 10
+	TU_CL = 13
+	TU_CR = 17
+
+	; Shared centre (both boxes share this row/col).
+	CTR_ROW = 8
+	CTR_COL = 15
+
+
+	.PSECT	SCAVE_VIEW_DATA, NOEXE, WRT, LONG
+
+;
+; Single-letter mnemonics.  Creatures: first letter where unique,
+; lowercase marks a same-initial variant.
+;   0 Hero 1 W-Hero 2 Ogre 3 Troll 4 Priest 5 Man 6 Woman 7 Dwarf
+;   8 Wizard 9 Spectre 10 Dragon 11 Sorcerer 12 Giant 13 Unicorn
+;
+CR_LETTER:	.ASCII	/HhOTPMmDWSdsGU/
+
+; Treasure mnemonics (unique within the treasure set):
+;   0 Silver 1 Gold 2 Gems 3 M.Sword 4 M.Carpet 5 L.Dust 6 H.Balm
+;   7 Talisman 8 S.Potion 9 M.Staff 10 Ring 11 L.Ruby 12 C.Flute
+;   13 Eye 14 Chest
+;
+TR_LETTER:	.ASCII	"$GJWCLBTPFRYUEH"
+
+	.ALIGN	LONG
+DSP_ROW:	.BLKL	1
+DSP_COL:	.BLKL	1
+DSP_R2:		.BLKL	1
+DSP_C2:		.BLKL	1
+
+	; One-character output descriptor.
+	.ALIGN	LONG
+CHARBUF:	.BLKB	4
+	.ALIGN	LONG
+CHAR_DSC:	.WORD	1
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS CHARBUF
+
+	; Persistent-contents scan results for the current area.
+NCREAT:		.BLKL	1
+NTREAS:		.BLKL	1
+CREAT_IDX:	.BLKL	8
+TREAS_IDX:	.BLKL	8
+
+	.ALIGN	LONG
+DSC_SP_GATE:	.ASCID	/GATEWAY/
+DSC_SP_POOL:	.ASCID	/DEEP POOL/
+DSC_SP_VIPER:	.ASCID	/VIPER PIT/
+DSC_LBL_TUN:	.ASCID	/Tunnel/
+DSC_LBL_CHM:	.ASCID	/Chamber/
+
+;
+; Map-screen state + strings.
+;
+	.ALIGN	LONG
+VIEW_LEVEL:	.BLKL	1			; level currently shown
+MAXLVL:		.BLKL	1			; deepest level with a placed area
+SCROLL_X:	.BLKL	1			; top-left map cell shown
+SCROLL_Y:	.BLKL	1
+MX:		.BLKL	1			; scratch: area x / y
+MY:		.BLKL	1
+MSR:		.BLKL	1			; scratch: screen row / col
+MSC:		.BLKL	1
+MAE:		.BLKL	1			; this area's E / S / U / D bits
+MAS:		.BLKL	1
+MAU:		.BLKL	1
+MAD:		.BLKL	1
+MIDX:		.BLKL	1			; current area index
+LVL_VAL:	.BLKL	1			; FAO scratch
+LVL_MAX_VAL:	.BLKL	1
+
+	.ALIGN	LONG
+MAP_HDR_FAO:	.ASCID	/CAVE MAP   Level !UL of !UL/
+MAP_NAV_DSC:	.ASCID	/[U] up   [D] down   arrows scroll   [M] back/
+MAP_LGND_DSC:	.ASCID	/G Gateway  P Pool  V Viper  O Chamber  + Tunnel   ^up vdown   () you/
+	.ALIGN	LONG
+MAP_OUTLEN:	.BLKW	1
+	.ALIGN	LONG
+MAP_LINE_BUF:	.BLKB	80
+	.ALIGN	LONG
+MAP_LINE_DSC:	.WORD	80
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS MAP_LINE_BUF
+	.ALIGN	LONG
+FLAGS_ZERO:	.LONG	0
+REND_REV:	.LONG	SMG$M_REVERSE
+
+	; Map viewport geometry.
+	MAPX0 = 3				; left screen col of cell (0,0)
+	MAPY0 = 4				; top screen row
+	CELLW = 4				; screen cols per map cell
+	CELLH = 2				; screen rows per map cell
+	MAPC_MAX = 76				; right edge for a glyph
+	MAPR_MAX = 19				; bottom edge for a glyph
+
+
+	.PSECT	SCAVE_VIEW_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  DRAW_CURRENT_AREA  --  no args.  Draws the party's current area
+;                         into the left of the main display.  Caller
+;                         should already be inside a pasteboard batch.
+; ===========================================================
+;
+	.ENTRY	DRAW_CURRENT_AREA, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	; Erase the diagram region (rows 3..14, cols 1..29).
+	MOVL	#3, DSP_ROW
+	MOVL	#1, DSP_COL
+	MOVL	#14, DSP_R2
+	MOVL	#29, DSP_C2
+	PUSHAL	DSP_C2
+	PUSHAL	DSP_R2
+	PUSHAL	DSP_COL
+	PUSHAL	DSP_ROW
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#5, G^SMG$ERASE_DISPLAY
+
+	; Decode the current area card.
+	MOVL	SCAVE_MAP_PA, R7
+	PUSHL	SCAVE_MAP_MP[R7]
+	CALLS	#1, G^DECODE_AREA
+
+	; Special areas (gateway / pool / viper) get a labelled box;
+	; tomb/hall (AT 4/5) render as ordinary chambers.
+	TSTL	SCAVE_DEC_AT
+	BEQL	DCA_NOTSPECIAL
+	CMPL	SCAVE_DEC_AT, #SCAVE$_AT_VIPER
+	BGTR	DCA_NOTSPECIAL
+	BSBW	DRAW_SPECIAL
+	BRB	DCA_DONE
+DCA_NOTSPECIAL:
+	TSTL	SCAVE_DEC_AH
+	BEQL	DCA_TUNNEL
+	BSBW	DRAW_CHAMBER
+	BRB	DCA_DONE
+DCA_TUNNEL:
+	BSBW	DRAW_TUNNEL
+DCA_DONE:
+	BSBW	DRAW_DROP_MARKER		; '$' if heavy treasure lies in a doorway
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  DRAW_DROP_MARKER  --  if the current area has heavy treasure left
+;                        in a doorway (SCAVE_AREA_DROP_SIDE), draw a
+;                        '$' just inside that doorway.
+; ===========================================================
+;
+DRAW_DROP_MARKER:
+	MOVL	SCAVE_MAP_PA, R0
+	MOVL	SCAVE_AREA_DROP_SIDE[R0], R1
+	BNEQ	1$
+	RSB					; no dropped treasure here
+1$:	MOVB	#^A/$/, CHARBUF
+	CMPL	R1, #1				; North
+	BNEQ	2$
+	MOVL	#<CH_RT+1>, DSP_ROW
+	MOVL	#CTR_COL, DSP_COL
+	BRB	DDM_PAINT
+2$:	CMPL	R1, #3				; South
+	BNEQ	3$
+	MOVL	#<CH_RB-1>, DSP_ROW
+	MOVL	#CTR_COL, DSP_COL
+	BRB	DDM_PAINT
+3$:	CMPL	R1, #2				; East
+	BNEQ	4$
+	MOVL	#CTR_ROW, DSP_ROW
+	MOVL	#<CH_CR-1>, DSP_COL
+	BRB	DDM_PAINT
+4$:	MOVL	#CTR_ROW, DSP_ROW		; West (4)
+	MOVL	#<CH_CL+1>, DSP_COL
+DDM_PAINT:
+	BSBW	PAINT_CHAR
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_CHAMBER  --  rectangle with width-3 doorways + contents.
+; ===========================================================
+;
+DRAW_CHAMBER:
+	MOVL	#CH_RT, R6
+	MOVL	#CH_RB, R7
+	MOVL	#CH_CL, R8
+	MOVL	#CH_CR, R9
+	BSBW	DRAW_BOX_WITH_EXITS
+
+	; Stairs top-right inside the box.
+	BSBW	DRAW_STAIRS_TR
+
+	; Gather persistent creatures/treasure for this area.
+	BSBW	SCAN_AREA_CONTENTS
+
+	; Creatures top-left (row CH_RT+1, col CH_CL+2), up to 5.
+	MOVAB	CR_LETTER, R8
+	MOVL	NCREAT, R9
+	MOVL	#<CH_RT+1>, R10
+	MOVL	#<CH_CL+2>, R11
+	MOVAB	CREAT_IDX, R5
+	BSBW	PAINT_LETTER_ROW
+
+	; Treasure bottom-left (row CH_RB-1, col CH_CL+2), up to 5.
+	MOVAB	TR_LETTER, R8
+	MOVL	NTREAS, R9
+	MOVL	#<CH_RB-1>, R10
+	MOVL	#<CH_CL+2>, R11
+	MOVAB	TREAS_IDX, R5
+	BSBW	PAINT_LETTER_ROW
+
+	; Party letters in the centre.
+	BSBW	DRAW_PARTY_CENTRE
+
+	; Label under the diagram.
+	MOVAB	DSC_LBL_CHM, R0
+	MOVL	#13, R1
+	MOVL	#9, R2
+	BSBW	PAINT_LABEL
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_TUNNEL  --  small crossroads of width-3 corridors.
+; ===========================================================
+;
+DRAW_TUNNEL:
+	MOVL	#TU_RT, R6
+	MOVL	#TU_RB, R7
+	MOVL	#TU_CL, R8
+	MOVL	#TU_CR, R9
+	BSBW	DRAW_BOX_WITH_EXITS
+
+	; Stairs in the open centre.
+	TSTL	SCAVE_DEC_AU
+	BEQL	1$
+	MOVB	#^A/U/, CHARBUF
+	MOVL	#CTR_ROW, DSP_ROW
+	MOVL	#<CTR_COL-1>, DSP_COL
+	BSBW	PAINT_CHAR
+1$:	TSTL	SCAVE_DEC_AD
+	BEQL	2$
+	MOVB	#^A/D/, CHARBUF
+	MOVL	#CTR_ROW, DSP_ROW
+	MOVL	#<CTR_COL+1>, DSP_COL
+	BSBW	PAINT_CHAR
+2$:	MOVAB	DSC_LBL_TUN, R0
+	MOVL	#13, R1
+	MOVL	#9, R2
+	BSBW	PAINT_LABEL
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_SPECIAL  --  labelled rectangle for gateway / pool / viper.
+; ===========================================================
+;
+DRAW_SPECIAL:
+	MOVL	#CH_RT, R6
+	MOVL	#CH_RB, R7
+	MOVL	#CH_CL, R8
+	MOVL	#CH_CR, R9
+	BSBW	DRAW_BOX_WITH_EXITS
+	BSBW	DRAW_STAIRS_TR
+
+	; Name by AT, painted on the centre row inside the box.
+	MOVAB	DSC_SP_GATE, R0
+	CMPL	SCAVE_DEC_AT, #SCAVE$_AT_GATEWAY
+	BEQL	1$
+	MOVAB	DSC_SP_POOL, R0
+	CMPL	SCAVE_DEC_AT, #SCAVE$_AT_POOL
+	BEQL	1$
+	MOVAB	DSC_SP_VIPER, R0
+1$:	MOVL	#<CH_RT+1>, R1
+	MOVL	#<CH_CL+2>, R2
+	BSBW	PAINT_LABEL
+	BSBW	DRAW_PARTY_CENTRE
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_BOX_WITH_EXITS  --  R6=Rt R7=Rb R8=Cl R9=Cr.  Draw the four
+;                           walls, leaving a width-3 gap on any side
+;                           with an exit, and add short corridor-arm
+;                           walls beyond each gap.  Reads SCAVE_DEC_A*.
+;                           Box coords kept in R6..R11 across the SMG
+;                           CALLS (callee-saved); R10=Rc R11=Cc.
+; ===========================================================
+;
+DRAW_BOX_WITH_EXITS:
+	ADDL3	R6, R7, R10
+	DIVL2	#2, R10				; R10 = Rc
+	ADDL3	R8, R9, R11
+	DIVL2	#2, R11				; R11 = Cc
+
+	; ---- TOP wall (row Rt = R6) ----
+	TSTL	SCAVE_DEC_AN
+	BEQL	BX_TOP_SOLID
+	; left segment  Cl .. Cc-2
+	MOVL	R6, R0
+	MOVL	R8, R1
+	MOVL	R6, R2
+	SUBL3	#2, R11, R3
+	BSBW	SEG
+	; right segment Cc+2 .. Cr
+	MOVL	R6, R0
+	ADDL3	#2, R11, R1
+	MOVL	R6, R2
+	MOVL	R9, R3
+	BSBW	SEG
+	; arm walls (vertical) at Cc-2 and Cc+2, rows Rt-ARM_V .. Rt
+	SUBL3	#ARM_V, R6, R0
+	SUBL3	#2, R11, R1
+	MOVL	R6, R2
+	MOVL	R1, R3
+	BSBW	SEG
+	SUBL3	#ARM_V, R6, R0
+	ADDL3	#2, R11, R1
+	MOVL	R6, R2
+	MOVL	R1, R3
+	BSBW	SEG
+	BRB	BX_TOP_DONE
+BX_TOP_SOLID:
+	MOVL	R6, R0
+	MOVL	R8, R1
+	MOVL	R6, R2
+	MOVL	R9, R3
+	BSBW	SEG
+BX_TOP_DONE:
+
+	; ---- BOTTOM wall (row Rb = R7) ----
+	TSTL	SCAVE_DEC_AS
+	BEQL	BX_BOT_SOLID
+	MOVL	R7, R0
+	MOVL	R8, R1
+	MOVL	R7, R2
+	SUBL3	#2, R11, R3
+	BSBW	SEG
+	MOVL	R7, R0
+	ADDL3	#2, R11, R1
+	MOVL	R7, R2
+	MOVL	R9, R3
+	BSBW	SEG
+	MOVL	R7, R0
+	SUBL3	#2, R11, R1
+	ADDL3	#ARM_V, R7, R2
+	MOVL	R1, R3
+	BSBW	SEG
+	MOVL	R7, R0
+	ADDL3	#2, R11, R1
+	ADDL3	#ARM_V, R7, R2
+	MOVL	R1, R3
+	BSBW	SEG
+	BRB	BX_BOT_DONE
+BX_BOT_SOLID:
+	MOVL	R7, R0
+	MOVL	R8, R1
+	MOVL	R7, R2
+	MOVL	R9, R3
+	BSBW	SEG
+BX_BOT_DONE:
+
+	; ---- LEFT wall (col Cl = R8) ----
+	TSTL	SCAVE_DEC_AW
+	BEQL	BX_LFT_SOLID
+	; top segment  Rt .. Rc-2
+	MOVL	R6, R0
+	MOVL	R8, R1
+	SUBL3	#2, R10, R2
+	MOVL	R8, R3
+	BSBW	SEG
+	; bottom segment Rc+2 .. Rb
+	ADDL3	#2, R10, R0
+	MOVL	R8, R1
+	MOVL	R7, R2
+	MOVL	R8, R3
+	BSBW	SEG
+	; arm walls (horizontal) at rows Rc-2 and Rc+2, cols Cl-ARM_H .. Cl
+	SUBL3	#2, R10, R0
+	SUBL3	#ARM_H, R8, R1
+	MOVL	R0, R2
+	MOVL	R8, R3
+	BSBW	SEG
+	ADDL3	#2, R10, R0
+	SUBL3	#ARM_H, R8, R1
+	MOVL	R0, R2
+	MOVL	R8, R3
+	BSBW	SEG
+	BRB	BX_LFT_DONE
+BX_LFT_SOLID:
+	MOVL	R6, R0
+	MOVL	R8, R1
+	MOVL	R7, R2
+	MOVL	R8, R3
+	BSBW	SEG
+BX_LFT_DONE:
+
+	; ---- RIGHT wall (col Cr = R9) ----
+	TSTL	SCAVE_DEC_AE
+	BEQL	BX_RGT_SOLID
+	MOVL	R6, R0
+	MOVL	R9, R1
+	SUBL3	#2, R10, R2
+	MOVL	R9, R3
+	BSBW	SEG
+	ADDL3	#2, R10, R0
+	MOVL	R9, R1
+	MOVL	R7, R2
+	MOVL	R9, R3
+	BSBW	SEG
+	SUBL3	#2, R10, R0
+	MOVL	R9, R1
+	MOVL	R0, R2
+	ADDL3	#ARM_H, R9, R3
+	BSBW	SEG
+	ADDL3	#2, R10, R0
+	MOVL	R9, R1
+	MOVL	R0, R2
+	ADDL3	#ARM_H, R9, R3
+	BSBW	SEG
+	BRB	BX_RGT_DONE
+BX_RGT_SOLID:
+	MOVL	R6, R0
+	MOVL	R9, R1
+	MOVL	R7, R2
+	MOVL	R9, R3
+	BSBW	SEG
+BX_RGT_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  SEG  --  draw a line.  R0=start-row R1=start-col R2=end-row
+;           R3=end-col.  SMG$DRAW_LINE is callee-saving, so the box
+;           coords held in R6..R11 survive.
+; ===========================================================
+;
+SEG:
+	MOVL	R0, DSP_ROW
+	MOVL	R1, DSP_COL
+	MOVL	R2, DSP_R2
+	MOVL	R3, DSP_C2
+	PUSHAL	DSP_C2
+	PUSHAL	DSP_R2
+	PUSHAL	DSP_COL
+	PUSHAL	DSP_ROW
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#5, G^SMG$DRAW_LINE
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_STAIRS_TR  --  paint U / D at the top-right of the chamber
+;                      box (row CH_RT+1, cols CH_CR-2 / CH_CR-1).
+; ===========================================================
+;
+DRAW_STAIRS_TR:
+	TSTL	SCAVE_DEC_AU
+	BEQL	1$
+	MOVB	#^A/U/, CHARBUF
+	MOVL	#<CH_RT+1>, DSP_ROW
+	MOVL	#<CH_CR-2>, DSP_COL
+	BSBW	PAINT_CHAR
+1$:	TSTL	SCAVE_DEC_AD
+	BEQL	2$
+	MOVB	#^A/D/, CHARBUF
+	MOVL	#<CH_RT+1>, DSP_ROW
+	MOVL	#<CH_CR-1>, DSP_COL
+	BSBW	PAINT_CHAR
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAINT_LETTER_ROW  --  paint up to 5 mnemonic letters across.
+;     R8 = letter table base, R9 = count, R10 = row, R11 = start col,
+;     R5 = base of the index array (longwords).
+; ===========================================================
+;
+PAINT_LETTER_ROW:
+	CLRL	R6				; i
+PLR_LOOP:
+	CMPL	R6, R9
+	BGEQ	PLR_DONE
+	CMPL	R6, #5
+	BGEQ	PLR_DONE
+	MOVL	(R5)[R6], R0			; index
+	MOVB	(R8)[R0], CHARBUF		; its letter
+	MOVL	R10, DSP_ROW
+	MOVL	R11, DSP_COL
+	BSBW	PAINT_CHAR
+	ADDL2	#2, R11
+	INCL	R6
+	BRB	PLR_LOOP
+PLR_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  DRAW_PARTY_CENTRE  --  up to 4 living party-member letters on the
+;                         centre row.
+; ===========================================================
+;
+DRAW_PARTY_CENTRE:
+	MOVAB	CR_LETTER, R8
+	MOVL	#CTR_ROW, R10
+	MOVL	#<CTR_COL-3>, R11
+	CLRL	R6				; party slot
+	CLRL	R4				; printed count
+DPC_LOOP:
+	CMPL	R6, SCAVE_PARTY_NP
+	BGEQ	DPC_DONE
+	CMPL	R4, #4
+	BGEQ	DPC_DONE
+	CMPL	SCAVE_PARTY_PS[R6], #2		; skip stone/dead
+	BGEQ	DPC_NEXT
+	MOVL	SCAVE_PARTY_PC[R6], R0
+	MOVB	(R8)[R0], CHARBUF
+	MOVL	R10, DSP_ROW
+	MOVL	R11, DSP_COL
+	BSBW	PAINT_CHAR
+	ADDL2	#2, R11
+	INCL	R4
+DPC_NEXT:
+	INCL	R6
+	BRB	DPC_LOOP
+DPC_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  SCAN_AREA_CONTENTS  --  read AC[PA] into CREAT_IDX/TREAS_IDX.
+;                          Encoding: 100+i = creature, 200+i = treasure.
+; ===========================================================
+;
+SCAN_AREA_CONTENTS:
+	CLRL	NCREAT
+	CLRL	NTREAS
+	MOVL	SCAVE_MAP_PA, R7
+	MOVAB	SCAVE_AREA_AC, R8
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	ADDL2	R0, R8
+	CLRL	R6
+SAC_LOOP:
+	CMPL	R6, #SCAVE$_AREA_ITEMS
+	BGEQ	SAC_DONE
+	MOVL	(R8)[R6], R0
+	BEQL	SAC_NEXT
+	DIVL3	#100, R0, R1
+	MULL3	#100, R1, R2
+	SUBL3	R2, R0, R2			; index within type
+	CMPL	R1, #1
+	BNEQ	1$
+	MOVL	NCREAT, R3
+	CMPL	R3, #8
+	BGEQ	SAC_NEXT
+	MOVL	R2, CREAT_IDX[R3]
+	INCL	NCREAT
+	BRB	SAC_NEXT
+1$:	CMPL	R1, #2
+	BNEQ	SAC_NEXT
+	MOVL	NTREAS, R3
+	CMPL	R3, #8
+	BGEQ	SAC_NEXT
+	MOVL	R2, TREAS_IDX[R3]
+	INCL	NTREAS
+SAC_NEXT:
+	INCL	R6
+	BRB	SAC_LOOP
+SAC_DONE:
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_CHAR  --  paint CHARBUF[0] at (DSP_ROW, DSP_COL).
+; ===========================================================
+;
+PAINT_CHAR:
+	MOVW	#1, CHAR_DSC
+	PUSHAL	DSP_COL
+	PUSHAL	DSP_ROW
+	PUSHAL	CHAR_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_LABEL  --  R0 = descriptor addr, R1 = row, R2 = col.
+; ===========================================================
+;
+PAINT_LABEL:
+	MOVL	R1, DSP_ROW
+	MOVL	R2, DSP_COL
+	PUSHAL	DSP_COL
+	PUSHAL	DSP_ROW
+	PUSHL	R0
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; ===========================================================
+;  SHOW_MAP  --  full-screen navigable dungeon map.  Shows one level
+;                at a time; areas plotted at their (x,y) coords with
+;                connectors between adjacent exits, the party's area
+;                highlighted, special areas lettered, and up/down
+;                stairs marked ^/v (the same x,y one level over is the
+;                connected area).  Keys: U/D change level, arrows
+;                scroll, M/Q/Return return to the turn screen.
+; ===========================================================
+;
+	.ENTRY	SHOW_MAP, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	BSBW	COMPUTE_MAXLVL
+	MOVL	SCAVE_MAP_PL, VIEW_LEVEL
+	BSBW	INIT_SCROLL
+SM_LOOP:
+	BSBW	PAINT_MAP
+	CALLS	#0, G^READ_KEY			; R0 = key / terminator
+	CMPL	R0, #^A/U/
+	BEQL	10$
+	CMPL	R0, #^A/u/
+	BNEQ	11$
+10$:	BRW	SM_UP
+11$:	CMPL	R0, #^A/D/
+	BEQL	12$
+	CMPL	R0, #^A/d/
+	BNEQ	13$
+12$:	BRW	SM_DOWN
+13$:	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	20$
+	BRW	SM_SUP
+20$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	21$
+	BRW	SM_SDN
+21$:	CMPL	R0, #SMG$K_TRM_LEFT
+	BNEQ	22$
+	BRW	SM_SLF
+22$:	CMPL	R0, #SMG$K_TRM_RIGHT
+	BNEQ	23$
+	BRW	SM_SRT
+23$:	CMPL	R0, #^A/M/
+	BEQL	24$
+	CMPL	R0, #^A/m/
+	BEQL	24$
+	CMPL	R0, #^A/Q/
+	BEQL	24$
+	CMPL	R0, #^A/q/
+	BEQL	24$
+	CMPL	R0, #SMG$K_TRM_CR
+	BNEQ	25$
+24$:	BRW	SM_EXIT
+25$:	BRW	SM_LOOP
+SM_UP:
+	DECL	VIEW_LEVEL
+	CMPL	VIEW_LEVEL, #1
+	BGEQ	SM_UP1
+	MOVL	#1, VIEW_LEVEL
+SM_UP1:	BRW	SM_LOOP
+SM_DOWN:
+	INCL	VIEW_LEVEL
+	CMPL	VIEW_LEVEL, MAXLVL
+	BLEQ	SM_DN1
+	MOVL	MAXLVL, VIEW_LEVEL
+SM_DN1:	BRW	SM_LOOP
+SM_SUP:
+	TSTL	SCROLL_Y
+	BLEQ	SM_L2
+	DECL	SCROLL_Y
+SM_L2:	BRW	SM_LOOP
+SM_SDN:	INCL	SCROLL_Y
+	BRW	SM_LOOP
+SM_SLF:
+	TSTL	SCROLL_X
+	BLEQ	SM_L3
+	DECL	SCROLL_X
+SM_L3:	BRW	SM_LOOP
+SM_SRT:	INCL	SCROLL_X
+	BRW	SM_LOOP
+SM_EXIT:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+
+;
+; ===========================================================
+;  PAINT_MAP  --  render the VIEW_LEVEL areas into the display.
+; ===========================================================
+;
+PAINT_MAP:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	VIEW_LEVEL, LVL_VAL
+	MOVL	MAXLVL, LVL_MAX_VAL
+	MOVW	#80, MAP_LINE_DSC
+	$FAO_S	ctrstr=MAP_HDR_FAO, outlen=MAP_OUTLEN, outbuf=MAP_LINE_DSC, -
+		p1=LVL_VAL, p2=LVL_MAX_VAL
+	MOVW	MAP_OUTLEN, MAP_LINE_DSC
+	MOVL	#1, DSP_ROW
+	PUSHAL	DSP_ROW
+	PUSHAL	MAP_LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#2, DSP_ROW
+	PUSHAL	DSP_ROW
+	PUSHAL	MAP_NAV_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	MOVL	#1, MIDX
+PM_LOOP:
+	CMPL	MIDX, SCAVE_MAP_NM
+	BLEQ	PM_BODY
+	BRW	PM_DONE
+PM_BODY:
+	MOVL	MIDX, R6
+	MOVL	SCAVE_MAP_ML[R6], R0
+	DIVL3	#10000, R0, R1			; level
+	CMPL	R1, VIEW_LEVEL
+	BEQL	PM_ON
+	BRW	PM_NEXT
+PM_ON:
+	MULL3	#10000, R1, R2
+	SUBL3	R2, R0, R0			; R0 = y*100 + x
+	DIVL3	#100, R0, R4			; R4 = y
+	MOVL	R4, MY
+	MULL3	#100, R4, R2
+	SUBL3	R2, R0, R5			; R5 = x
+	MOVL	R5, MX
+	; screen col = MAPX0 + (x - SCROLL_X) * CELLW
+	SUBL3	SCROLL_X, R5, R0
+	MULL2	#CELLW, R0
+	ADDL2	#MAPX0, R0
+	MOVL	R0, MSC
+	SUBL3	SCROLL_Y, R4, R0
+	MULL2	#CELLH, R0
+	ADDL2	#MAPY0, R0
+	MOVL	R0, MSR
+	; viewport clip (invert + BRW since PM_NEXT is far)
+	CMPL	MSC, #MAPX0
+	BGEQ	1$
+	BRW	PM_NEXT
+1$:	CMPL	MSC, #MAPC_MAX
+	BLEQ	2$
+	BRW	PM_NEXT
+2$:	CMPL	MSR, #MAPY0
+	BGEQ	3$
+	BRW	PM_NEXT
+3$:	CMPL	MSR, #MAPR_MAX
+	BLEQ	4$
+	BRW	PM_NEXT
+4$:
+	; decode this area for type + exits
+	MOVL	MIDX, R6
+	PUSHL	SCAVE_MAP_MP[R6]
+	CALLS	#1, G^DECODE_AREA
+	MOVL	SCAVE_DEC_AE, MAE
+	MOVL	SCAVE_DEC_AS, MAS
+	MOVL	SCAVE_DEC_AU, MAU
+	MOVL	SCAVE_DEC_AD, MAD
+	BSBW	GLYPH_FROM_DEC			; R0 = glyph char
+	MOVB	R0, CHARBUF
+	MOVL	MSR, DSP_ROW
+	MOVL	MSC, DSP_COL
+	; party area on this level -> reverse video
+	CMPL	MIDX, SCAVE_MAP_PA
+	BNEQ	5$
+	CMPL	VIEW_LEVEL, SCAVE_MAP_PL
+	BNEQ	5$
+	BSBW	PAINT_CHAR_REV
+	BRB	6$
+5$:	BSBW	PAINT_CHAR
+6$:
+	; up/down stair markers
+	TSTL	MAU
+	BEQL	7$
+	MOVB	#^A/^/, CHARBUF
+	MOVL	MSC, DSP_COL
+	SUBL3	#1, MSR, DSP_ROW
+	CMPL	DSP_ROW, #MAPY0
+	BLSS	7$
+	BSBW	PAINT_CHAR
+7$:	TSTL	MAD
+	BEQL	8$
+	MOVB	#^A/v/, CHARBUF
+	MOVL	MSC, DSP_COL
+	ADDL3	#1, MSR, DSP_ROW
+	BSBW	PAINT_CHAR
+8$:
+	; East connector (only if a neighbour is placed there)
+	TSTL	MAE
+	BEQL	9$
+	MOVL	MX, R2
+	INCL	R2
+	MOVL	MY, R3
+	BSBW	FIND_AREA_AT
+	TSTL	R0
+	BEQL	9$
+	MOVB	#^A/-/, CHARBUF
+	MOVL	MSR, DSP_ROW
+	ADDL3	#1, MSC, DSP_COL
+	BSBW	PAINT_CHAR
+	ADDL3	#2, MSC, DSP_COL
+	BSBW	PAINT_CHAR
+	ADDL3	#3, MSC, DSP_COL
+	BSBW	PAINT_CHAR
+9$:
+	; South connector
+	TSTL	MAS
+	BEQL	10$
+	MOVL	MX, R2
+	MOVL	MY, R3
+	INCL	R3
+	BSBW	FIND_AREA_AT
+	TSTL	R0
+	BEQL	10$
+	MOVB	#^A/|/, CHARBUF
+	MOVL	MSC, DSP_COL
+	ADDL3	#1, MSR, DSP_ROW
+	BSBW	PAINT_CHAR
+10$:
+PM_NEXT:
+	INCL	MIDX
+	BRW	PM_LOOP
+PM_DONE:
+	MOVL	#21, DSP_ROW
+	PUSHAL	DSP_ROW
+	PUSHAL	MAP_LGND_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  COMPUTE_MAXLVL  --  MAXLVL = deepest level among placed areas.
+; ===========================================================
+;
+COMPUTE_MAXLVL:
+	MOVL	#1, MAXLVL
+	MOVL	#1, R1
+CM_L:	CMPL	R1, SCAVE_MAP_NM
+	BGTR	CM_D
+	DIVL3	#10000, SCAVE_MAP_ML[R1], R0
+	CMPL	R0, MAXLVL
+	BLEQ	CM_N
+	MOVL	R0, MAXLVL
+CM_N:	INCL	R1
+	BRB	CM_L
+CM_D:	RSB
+
+
+;
+; ===========================================================
+;  INIT_SCROLL  --  set SCROLL_X/Y so the party's area is roughly
+;                   centred in the viewport.
+; ===========================================================
+;
+INIT_SCROLL:
+	MOVL	SCAVE_MAP_PA, R1
+	MOVL	SCAVE_MAP_ML[R1], R0
+	DIVL3	#100, R0, R2			; R2 = level*100 + y
+	MULL3	#100, R2, R3
+	SUBL3	R3, R0, R0			; R0 = x
+	DIVL3	#100, R2, R3			; R3 = level
+	MULL3	#100, R3, R4
+	SUBL3	R4, R2, R2			; R2 = y
+	SUBL3	#9, R0, R0
+	BGEQ	1$
+	CLRL	R0
+1$:	MOVL	R0, SCROLL_X
+	SUBL3	#3, R2, R2
+	BGEQ	2$
+	CLRL	R2
+2$:	MOVL	R2, SCROLL_Y
+	RSB
+
+
+;
+; ===========================================================
+;  FIND_AREA_AT  --  R2 = x, R3 = y (on VIEW_LEVEL).  R0 = area index
+;                    (1..NM) or 0 if none placed there.
+; ===========================================================
+;
+FIND_AREA_AT:
+	MULL3	#10000, VIEW_LEVEL, R0
+	MULL3	#100, R3, R1
+	ADDL2	R1, R0
+	ADDL2	R2, R0				; R0 = packed target coords
+	MOVL	#1, R1
+FA_L:	CMPL	R1, SCAVE_MAP_NM
+	BGTR	FA_NO
+	CMPL	SCAVE_MAP_ML[R1], R0
+	BEQL	FA_YES
+	INCL	R1
+	BRB	FA_L
+FA_YES:	MOVL	R1, R0
+	RSB
+FA_NO:	CLRL	R0
+	RSB
+
+
+;
+; ===========================================================
+;  GLYPH_FROM_DEC  --  R0 = map glyph from the decoded area
+;                      (SCAVE_DEC_AT / AH).
+; ===========================================================
+;
+GLYPH_FROM_DEC:
+	MOVL	SCAVE_DEC_AT, R0
+	CMPL	R0, #1
+	BNEQ	G2
+	MOVL	#^A/G/, R0
+	RSB
+G2:	CMPL	R0, #2
+	BNEQ	G3
+	MOVL	#^A/P/, R0
+	RSB
+G3:	CMPL	R0, #3
+	BNEQ	G4
+	MOVL	#^A/V/, R0
+	RSB
+G4:	CMPL	R0, #4
+	BNEQ	G5
+	MOVL	#^A/T/, R0
+	RSB
+G5:	CMPL	R0, #5
+	BNEQ	G6
+	MOVL	#^A/H/, R0
+	RSB
+G6:	TSTL	SCAVE_DEC_AH
+	BEQL	G7
+	MOVL	#^A/O/, R0
+	RSB
+G7:	MOVL	#^A/+/, R0
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_CHAR_REV  --  paint CHARBUF[0] at (DSP_ROW, DSP_COL) in
+;                      reverse video.
+; ===========================================================
+;
+PAINT_CHAR_REV:
+	MOVW	#1, CHAR_DSC
+	PUSHAL	REND_REV
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	DSP_COL
+	PUSHAL	DSP_ROW
+	PUSHAL	CHAR_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	RSB
+
+	.END
