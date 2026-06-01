@@ -221,15 +221,17 @@ PICK_MARK_PTR:	.BLKL	1
 	BRW	C_FRESH
 
 C_REENTRY:
-	; Restore SCAVE_CHAMBER_* from the area's saved AC slots and
-	; re-paint the (possibly diminished) contents.  Hazards are
-	; not persisted; NH stays at 0.  Use a re-entry-specific header
-	; so the player doesn't see a stale "Drew N chamber cards"
-	; line referring to the original draw, especially on a chamber
-	; that has been cleared (where the lists below it would be
-	; empty).
+	; Restore SCAVE_CHAMBER_* from the area's saved AC slots.  Hazards
+	; are not persisted; NH stays at 0.
 	BSBW	LOAD_PERSISTED
-	BSBW	PAINT_CHAMBER_REENTRY
+	; A cleared chamber has nothing to show: don't paint a blank
+	; re-entry screen or pause for a keystroke -- just return to the
+	; turn loop, which repaints the area.
+	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, R0
+	BNEQ	1$
+	MOVL	#SS$_NORMAL, R0
+	RET
+1$:	BSBW	PAINT_CHAMBER_REENTRY
 	BRW	C_PROCESS
 
 C_FRESH:
