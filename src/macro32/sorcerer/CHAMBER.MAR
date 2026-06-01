@@ -154,6 +154,7 @@ COL_TWO:	.LONG	2
 COL_FOUR:	.LONG	4
 COL_SIX:	.LONG	6
 REENTRY_CNT:	.BLKL	1			; NS+NT for the re-entry FAO !UL
+GHOUL_NAME_PTR:	.BLKL	1			; member name descriptor for the FAO !AS
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
@@ -663,34 +664,68 @@ HM_NEXT:
 	BRB	HM_LOOP
 
 HAZ_GHOULS:
-	; Ghouls: each living party member fights str-2 ghouls one round.
-	CLRL	R5
+	; Ghouls: each living party member fights ghouls of strength 2 for
+	; one round.  Paint the per-member outcome and pause, so the player
+	; sees who fell rather than just noticing the party has shrunk.
+	; (R6 is the hazard-scan loop index in APPLY_ONE_HAZARD -- keep it
+	; intact here; the die roll lives in R7.)
+	MOVL	#14, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HZ_GHOULS_MSG
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#15, R9				; next result row
+	CLRL	R5				; party slot
 HG_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HG_BODY
-	BRW	AOH_NEXT
+	BRW	HG_END
 HG_BODY:
 	; Skip stone or already-dead members.
-	MOVL	SCAVE_PARTY_PS[R5], R0
-	CMPL	R0, #2
-	BGEQ	HG_NEXT				; STONE or DEAD
-	; Roll dice
+	CMPL	SCAVE_PARTY_PS[R5], #2
+	BLSS	HG_FIGHT
+	BRW	HG_NEXT
+HG_FIGHT:
 	CALLS	#0, G^ROLL_DIE
-	MOVL	R0, R6				; party roll
-	CALLS	#0, G^ROLL_DIE
-	; Compare: party_roll + party_str  vs  ghoul_roll + 2
-	; For Stage 3 simplification, fight str = 1 (every creature
-	; pulls its weight by at least 1).  This is a placeholder --
-	; full Stage 4 will use creature stats.
-	ADDL2	#1, R6				; party_total = roll + 1
-	ADDL2	#2, R0				; ghoul_total = roll + 2
-	CMPL	R6, R0
-	BGEQ	HG_NEXT				; survived (tie = no kill)
-	; Slain.
+	MOVL	R0, R7				; party roll
+	CALLS	#0, G^ROLL_DIE			; ghoul roll in R0
+	; Stage simplification: party fight strength = 1, ghouls = 2.
+	ADDL2	#1, R7				; party total
+	ADDL2	#2, R0				; ghoul total
+	; This member's name for the result line.
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], GHOUL_NAME_PTR
+	CMPL	R7, R0
+	BLSS	HG_SLAIN			; party < ghoul -> slain
+	; Survived (tie = no kill).
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_GHOUL_OK, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=GHOUL_NAME_PTR
+	BRW	HG_SHOW
+HG_SLAIN:
 	MOVL	#3, SCAVE_PARTY_PS[R5]
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_GHOUL_KILL, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=GHOUL_NAME_PTR
+HG_SHOW:
+	MOVW	FAO_OUTLEN, LINE_DSC
+	CMPL	R9, #20				; don't run into the prompt row
+	BGTR	HG_NEXT
+	MOVL	R9, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	INCL	R9
 HG_NEXT:
 	INCL	R5
-	BRB	HG_LOOP
+	BRW	HG_LOOP
+HG_END:
+	MOVL	#21, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_CONT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^READ_KEY
+	BRW	AOH_NEXT
 
 HAZ_MUTINY:
 	; Mutiny: every PS=ALLY (1) becomes PS=DEAD (3).  Simplified --
