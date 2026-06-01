@@ -181,6 +181,7 @@ ascii
 cd [.$(SCAVE_SUBDIR)]
 $(foreach s,$(SCAVE_SRCS),put $(SCAVE_DIR)/$(s).MAR $(s).MAR
 )put $(SCAVE_DIR)/MAKE.COM MAKE.COM
+put $(SCAVE_DIR)/SCAVEHLP.TXT SCAVEHLP.TXT
 endef
 export SCAVE_PUSH_SCRIPT
 
@@ -196,7 +197,9 @@ export SCAVE_FETCH_SCRIPT
 vms-scave-build: vms-up
 	@test -n "$(SCAVE_SRCS)" || { echo "no sources in $(SCAVE_DIR)/sources.list" >&2; exit 1; }
 	@test -f $(SCAVE_DIR)/MAKE.COM || { echo "missing $(SCAVE_DIR)/MAKE.COM" >&2; exit 1; }
-	@echo ">>> upload sources + MAKE.COM -> [.$(SCAVE_SUBDIR)]"
+	@echo ">>> regenerate SCAVEHLP.TXT from help/*.md"
+	@python3 tools/gen_help.py
+	@echo ">>> upload sources + MAKE.COM + help text -> [.$(SCAVE_SUBDIR)]"
 	@$(VMSFTP) raw "$$SCAVE_PUSH_SCRIPT" >/dev/null
 	@echo ">>> SET DEFAULT [.$(SCAVE_SUBDIR)]"
 	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]'

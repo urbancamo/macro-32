@@ -33,6 +33,7 @@
 	.EXTRN	INIT_DISPLAY
 	.EXTRN	ERASE_MAIN
 	.EXTRN	READ_KEY
+	.EXTRN	HELP_BROWSER
 	.EXTRN	PAINT_CENTERED
 	.EXTRN	BEGIN_BATCH
 	.EXTRN	END_BATCH
@@ -96,7 +97,7 @@
 TITLE_DSC1:	.ASCID	/THE SORCERER'S CAVE/
 TITLE_DSC2:	.ASCID	/A Game of Exploration, Magic, and Adventure/
 TITLE_DSC3:	.ASCID	/After Terence Donnelly (1978)/
-TITLE_DSC4:	.ASCID	/Press any key to begin.../
+TITLE_DSC4:	.ASCID	/Press ? for the manual, or any other key to begin.../
 
 ;
 ; -- party-selection strings --
@@ -233,6 +234,7 @@ FAO_OUTLEN:	.BLKW	1
 ;
 	.ENTRY	TITLE_SPLASH, ^M<>
 
+TS_LOOP:
 	CALLS	#0, BEGIN_BATCH
 	CALLS	#0, ERASE_MAIN
 
@@ -255,6 +257,12 @@ FAO_OUTLEN:	.BLKW	1
 	CALLS	#0, END_BATCH
 
 	CALLS	#0, READ_KEY			; block on any key
+	; '?' opens the manual, then we repaint the title and wait again.
+	CMPL	R0, #^A/?/
+	BNEQ	TS_DONE
+	CALLS	#0, G^HELP_BROWSER
+	BRW	TS_LOOP
+TS_DONE:
 	MOVL	#SS$_NORMAL, R0
 	RET
 

@@ -54,6 +54,11 @@
 	.EXTRN	SHOW_MAP
 
 ;
+; Interactive manual (HELP.MAR)
+;
+	.EXTRN	HELP_BROWSER
+
+;
 ; Deep-pool crossing hooks (SPECIAL.MAR)
 ;
 	.EXTRN	POOL_PRE_MOVE
@@ -141,7 +146,7 @@ OVF_FAO:	.ASCID	/+!UL/
 ;
 ; Static prompt and helper descriptors.
 ;
-PROMPT_DSC:	.ASCID	/[NESWUD] move   [M] map   [Q] quit/
+PROMPT_DSC:	.ASCID	/[NESWUD] move  [M] map  [?] help  [Q] quit/
 DSC_EXIT_CONFIRM: .ASCID	/Climb the gateway stair and leave the cave?  (Y or N)/
 DSC_QUIT_CONFIRM: .ASCID	/Quit the game now?  (Y or N)/
 	.ALIGN	LONG
@@ -363,8 +368,14 @@ T_GO:
 	CMPL	R6, #^A/m/
 	BEQL	104$
 	CMPL	R6, #^A/M/
-	BNEQ	105$
+	BNEQ	1051$
 104$:	CALLS	#0, G^SHOW_MAP
+	BRW	T_LOOP
+1051$:
+	; ? -> open the interactive manual, then repaint the turn.
+	CMPL	R6, #^A/?/
+	BNEQ	105$
+	CALLS	#0, G^HELP_BROWSER
 	BRW	T_LOOP
 105$:
 	; U/u at the gateway up-staircase (the only up-stair on level 1)

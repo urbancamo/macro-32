@@ -105,14 +105,14 @@
 ;   0 Hero 1 W-Hero 2 Ogre 3 Troll 4 Priest 5 Man 6 Woman 7 Dwarf
 ;   8 Wizard 9 Spectre 10 Dragon 11 Sorcerer 12 Giant 13 Unicorn
 ;
-CR_LETTER:	.ASCII	/HhOTPMmDWSdsGU/
+CR_LETTER::	.ASCII	/HhOTPMmDWSdsGU/
 
 ; Treasure mnemonics (unique within the treasure set):
 ;   0 Silver 1 Gold 2 Gems 3 M.Sword 4 M.Carpet 5 L.Dust 6 H.Balm
 ;   7 Talisman 8 S.Potion 9 M.Staff 10 Ring 11 L.Ruby 12 C.Flute
 ;   13 Eye 14 Chest
 ;
-TR_LETTER:	.ASCII	"$GJWCLBTPFRYUEH"
+TR_LETTER::	.ASCII	"$GJWCLBTPFRYUEH"
 
 	.ALIGN	LONG
 DSP_ROW:	.BLKL	1
