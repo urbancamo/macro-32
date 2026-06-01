@@ -115,7 +115,6 @@ CHAMBER_AREA:	.LONG	0
 	.ALIGN	LONG
 DSC_HDR_CHAMBER:	.ASCID	/-- ENTERING CHAMBER --/
 DSC_HDR_REENTRY:	.ASCID	/-- RE-ENTERING CHAMBER --/
-DSC_REENTRY_EMPTY:	.ASCID	/Nothing remains in this chamber./
 DSC_REENTRY_FAO:	.ASCID	/!UL item(s) remain from your last visit./
 DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
@@ -455,16 +454,11 @@ PAINT_CHAMBER_REENTRY:
 	CALLS	#2, G^PAINT_CENTERED
 
 	; Sub-header reflecting what's actually left.  If both NS and
-	; NT are zero, say so plainly; otherwise show the count.
+	; NT are zero, show no sub-header at all; otherwise show the count.
 	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, REENTRY_CNT
 	MOVL	#5, ROW_TMP
 	TSTL	REENTRY_CNT
-	BNEQ	1$
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_REENTRY_EMPTY
-	CALLS	#2, G^PAINT_CENTERED
-	BRB	2$
-1$:
+	BEQL	2$
 	MOVW	#120, LINE_DSC
 	$FAO_S	ctrstr=DSC_REENTRY_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
 		p1=REENTRY_CNT

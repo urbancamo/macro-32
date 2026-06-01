@@ -102,7 +102,14 @@ TITLE_DSC4:	.ASCID	/Press any key to begin.../
 ; -- party-selection strings --
 ;
 HEADER_DSC:	.ASCID	/SELECT YOUR PARTY/
-INSTR_DSC:	.ASCID	\Press 1-8 to add a creature; 0 when done.\
+INSTR_DSC:	.ASCID	\Up/Down move; Enter adds; 1-8 quick-add; 0 when done.\
+
+;
+; -- selected-party roster strings --
+;
+ROSTER_LBL_DSC:	.ASCID	/Your party: /		; 12 chars incl. trailing space
+ROSTER_NONE_DSC: .ASCID	/(none chosen yet)/
+ROSTER_SEP_DSC:	.ASCID	/, /
 
 ;
 ; FAO control string for the per-creature catalog row.
@@ -145,11 +152,20 @@ COL_ONE:	.LONG	1
 COL_EIGHT:	.LONG	8
 
 ;
+; -- rendition control for the highlighted catalog row --
+;
+	.ALIGN	LONG
+REND_REVERSE:	.LONG	SMG$M_REVERSE
+FLAGS_ZERO:	.LONG	0
+
+;
 ; -- working copies of selection state --
 ;
 	.ALIGN	LONG
 RP:		.LONG	6			; remaining selection points
 AVAIL:		.BLKL	8			; per-creature available count
+CURSOR:		.LONG	0			; highlighted catalog row 0..7
+ROSTER_COL:	.BLKL	1			; running column for the roster line
 
 ;
 ; -- title row positions --
@@ -165,6 +181,7 @@ TITLE_R4:	.LONG	14
 HEADER_ROW:	.LONG	2
 TOTAL_ROW:	.LONG	4
 CATALOG_R0:	.LONG	7			; first catalog row
+ROSTER_ROW:	.LONG	16			; selected-party roster line
 INSTR_ROW:	.LONG	18
 
 ;
@@ -253,6 +270,7 @@ FAO_OUTLEN:	.BLKW	1
 	; Initialise working state
 	MOVL	#6, RP				; 6 selection points
 	CLRL	SCAVE_PARTY_NP
+	CLRL	CURSOR				; highlight first catalog row
 
 	; Copy starting counts into AVAIL[0..7]
 	CLRL	R0
@@ -269,11 +287,41 @@ PICK_LOOP:
 	BSBW	REPAINT_PARTY_SCREEN
 
 	CALLS	#0, READ_KEY
-	; R0 = terminator code
-	; '0' done  '1'..'8' pick that creature  anything else ignored.
+	; R0 = terminator code.  Navigation: Up/Down move the highlight,
+	; Enter/Space add the highlighted creature.  '0' finishes; the
+	; number keys 1-8 remain as a direct quick-add shortcut.
+
+	; -- Up arrow: move highlight up (wrap to last) --
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	DECL	CURSOR
+	BGEQ	PICK_LOOP
+	MOVL	#7, CURSOR			; wrap to last row
+	BRW	PICK_LOOP
+10$:
+	; -- Down arrow: move highlight down (wrap to first) --
+	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	INCL	CURSOR
+	CMPL	CURSOR, #8
+	BLSS	PICK_LOOP
+	CLRL	CURSOR				; wrap to first row
+	BRW	PICK_LOOP
+20$:
+	; -- Enter or Space: add the highlighted creature --
+	CMPL	R0, #SMG$K_TRM_CR
+	BEQL	25$
+	CMPL	R0, #^A/ /
+	BNEQ	30$
+25$:	MOVL	CURSOR, R0
+	BSBW	TRY_ADD_CREATURE
+	BRW	PICK_LOOP
+30$:
+	; -- '0' done --
 	CMPL	R0, #^A/0/
 	BEQL	PICK_DONE
 
+	; -- '1'..'8' quick-add (also moves the highlight there) --
 	CMPL	R0, #^A/1/
 	BLSS	PICK_LOOP			; below '1' -> ignore
 	CMPL	R0, #^A/8/
@@ -281,6 +329,7 @@ PICK_LOOP:
 
 	; index = R0 - '1' = 0..7
 	SUBL2	#^A/1/, R0
+	MOVL	R0, CURSOR			; follow the quick-add with the cursor
 	BSBW	TRY_ADD_CREATURE
 	BRW	PICK_LOOP
 
@@ -371,6 +420,9 @@ CAT_LOOP:
 	BSBW	PAINT_CATALOG_ROW
 	AOBLSS	#8, R6, CAT_LOOP
 
+	; Selected-party roster line
+	BSBW	PAINT_PARTY_ROSTER
+
 	; Instruction line at the bottom
 	PUSHAL	INSTR_ROW
 	PUSHAL	INSTR_DSC
@@ -419,15 +471,95 @@ PAINT_CATALOG_ROW:
 
 	MOVW	FAO_OUTLEN, ROW_DSC		; trim to actual length
 
-	; Paint at row CATALOG_R0 + R6, col 8.
+	; Paint at row CATALOG_R0 + R6, col 8.  The highlighted row
+	; (R6 == CURSOR) is drawn in reverse video; the rest plain.
 	ADDL3	CATALOG_R0, R6, ROW_NUM
 
+	CMPL	R6, CURSOR
+	BNEQ	5$
+	PUSHAL	REND_REVERSE
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	COL_EIGHT			; col (by reference)
+	PUSHAL	ROW_NUM
+	PUSHAL	ROW_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	RSB
+5$:
 	PUSHAL	COL_EIGHT			; col (by reference)
 	PUSHAL	ROW_NUM
 	PUSHAL	ROW_DSC
 	PUSHAL	SCAVE_UI_DSP_MAP
 	CALLS	#4, G^SMG$PUT_CHARS
 
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_PARTY_ROSTER  --  show the creatures chosen so far as a
+;                          comma-separated roster, so the player can
+;                          see exactly what the party will be.  Each
+;                          name is painted in turn, advancing a running
+;                          column (ROSTER_COL) by the name's length.
+;                          Registers R2-R5 survive the SMG$PUT_CHARS
+;                          calls (callee-saved per the calling standard).
+; -----------------------------------------------------------
+;
+PAINT_PARTY_ROSTER:
+	; Label "Your party: " at (ROSTER_ROW, col 8).
+	MOVL	#8, ROSTER_COL
+	PUSHAL	ROSTER_COL
+	PUSHAL	ROSTER_ROW
+	PUSHAL	ROSTER_LBL_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	ADDL2	#12, ROSTER_COL			; "Your party: " is 12 columns
+
+	TSTL	SCAVE_PARTY_NP
+	BNEQ	1$
+	; nobody chosen yet
+	PUSHAL	ROSTER_COL
+	PUSHAL	ROSTER_ROW
+	PUSHAL	ROSTER_NONE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+1$:
+	CLRL	R2				; member index
+PPR_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	2$
+	BRW	PPR_DONE
+2$:	CMPL	ROSTER_COL, #72			; stop before the right margin
+	BLSS	3$
+	BRW	PPR_DONE
+3$:	; name descriptor address for this member's creature
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R4
+	MOVL	(R4)[R3], R5			; R5 = address of name descriptor
+	PUSHAL	ROSTER_COL
+	PUSHAL	ROSTER_ROW
+	PUSHL	R5				; text descriptor (by reference)
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	; advance the column by the painted name's length
+	MOVZWL	(R5), R3			; descriptor length word
+	ADDL2	R3, ROSTER_COL
+	; ", " separator between names (not after the last)
+	ADDL3	#1, R2, R3
+	CMPL	R3, SCAVE_PARTY_NP
+	BGEQ	PPR_NEXT
+	PUSHAL	ROSTER_COL
+	PUSHAL	ROSTER_ROW
+	PUSHAL	ROSTER_SEP_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	ADDL2	#2, ROSTER_COL
+PPR_NEXT:
+	INCL	R2
+	BRW	PPR_LOOP
+PPR_DONE:
 	RSB
 
 
