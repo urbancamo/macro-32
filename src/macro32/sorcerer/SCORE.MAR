@@ -91,7 +91,7 @@ DSC_LINE_CR:		.ASCID	/Creatures + treasure: !UL pts/
 DSC_LINE_DRAGON:	.ASCID	/Dragon-slayer doubles: applied in line above/
 DSC_LINE_SORC:		.ASCID	/Sorcerer slain bonus: !UL/
 DSC_LINE_CURSE:		.ASCID	/Curse penalty: -!UL  (!UL curse(s))/
-DSC_LINE_TOTAL:		.ASCID	/====  FINAL SCORE: !UL  ===="/
+DSC_LINE_TOTAL:		.ASCID	/====  FINAL SCORE: !UL  ====/
 
 	.ALIGN	LONG
 LINE_BUF:	.BLKB	120
