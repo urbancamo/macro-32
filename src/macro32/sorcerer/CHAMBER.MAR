@@ -132,6 +132,7 @@ CHAMBER_AREA:	.LONG	0
 ;
 	.ALIGN	LONG
 DSC_HDR_CHAMBER:	.ASCID	/-- ENTERING CHAMBER --/
+DSC_HDR_STRANGERS:	.ASCID	/-- STRANGERS IN THE CHAMBER --/
 DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
 DSC_PROMPT_GATHER:	.ASCID	/(press any key to gather treasure)/
@@ -387,6 +388,10 @@ C_PROCESS:
 	BSBW	PICKUP_TREASURE
 	BRB	10$
 9$:
+	; Re-show the strangers first: a hazard fired on entry may have
+	; erased the chamber-contents screen, and the encounter only paints
+	; its prompt.
+	BSBW	PAINT_ENCOUNTER_SCREEN
 	CALLS	#0, G^STRANGER_ENCOUNTER
 	; Treasure is assigned only when every stranger in the chamber is
 	; either defeated or has joined the party -- both leave NS = 0.
@@ -465,6 +470,33 @@ PAINT_CHAMBER_INTRO:
 	BSBW	PAINT_TREASURE_LIST
 	BSBW	PAINT_CHEST_WARNING		; if a Chest no one can carry
 
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_ENCOUNTER_SCREEN  --  redraw the strangers (and treasure) just
+;                              before the W/A/T encounter.  A hazard that
+;                              fired on entry (earthquake, medusa, ...)
+;                              erases the chamber-contents screen, so
+;                              without this the player would be choosing
+;                              Withdraw/Attack/Test without seeing the
+;                              creatures.  STRANGER_ENCOUNTER paints only
+;                              its prompt on row 17 over this.
+; ===========================================================
+;
+PAINT_ENCOUNTER_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_STRANGERS
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#7, R7				; match the chamber-intro layout
+	BSBW	PAINT_STRANGER_LIST
+	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING
 	CALLS	#0, G^END_BATCH
 	RSB
 
