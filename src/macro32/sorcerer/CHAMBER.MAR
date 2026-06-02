@@ -196,6 +196,7 @@ DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !2UL/!3UL kg  !UL held|
 DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
 DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
 DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
+DSC_CHEST_WARN:		.ASCID	/  (No one in the party is strong enough to carry the Chest.)/
 MARK_SEL:		.ASCID	/> /
 MARK_NONE:		.ASCID	/  /
 
@@ -462,6 +463,7 @@ PAINT_CHAMBER_INTRO:
 	BSBW	PAINT_HAZARD_LIST
 	BSBW	PAINT_STRANGER_LIST
 	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING		; if a Chest no one can carry
 
 	CALLS	#0, G^END_BATCH
 	RSB
@@ -487,6 +489,7 @@ PAINT_CHAMBER_REENTRY:
 	BSBW	PAINT_HAZARD_LIST
 	BSBW	PAINT_STRANGER_LIST
 	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING		; if a Chest no one can carry
 
 	CALLS	#0, G^END_BATCH
 	RSB
@@ -583,6 +586,65 @@ PAINT_PFX_NAME_TREASURE:
 	PUSHAL	SCAVE_UI_DSP_MAP
 	CALLS	#4, G^SMG$PUT_CHARS
 	INCL	R7
+	RSB
+
+
+;
+; PAINT_CHEST_WARNING  --  R7 = next paint row (in/out).  If the chamber
+;   holds a Treasure Chest that no living party member is strong enough to
+;   carry, paint a warning so the player knows it must be left behind.
+;
+PAINT_CHEST_WARNING:
+	BSBW	CHEST_TOO_HEAVY			; R0 = 1 if present and uncarriable
+	BLBC	R0, PCW_DONE
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_CHEST_WARN
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+PCW_DONE:
+	RSB
+
+
+;
+; CHEST_TOO_HEAVY  --  R0 = 1 if the chamber holds a Treasure Chest (CT
+;   index 14) that no living party member can carry (capacity, by
+;   SCAVE_DATA_CR_CARRY, < the chest's weight); else R0 = 0.
+;   Clobbers R0,R2,R3,R4 (preserves R7).
+;
+CHEST_TOO_HEAVY:
+	CLRL	R2				; chamber treasure slot
+CTH_FIND:
+	CMPL	R2, SCAVE_CHAMBER_NT
+	BGEQ	CTH_NONE
+	CMPL	SCAVE_CHAMBER_CT[R2], #14	; 14 = Treasure Chest
+	BEQL	CTH_CHEST
+	INCL	R2
+	BRB	CTH_FIND
+CTH_CHEST:
+	MOVL	#14, R4
+	MOVAB	SCAVE_DATA_TR_WT, R0
+	MOVL	(R0)[R4], R3			; R3 = chest weight
+	CLRL	R2				; party slot
+CTH_MEM:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	CTH_WARN
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (PS < STONE)?
+	BGEQ	CTH_MNEXT
+	MOVL	SCAVE_PARTY_PC[R2], R4
+	MOVAB	SCAVE_DATA_CR_CARRY, R0
+	CMPL	(R0)[R4], R3			; capacity >= chest weight?
+	BGEQ	CTH_NONE			; a member can carry it -> no warning
+CTH_MNEXT:
+	INCL	R2
+	BRB	CTH_MEM
+CTH_WARN:
+	MOVL	#1, R0
+	RSB
+CTH_NONE:
+	CLRL	R0
 	RSB
 
 
@@ -1268,10 +1330,14 @@ TRY_ASSIGN:
 	MOVAB	SCAVE_DATA_TR_WT, R2
 	MOVL	(R2)[R6], R4			; item weight
 	BEQL	TA_PLACE			; weightless artifact -- no limit
+	; GET_LOAD_USED clobbers R4, so stash the item weight in R7 (which it
+	; preserves) before computing the prospective load.  (This was the
+	; bug that let a Man accept treasure far past his 50 kg limit.)
+	MOVL	R4, R7				; R7 = item weight (preserved)
 	BSBW	GET_LOAD_USED			; R0 = current load (R3 kept)
 	MOVL	SCAVE_PARTY_PC[R3], R5		; creature index
 	MOVAB	SCAVE_DATA_CR_CARRY, R2
-	ADDL3	R0, R4, R1			; prospective load
+	ADDL3	R0, R7, R1			; prospective load = current + item
 	CMPL	R1, (R2)[R5]
 	BLEQ	TA_PLACE
 	MOVAB	DSC_ERR_WEIGHT, R5
