@@ -63,6 +63,8 @@
 
 	.EXTRN	SCAVE_DATA_CR_PTS
 	.EXTRN	SCAVE_DATA_TR_PTS
+	.EXTRN	SCAVE_DATA_TR_WT
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
 
 
 	; SCAVE$_GS_* mirrors of STATE.MAR (file-local; see
@@ -92,6 +94,20 @@ DSC_LINE_DRAGON:	.ASCID	/Dragon-slayer doubles: applied in line above/
 DSC_LINE_SORC:		.ASCID	/Sorcerer slain bonus: !UL/
 DSC_LINE_CURSE:		.ASCID	/Curse penalty: -!UL  (!UL curse(s))/
 DSC_LINE_TOTAL:		.ASCID	/====  FINAL SCORE: !UL  ====/
+
+; -- "you failed" loot summary (DEAD screen) --
+DSC_LOOT_HDR:		.ASCID	/Treasure carried by the fallen party (all lost):/
+DSC_LOOT_ART:		.ASCID	/Artifacts: /
+DSC_LOOT_NONE:		.ASCID	/(none)/
+DSC_LOOT_HEAVY_FAO:	.ASCID	/Heavy treasure: !UL item(s), !UL kg/
+
+	.ALIGN	LONG
+COL_LEFT:	.LONG	6			; left margin for the loot section
+LOOT_KG:	.LONG	0			; total heavy-treasure weight carried
+LOOT_HEAVY_N:	.LONG	0			; count of heavy items carried
+LOOT_ART_N:	.LONG	0			; count of artifacts carried
+LOOT_COL:	.LONG	0			; running column for the artifact list
+LOOT_ROW:	.LONG	0			; current row for the artifact list
 
 	.ALIGN	LONG
 LINE_BUF:	.BLKB	120
@@ -203,7 +219,7 @@ PSUM_DONE:
 ;  SHOW_SCORE  --  end-game screen.  Blocks on any key.
 ; ===========================================================
 ;
-	.ENTRY	SHOW_SCORE, ^M<R2,R3,R4>
+	.ENTRY	SHOW_SCORE, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
 
 	CALLS	#0, G^CALCULATE_SCORE
 
@@ -233,6 +249,15 @@ PSUM_DONE:
 	; "Turns played: N"
 	BSBW	PAINT_TURNS
 
+	; On defeat, the score is 0 -- instead of the points breakdown,
+	; show what the fallen party was carrying (artifacts + heavy
+	; treasure), all of it lost with them.
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD
+	BNEQ	6$
+	BSBW	PAINT_DEAD_LOOT
+	BSBW	PAINT_TOTAL_LINE
+	BRW	SS_FOOTER
+6$:
 	; "Creatures + treasure: N pts"
 	BSBW	PAINT_CR_LINE
 
@@ -319,6 +344,119 @@ PAINT_TOTAL_LINE:
 	PUSHAL	ROW_TMP
 	PUSHAL	LINE_DSC
 	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_DEAD_LOOT  --  for the "you failed" screen: walk every party
+;                       slot's pack and show what the fallen party was
+;                       carrying -- each artifact by name, plus the total
+;                       count and weight of heavy treasure.  All of it is
+;                       lost with the party (the score is 0).
+;
+;  Uses R5-R9 (saved by SHOW_SCORE's entry mask).
+; ===========================================================
+;
+PAINT_DEAD_LOOT:
+	CLRL	LOOT_KG
+	CLRL	LOOT_HEAVY_N
+	CLRL	LOOT_ART_N
+	MOVL	#9, LOOT_ROW			; artifact list rows 9..11
+	MOVL	#17, LOOT_COL			; first name column (after the label)
+
+	; Section header (centered, row 8).
+	MOVL	#8, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_LOOT_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; "Artifacts: " label at (row 9, col 6).
+	MOVL	#9, ROW_TMP
+	PUSHAL	COL_LEFT
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_LOOT_ART
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+
+	CLRL	R5				; party slot
+PDL_PLOOP:
+	CMPL	R5, SCAVE_PARTY_NP
+	BGEQ	PDL_PDONE
+	MULL3	#SCAVE$_TREAS_PER, R5, R6	; PT base index for this slot
+	CLRL	R7				; k = 0..stride-1
+PDL_TLOOP:
+	CMPL	R7, #SCAVE$_TREAS_PER
+	BGEQ	PDL_PNEXT
+	ADDL3	R6, R7, R8
+	MOVL	SCAVE_PARTY_PT[R8], R9		; treasure index, or -1
+	BLSS	PDL_TINC			; empty slot
+	MOVAB	SCAVE_DATA_TR_WT, R0
+	MOVL	(R0)[R9], R1			; item weight
+	BNEQ	PDL_HEAVY			; weight > 0 -> heavy treasure
+	; artifact (weightless): list it by name
+	BSBW	PAINT_ARTIFACT_NAME		; R9 = treasure index
+	INCL	LOOT_ART_N
+	BRB	PDL_TINC
+PDL_HEAVY:
+	ADDL2	R1, LOOT_KG			; sum kg
+	INCL	LOOT_HEAVY_N
+PDL_TINC:
+	INCL	R7
+	BRB	PDL_TLOOP
+PDL_PNEXT:
+	INCL	R5
+	BRW	PDL_PLOOP
+PDL_PDONE:
+	; If no artifacts at all, mark the label "(none)".
+	TSTL	LOOT_ART_N
+	BNEQ	1$
+	MOVL	#9, ROW_TMP
+	MOVL	#17, LOOT_COL
+	PUSHAL	LOOT_COL
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_LOOT_NONE
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+1$:
+	; Heavy-treasure total at (row 12, col 6).
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_LOOT_HEAVY_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=LOOT_HEAVY_N, p2=LOOT_KG
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#12, ROW_TMP
+	PUSHAL	COL_LEFT
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; PAINT_ARTIFACT_NAME  --  R9 = treasure index.  Paint that treasure's
+;   name at (LOOT_ROW, LOOT_COL), advancing LOOT_COL by the name length +
+;   a gap; wrap to the next row near the right margin and stop after row
+;   11.  Clobbers R0-R2 (R5-R9 preserved across the SMG$PUT_CHARS call).
+;
+PAINT_ARTIFACT_NAME:
+	CMPL	LOOT_COL, #66			; near the right margin?
+	BLSS	1$
+	INCL	LOOT_ROW			; wrap to the next row
+	MOVL	#8, LOOT_COL
+1$:	CMPL	LOOT_ROW, #11
+	BLEQ	2$
+	RSB					; out of room -- drop the rest
+2$:	MOVL	SCAVE_DATA_TR_NAME_PTR[R9], R2	; name descriptor address
+	MOVL	LOOT_ROW, ROW_TMP
+	PUSHAL	LOOT_COL
+	PUSHAL	ROW_TMP
+	PUSHL	R2
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	MOVZWL	(R2), R0			; name length (descriptor word 0)
+	ADDL2	R0, LOOT_COL
+	INCL	LOOT_COL			; one-space gap before the next
 	RSB
 
 	.END
