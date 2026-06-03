@@ -193,7 +193,7 @@ FAO_OUTLEN:	.BLKW	1
 	.ALIGN	LONG
 DSC_PICK_HDR:		.ASCID	/-- PICK UP TREASURE --/
 DSC_PICK_ITEM_FAO:	.ASCID	|Item !UL/!UL:  !AS  (!UL kg)|
-DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !2UL/!3UL kg  !UL held|
+DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !3UL/!3UL kg  !UL held|
 DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
 DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
 DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
