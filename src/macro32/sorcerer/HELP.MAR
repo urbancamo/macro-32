@@ -181,6 +181,9 @@ DSC_CHART_CRE:	.ASCID	/Creatures/
 DSC_CHART_TRE:	.ASCID	/Treasure/
 DSC_CRE_HDR:	.ASCID	/CREATURE ATTRIBUTES/
 DSC_CRE_COLS:	.ASCID	/Name         FS  MP  Carry  Cost  Pts/
+DSC_CRE_KEY1:	.ASCID	/Key:  FS = Fighting Strength     MP = Magical Power/
+DSC_CRE_KEY2:	.ASCID	/      Carry = capacity (kg)   Cost = party-pick points/
+DSC_CRE_KEY3:	.ASCID	/      Pts = point value if brought out of the cave/
 
 ;
 ; -- FAO control strings --
@@ -787,6 +790,19 @@ RCR_LOOP:
 	INCL	R6
 	BRW	RCR_LOOP
 RCR_DONE:
+	; Column key, in the rows between the table and the footer.
+	MOVAB	DSC_CRE_KEY1, R2
+	MOVL	#18, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	MOVAB	DSC_CRE_KEY2, R2
+	MOVL	#19, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	MOVAB	DSC_CRE_KEY3, R2
+	MOVL	#20, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
 	BSBW	PAINT_FOOT_ANYKEY
 	CALLS	#0, G^END_BATCH
 	CALLS	#0, G^READ_KEY
