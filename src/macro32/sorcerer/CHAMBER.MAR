@@ -69,6 +69,7 @@
 	; Carry-capacity model for manual treasure pickup.
 	.EXTRN	SCAVE_DATA_CR_CARRY
 	.EXTRN	SCAVE_DATA_TR_WT
+	.EXTRN	SCAVE_DATA_TR_PTS	; point values (shown when swapping loot)
 	; Fighting strength (ghouls now match each member at its real FS).
 	.EXTRN	SCAVE_DATA_CR_FS
 
@@ -197,6 +198,14 @@ DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !3UL/!3UL kg  !UL held|
 DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
 DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
 DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
+
+; -- "drop to make room" sub-screen --
+DSC_DROP_HDR:		.ASCID	/-- DROP TREASURE TO MAKE ROOM --/
+DSC_DROP_WANT_FAO:	.ASCID	/!AS wants !AS (!UL kg, !UL pts) but is full./
+DSC_DROP_ITEM_FAO:	.ASCID	/!AS!10AS  !3UL kg  !3UL pts/
+DSC_DROP_NONE:		.ASCID	/(this member is carrying nothing to drop)/
+DSC_DROP_PROMPT:	.ASCID	\[Up/Dn] choose   [D] drop   [Enter] take it   [L] cancel\
+DSC_DROP_STILL:		.ASCID	/Still too heavy -- drop more, or cancel./
 DSC_CHEST_WARN:		.ASCID	/  (No one in the party is strong enough to carry the Chest.)/
 MARK_SEL:		.ASCID	/> /
 MARK_NONE:		.ASCID	/  /
@@ -220,6 +229,14 @@ PICK_HELD_VAL:	.BLKL	1
 PICK_NAME_PTR:	.BLKL	1
 PICK_MNAME_PTR:	.BLKL	1
 PICK_MARK_PTR:	.BLKL	1
+PICK_PTS_VAL:	.BLKL	1			; treasure point value (FAO !UL)
+
+	; "drop to make room" sub-screen state.
+	.ALIGN	LONG
+DROP_MSLOT:	.BLKL	1			; the member we are dropping from
+DROP_SEL:	.BLKL	1			; cursor over that member's carried items
+DROP_N:		.BLKL	1			; count of carried items
+DROP_LIST:	.BLKL	SCAVE$_TREAS_PER	; absolute PT indices of carried items
 
 
 	.PSECT	SCAVE_CHAMBER_CODE, EXE, NOWRT, LONG
@@ -1328,10 +1345,16 @@ SI_LOOP:
 	BEQL	25$
 	CMPL	R0, #^A/ /			; Space also gives
 	BNEQ	30$
-25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 rejected
+25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 slots-full, 2 too heavy
+	CMPL	R0, #1
+	BEQL	26$				; assigned -- next item
+	CMPL	R0, #2
+	BNEQ	27$				; slots-full (error already shown)
+	; Too heavy -- let the player drop this member's treasure for room.
+	BSBW	DROP_FOR_ROOM			; R0 = 1 placed, 0 cancelled
 	TSTL	R0
-	BNEQ	26$
-	BRW	SI_LOOP				; rejected -- keep choosing
+	BNEQ	26$				; placed after dropping
+27$:	BRW	SI_LOOP
 26$:	RSB					; assigned -- next item
 30$:	CMPL	R0, #^A/L/			; leave this item behind
 	BEQL	SI_LEAVE
@@ -1340,6 +1363,246 @@ SI_LOOP:
 	BRW	SI_LOOP
 SI_LEAVE:
 	RSB
+
+
+;
+; ===========================================================
+;  ADD_TO_CHAMBER  --  R0 = treasure index.  Return it to the chamber:
+;                      reuse a consumed (-1) CT slot if one exists (so it
+;                      is not re-offered this pass), else append if there
+;                      is room; otherwise it is lost.  Clobbers R0,R1.
+; ===========================================================
+;
+ADD_TO_CHAMBER:
+	CLRL	R1
+1$:	CMPL	R1, SCAVE_CHAMBER_NT
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CT[R1], #-1
+	BEQL	3$				; reuse this consumed slot
+	INCL	R1
+	BRB	1$
+2$:	CMPL	SCAVE_CHAMBER_NT, #SCAVE$_CHAMBER_MAX
+	BGEQ	4$				; chamber full -> item lost
+	MOVL	SCAVE_CHAMBER_NT, R1
+	INCL	SCAVE_CHAMBER_NT
+3$:	MOVL	R0, SCAVE_CHAMBER_CT[R1]
+4$:	RSB
+
+
+;
+; ===========================================================
+;  BUILD_DROP_LIST  --  R3 = party slot.  Fill DROP_LIST[0..DROP_N-1]
+;                       with the absolute PARTY_PT indices of the items
+;                       that member is carrying.  Clobbers R0,R1,R2,R4.
+; ===========================================================
+;
+BUILD_DROP_LIST:
+	CLRL	DROP_N
+	MULL3	#SCAVE$_TREAS_PER, R3, R0	; PT base for this member
+	CLRL	R1				; k
+1$:	CMPL	R1, #SCAVE$_TREAS_PER
+	BGEQ	2$
+	ADDL3	R0, R1, R2			; absolute PT index
+	CMPL	SCAVE_PARTY_PT[R2], #-1
+	BEQL	3$
+	MOVL	DROP_N, R4
+	MOVL	R2, DROP_LIST[R4]
+	INCL	DROP_N
+3$:	INCL	R1
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAINT_DROP_SCREEN  --  the "drop to make room" panel: the wanted item,
+;                         and the selected member's carried treasure with
+;                         weights and point values so the player can swap
+;                         up.  DROP_SEL is the highlighted carried item.
+; ===========================================================
+;
+PAINT_DROP_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; "<member> wants <item> (w kg, v pts) but is full."
+	MOVL	DROP_MSLOT, R0
+	MOVL	SCAVE_PARTY_PC[R0], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], PICK_MNAME_PTR
+	MOVL	PT_TRIDX, R0
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R0], PICK_WT_VAL
+	MOVAB	SCAVE_DATA_TR_PTS, R1
+	MOVL	(R1)[R0], PICK_PTS_VAL
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DROP_WANT_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MNAME_PTR, p2=PICK_NAME_PTR, p3=PICK_WT_VAL, p4=PICK_PTS_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Carried-item list (rows 8+).
+	CLRL	R6
+DPS_L:	CMPL	R6, DROP_N
+	BLSS	DPS_B
+	BRW	DPS_D
+DPS_B:	MOVL	DROP_LIST[R6], R7		; absolute PT index
+	MOVL	SCAVE_PARTY_PT[R7], R8		; treasure index
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R8], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R8], PICK_WT_VAL
+	MOVAB	SCAVE_DATA_TR_PTS, R1
+	MOVL	(R1)[R8], PICK_PTS_VAL
+	CMPL	R6, DROP_SEL
+	BNEQ	1$
+	MOVAB	MARK_SEL, PICK_MARK_PTR
+	BRB	2$
+1$:	MOVAB	MARK_NONE, PICK_MARK_PTR
+2$:	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DROP_ITEM_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MARK_PTR, p2=PICK_NAME_PTR, p3=PICK_WT_VAL, p4=PICK_PTS_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	ADDL3	#8, R6, ROW_TMP
+	CMPL	R6, DROP_SEL
+	BNEQ	3$
+	PUSHAL	REND_REVERSE
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	BRB	4$
+3$:	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+4$:	INCL	R6
+	BRW	DPS_L
+DPS_D:
+	TSTL	DROP_N
+	BNEQ	5$
+	MOVL	#8, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_NONE
+	CALLS	#2, G^PAINT_CENTERED
+5$:	MOVL	#20, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_PROMPT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  DROP_FOR_ROOM  --  the highlighted member (PICK_SEL) cannot carry the
+;                     current item.  Let the player drop carried treasure
+;                     (returned to the chamber) until the item fits, or
+;                     cancel.  R0 = 1 if the new item was taken, 0 if not.
+; ===========================================================
+;
+DROP_FOR_ROOM:
+	MOVL	PICK_SEL, R0
+	MOVL	PICK_SLOTS[R0], DROP_MSLOT
+	CLRL	DROP_SEL
+DFR_LOOP:
+	MOVL	DROP_MSLOT, R3
+	BSBW	BUILD_DROP_LIST			; DROP_LIST / DROP_N
+	; clamp DROP_SEL into range
+	TSTL	DROP_N
+	BNEQ	1$
+	CLRL	DROP_SEL
+	BRB	2$
+1$:	CMPL	DROP_SEL, DROP_N
+	BLSS	2$
+	MOVL	DROP_N, R0
+	DECL	R0
+	MOVL	R0, DROP_SEL
+2$:	BSBW	PAINT_DROP_SCREEN
+	CALLS	#0, G^READ_KEY
+	; Cursor + actions are factored into short helpers so every back-
+	; branch here is a BRW to the loop top (well within range).
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	BSBW	DROP_CURSOR_UP
+	BRW	DFR_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	BSBW	DROP_CURSOR_DOWN
+	BRW	DFR_LOOP
+20$:	CMPL	R0, #^A/D/			; drop the highlighted item
+	BEQL	25$
+	CMPL	R0, #^A/d/
+	BNEQ	30$
+25$:	BSBW	DROP_DO_DROP
+	BRW	DFR_LOOP
+30$:	CMPL	R0, #SMG$K_TRM_CR		; take the new item now
+	BEQL	35$
+	CMPL	R0, #^A/ /
+	BNEQ	40$
+35$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 slots, 2 heavy
+	CMPL	R0, #1
+	BEQL	DFR_PLACED
+	MOVAB	DSC_DROP_STILL, R5
+	BSBW	PAINT_PICK_ERR
+	BRW	DFR_LOOP
+40$:	CMPL	R0, #^A/L/			; cancel
+	BEQL	DFR_CANCEL
+	CMPL	R0, #^A/l/
+	BEQL	DFR_CANCEL
+	BRW	DFR_LOOP
+DFR_PLACED:
+	MOVL	#1, R0
+	RSB
+DFR_CANCEL:
+	CLRL	R0
+	RSB
+
+; DROP_CURSOR_UP / _DOWN -- move DROP_SEL over the carried-item list.
+DROP_CURSOR_UP:
+	TSTL	DROP_N
+	BEQL	1$
+	DECL	DROP_SEL
+	BGEQ	1$
+	MOVL	DROP_N, R0
+	DECL	R0
+	MOVL	R0, DROP_SEL
+1$:	RSB
+DROP_CURSOR_DOWN:
+	TSTL	DROP_N
+	BEQL	1$
+	INCL	DROP_SEL
+	CMPL	DROP_SEL, DROP_N
+	BLSS	1$
+	CLRL	DROP_SEL
+1$:	RSB
+
+; DROP_DO_DROP -- return the highlighted carried item to the chamber and
+;   clear it from the member's pack.
+DROP_DO_DROP:
+	TSTL	DROP_N
+	BEQL	1$
+	MOVL	DROP_SEL, R0
+	MOVL	DROP_LIST[R0], R1		; absolute PT index
+	MOVL	SCAVE_PARTY_PT[R1], R0		; treasure index
+	BSBW	ADD_TO_CHAMBER
+	MOVL	DROP_SEL, R0
+	MOVL	DROP_LIST[R0], R1
+	MNEGL	#1, SCAVE_PARTY_PT[R1]
+1$:	RSB
 
 
 ;
@@ -1372,8 +1635,10 @@ TRY_ASSIGN:
 	ADDL3	R0, R7, R1			; prospective load = current + item
 	CMPL	R1, (R2)[R5]
 	BLEQ	TA_PLACE
-	MOVAB	DSC_ERR_WEIGHT, R5
-	BRW	TA_REJECT
+	; Too heavy.  Return code 2 (no error painted) so the caller can
+	; offer to drop carried treasure to make room.
+	MOVL	#2, R0
+	RSB
 
 TA_PLACE:
 	; Store in the first free backing slot (index = R3*stride + k).
