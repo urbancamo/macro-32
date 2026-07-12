@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G4
-**Last iteration:** I010 (2026-07-12) — chamber revisit (reclassify parked): solo-seed3 8→48 (now matches 47/61 moves, diverges at WITHDRAW)
+**Last iteration:** I011 (2026-07-12) — WITHDRAW: solo-seed19 2→9, solo-seed3 48→52 (51/61). Most vectors now converge on ATTACK (G5 fights)
 
 ## Gates
 
@@ -36,10 +36,10 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed777-party5-6 | 7 | moves✓ | move 4 ATTACK (G4 encounter/fight) |
 | solo-seed101-party1-7 | 8 | moves✓ | move 5 ATTACK (G4 encounter/fight) |
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing on move-out); moves 1-3 incl. deadEnd + enteredSpecial match |
-| solo-seed19-party2-7 | 18 | moves✓ | move 2 WITHDRAW (G4 encounter) |
+| solo-seed19-party2-7 | 18 | WITHDRAW✓ | move 9 ATTACK (G5 fight); moves 1-8 match |
 | solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 `moved,drewChamber,hazardFired` (G4 on-draw hazard); moves 1-9 incl. 2× LEAVE match |
-| solo-seed3-party0 | 61 | revisit✓ | **move 48 WITHDRAW** (G4 encounter) — moves 1-47 match (MOVE/TAKE/LEAVE/revisit) |
+| solo-seed3-party0 | 61 | WITHDRAW✓ | **move 52 ATTACK** (G5 fight) — moves 1-51 match (MOVE/TAKE/LEAVE/revisit/WITHDRAW) |
 
 ## Backlog
 
@@ -239,6 +239,13 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I011 | 2026-07-12 | G4 | WITHDRAW** — Added the WITHDRAW action (code 4): blocked outside
+  encounter / if prev area is AF_DESTROYED (fellThroughTrap block deferred with trap falls); else
+  parks the current area (PERSIST_AREA), moves back to prev (PA=PP, level from ML[PP]), phase
+  explore, emits moved. No turn, no RNG. SCCONF parses WITHDRAW. *Evidence:* build clean;
+  solo-seed19 2→9, solo-seed3 48→**52** (51/61 moves match); no regression on solo-seed23.
+  *Result:* G4 non-fight actions largely done (pickup/revisit/withdraw). Remaining fronts:
+  ATTACK/FIGHT (G5), on-draw hazards (seed42), Lost-Ruby statue (seed23), TEST reaction.
 - **I010 | 2026-07-12 | G4 | chamber revisit** — Added a pure `REVISIT_CHAMBER` (reference
   enterChamber "visited" branch): rebuilds CS/CT/CH from the area's parked AC[PA*8+slot] codes by
   type (100/200/300), clearing each slot (contents=[]); EA_CHAMBER now splits fresh (DRAW_CHAMBER)
