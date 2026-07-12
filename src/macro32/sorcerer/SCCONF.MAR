@@ -585,7 +585,9 @@ DM_EV_END:
 ; -- FINAL -----------------------------------------------------------
 ;
 DO_FINAL:
-	PUSHL	SCAVE_STATE_SC			; SCORE (G0: raw field)
+	CALLS	#0, G^COMPUTE_SCORE		; R0 = final score (SC-12)
+	MOVL	R0, SC_A
+	PUSHL	SC_A				; SCORE
 	PUSHL	SCAVE_RNG_SEED
 	PUSHL	SCAVE_DECK_SI
 	PUSHL	SCAVE_DECK_LI

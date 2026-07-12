@@ -784,4 +784,63 @@ CL_N:	INCL	R1
 	BRB	CL_L
 CL_D:	RSB
 
+;
+; ===========================================================
+;  COMPUTE_SCORE  --  final score (reference scoreBreakdown, SC-12).
+;
+;  R0 = sum over ALIVE members of [ CR_PTS[cid] * (PK>0 ? 2 : 1) + sum of
+;  TR_PTS[carried] ] + 30 if the Sorcerer was killed - 30 if under any active
+;  curse (a Sorcerer kill lifts curses); a DEAD party scores 0, else floored at
+;  0.  bonusScore (treasure chest) is not yet tracked -> treated as 0.
+; ===========================================================
+;
+	.ENTRY	COMPUTE_SCORE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CLRL	R0				; raw accumulator
+	CLRL	R2				; member index
+SC_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SC_MD
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive = status < 2
+	BGEQ	SC_MN				; stone/dead -> 0 points
+	MOVL	SCAVE_PARTY_PC[R2], R3		; creature points (x2 if dragon-slayer)
+	MOVAB	SCAVE_DATA_CR_PTS, R4
+	MOVL	(R4)[R3], R5
+	TSTL	SCAVE_PARTY_PK[R2]
+	BEQL	SC_ADD
+	MULL2	#2, R5
+SC_ADD:	ADDL2	R5, R0
+	MULL3	#SCAVE$_TREAS_PER, R2, R6	; carried treasure points
+	MOVAB	SCAVE_PARTY_PT, R7
+	MOVAB	SCAVE_DATA_TR_PTS, R8
+	CLRL	R9				; slot j
+SC_TL:	CMPL	R9, #SCAVE$_TREAS_PER
+	BGEQ	SC_MN
+	ADDL3	R6, R9, R10
+	MOVL	(R7)[R10], R11			; tid (-1 = empty)
+	BLSS	SC_TN
+	ADDL2	(R8)[R11], R0
+SC_TN:	INCL	R9
+	BRB	SC_TL
+SC_MN:	INCL	R2
+	BRB	SC_ML
+SC_MD:	TSTL	SCAVE_STATE_SK			; + Sorcerer bonus (30)
+	BEQL	SC_CURSE
+	ADDL2	#30, R0
+SC_CURSE:					; - curse penalty (flat 30), unless SK
+	TSTL	SCAVE_STATE_SK
+	BNEQ	SC_CLAMP
+	TSTL	SCAVE_STATE_NC
+	BEQL	SC_CLAMP
+	SUBL2	#30, R0
+SC_CLAMP:
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD	; wiped party scores 0
+	BNEQ	SC_FLOOR
+	CLRL	R0
+	RET
+SC_FLOOR:
+	TSTL	R0
+	BGEQ	SC_RET
+	CLRL	R0				; floor at 0
+SC_RET:	RET
+
 	.END

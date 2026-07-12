@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G5
-**Last iteration:** I014 (2026-07-12) — D8 secret doors (mirrored-stair MIR + SD ordinal): **solo-seed777 + solo-seed101 fully PASS** (first conforming vectors!)
+**Last iteration:** I016 (2026-07-12) — EXITCAVE + D7 level-1 exits + faceUp + scoring (SC-12): **3/8 vectors PASS** (solo-seed3 joins 777/101)
 
 ## Gates
 
@@ -39,7 +39,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed19-party2-7 | 18 | FIGHT✓ | move 17 `FIGHT -` = Spectre auto-slay (spectreSlew, G5) |
 | solo-seed7-party1-7 | 19 | ATTACK✓ | move 19 `FIGHT 0>0;1>1` = **multi-match fight** (parser does single-match) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 hazardFired (G4 on-draw hazard) |
-| solo-seed3-party0 | 61 | FIGHT✓ | **move 61 EXITCAVE** — 60/61 moves match! (escape → gameOver) |
+| solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
 
 ## Backlog
 
@@ -264,6 +264,15 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I016 | 2026-07-12 | G6 | scoring (SC-12)** — Pure `COMPUTE_SCORE` in ENGINE (reference
+  scoreBreakdown): per ALIVE member `CR_PTS[cid]*(PK>0?2:1) + Σ TR_PTS[carried]`, +30 sorcerer
+  bonus, -30 flat curse penalty (unless SK), DEAD->0 else floor 0. SCCONF DO_FINAL calls it for the
+  FINAL SCORE instead of the raw field. bonusScore (chest) deferred (=0). *Evidence:* solo-seed3
+  FINAL SCORE 50 matches -> **solo-seed3 fully PASSES (3/8)**. No regression.
+- **I015 | 2026-07-12 | G4-G6 | EXITCAVE + D7 + faceUp** — EXITCAVE (escape on a level-1 up-stair);
+  D7 keep printed level-1 up-stairs (block DIR_UP moves instead) + fix a BBS index-scaling bug (bit
+  ops scale x1 not x4 -> load card to a register); per-area faceUp (SCAVE_AREA_FU) emitted instead of
+  hardcoded FU 1. solo-seed3 -> only SCORE remained.
 - **I014 | 2026-07-12 | G3/D8 | secret doors (mirrored stairs)** — A vertical move onto a card
   lacking the return stair mirrors it (MAP.MAR `MIRROR_UP_STAIR` now both dirs: descend->AU ^X20,
   ascend->AD ^X40) AND records it: `SCAVE_AREA_MIR[area]` |= bit, and lays a secret-door ordinal
