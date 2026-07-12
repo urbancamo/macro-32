@@ -39,6 +39,11 @@
 	SCAVE$_ACT_MOVE = 1			; SC-4-41 action code (MOVE)
 	SCAVE$_EVQ_MAX = 32			; must equal STATE.MAR's value
 
+	; Phase codes (SC-4-3) -- must equal STATE.MAR's values.
+	SCAVE$_PH_ENCOUNTER = 1
+	SCAVE$_PH_PICKUP    = 3
+	SCAVE$M_AREA_CHAMBER = ^X10		; area-card chamber bit (bit 4)
+
 	; Event codes -- KEEP IN SYNC with SCCONF.MAR's EV name table.
 	SCAVE$_EV_MOVED    = 1
 	SCAVE$_EV_DEADEND  = 2
@@ -156,7 +161,27 @@ EA_MOVED:
 	INCL	SCAVE_STATE_TN			; SC-4-9: +1 only on success
 	MOVL	#SCAVE$_EV_MOVED, R0
 	BSBW	EMIT_EVENT
-	; TODO G4: chamber-draw-on-arrival (drewChamber + ENC/PKP phase).
+
+	; Chamber-draw-on-arrival (SC-7.1-2): the first visit to a chamber-type
+	; area deals the small-pack cards, emits drewChamber, and sets the
+	; encounter/pickup phase.  (Hazard firing + stranger reaction rolls, and
+	; the revisit "reclassify from parked contents" path, are gate G4.)
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R1
+	BBC	#4, R1, EA_DONE			; not a chamber (SCAVE$M_AREA_CHAMBER)
+	TSTL	SCAVE_MAP_MV[R2]
+	BNEQ	EA_DONE				; already visited -> G4 revisit
+	CALLS	#0, DRAW_CHAMBER
+	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
+	BSBW	EMIT_EVENT
+	; phase: strangers -> encounter; else treasure -> pickup; else explore
+	TSTL	SCAVE_CHAMBER_NS
+	BEQL	5$
+	MOVL	#SCAVE$_PH_ENCOUNTER, SCAVE_STATE_PH
+	BRB	EA_DONE
+5$:	TSTL	SCAVE_CHAMBER_NT
+	BEQL	EA_DONE				; hazards-only stays explore until G4
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
 
 EA_DONE:
 	MOVL	#SS$_NORMAL, R0
@@ -172,5 +197,92 @@ EMIT_EVENT:
 	MOVL	R0, SCAVE_EVQ[R1]
 	INCL	SCAVE_EVQ_N
 10$:	RSB
+
+;
+; ===========================================================
+;  DRAW_CHAMBER  --  pure first-visit chamber draw (SC-7.1-2/4).
+;
+;  Marks the party's area visited, then deals min(level,4) small-pack
+;  cards (+1 Tomb, +2 Great Hall, cap 8) into the chamber working set
+;  (CS/CT/CH by type = code/100), advancing SI and stopping when the
+;  pack is exhausted.  Pure: consumes cards, never RNG.  The headless
+;  counterpart to the deal loop inside CHAMBER.MAR's interactive
+;  ENTER_CHAMBER; the revisit reclassify-from-parked path is gate G4.
+; ===========================================================
+;
+	.ENTRY	DRAW_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MOVL	#1, SCAVE_MAP_MV[R7]		; SC-7.1-2: mark visited
+
+	PUSHL	SCAVE_MAP_MP[R7]		; decode card -> SCAVE_DEC_* (AT = special)
+	CALLS	#1, G^DECODE_AREA
+
+	; draw count = min(level,4) + Tomb(+1)/Great Hall(+2), capped 8
+	MOVL	SCAVE_MAP_PL, R6
+	CMPL	R6, #4
+	BLEQ	1$
+	MOVL	#4, R6
+1$:	CMPL	SCAVE_DEC_AT, #4			; Tomb of Kings
+	BNEQ	2$
+	INCL	R6
+	BRB	3$
+2$:	CMPL	SCAVE_DEC_AT, #5			; Great Hall
+	BNEQ	3$
+	ADDL2	#2, R6
+3$:	CMPL	R6, #8
+	BLEQ	4$
+	MOVL	#8, R6
+4$:
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+
+	CLRL	R2				; cards drawn so far
+DC_LOOP:
+	CMPL	R2, R6
+	BLSS	10$
+	BRW	DC_DONE				; drew enough (far target -> BRW)
+10$:	MOVL	SCAVE_DECK_SI, R3
+	CMPL	R3, SCAVE_DATA_SMALL_N		; SC-7.1-4: stop when pack exhausted
+	BLSS	11$
+	BRW	DC_DONE
+11$:	MOVL	SCAVE_DECK_SP[R3], R4		; encoded card = type*100 + index
+	INCL	SCAVE_DECK_SI
+	DIVL3	#100, R4, R5			; R5 = type (1 cre / 2 tre / 3 haz)
+	MULL3	#100, R5, R0
+	SUBL2	R0, R4				; R4 = index within type
+
+	; Pick the destination array (R9), its count cell (R10) and cap (R11)
+	; by type, then store if the bucket isn't full.  A single unified store
+	; keeps every branch here in byte range (VAX cond branches are +/-127).
+	CMPL	R5, #1
+	BNEQ	20$
+	MOVAB	SCAVE_CHAMBER_CS, R9		; creature
+	MOVAB	SCAVE_CHAMBER_NS, R10
+	MOVL	#8, R11
+	BRB	30$
+20$:	CMPL	R5, #2
+	BNEQ	25$
+	MOVAB	SCAVE_CHAMBER_CT, R9		; treasure
+	MOVAB	SCAVE_CHAMBER_NT, R10
+	MOVL	#8, R11
+	BRB	30$
+25$:	CMPL	R5, #3
+	BNEQ	DC_NEXT				; unknown type -> skip
+	MOVAB	SCAVE_CHAMBER_CH, R9		; hazard
+	MOVAB	SCAVE_CHAMBER_NH, R10
+	MOVL	#4, R11
+30$:	MOVL	(R10), R8			; current count
+	CMPL	R8, R11
+	BGEQ	DC_NEXT				; bucket full -> drop the card
+	MOVL	R4, (R9)[R8]			; array[count] = index
+	INCL	(R10)				; count++
+DC_NEXT:
+	INCL	R2
+	BRW	DC_LOOP				; loop body > 127 bytes -> word branch
+DC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
 
 	.END

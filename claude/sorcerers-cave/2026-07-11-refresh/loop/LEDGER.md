@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G3
-**Last iteration:** I005 (2026-07-12) — ENG_APPLY MOVE reducer: solo-seed23 move 1 now matches
+**Last iteration:** I006 (2026-07-12) — chamber-draw-on-arrival: solo-seed23 matches through both moves (first divergence now the first non-move action, TAKE)
 
 ## Gates
 
@@ -32,7 +32,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | move1✓ | move 2: chamber-draw-on-arrival missing (PH EXP vs PKP, EV lacks drewChamber); TRN/ARA/SEED/moved all match |
+| solo-seed23-party4-6 | 7 | moves✓ | **first divergence = move 3 TAKE** (first non-move; stub emits EV -). Both MOVE actions + the chamber draw match exactly (G3 exit boundary reached for this vector) |
 | solo-seed777-party5-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
 | solo-seed101-party1-7 | 8 | SETUP✓ | move 1 (ENG_APPLY stub) |
 | solo-seed11-party5-6-7 | 15 | SETUP✓ | move 1 (ENG_APPLY stub) |
@@ -221,6 +221,19 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I006 | 2026-07-12 | G3 | chamber-draw-on-arrival** — Added a pure `DRAW_CHAMBER` to ENGINE.MAR
+  (headless counterpart to CHAMBER.MAR's UI-coupled deal loop): marks the area visited, deals
+  min(level,4)(+Tomb/+Hall, cap 8) small-pack cards into CS/CT/CH by type, advancing SI (SC-7.1-2/4).
+  ENG_APPLY MOVE now, on landing in an unvisited chamber (card bit 4), calls it, emits `drewChamber`,
+  and sets phase ENC (strangers) / PKP (treasure) / EXP. Fixed 3 `%MACRO-E-BRDESTRANG` (unified the
+  bucket store to keep branches in byte range; BRW for the far loop/exhaustion targets). *Evidence:*
+  `conform solo-seed23` diff advanced to move 3 — **move 2 now matches** (`PH PKP EV moved,drewChamber
+  SEED 446078340`); first divergence is the first non-move action (TAKE stub). *Result:* G3 movement
+  proven for solo-seed23 through both moves; TAKE/statue is G4.
+  **Infra (major):** the VAX FTP server had a 60s reverse-DNS stall on every connection (stale
+  nameserver `mikrotik.hecnet.eu` from an old topology). Fixed server-side by repointing the resolver
+  at `192.168.4.1` (fast NXDOMAIN) -> FTP ~61s -> ~1s, builds minutes -> ~30s. Also added a 120s
+  hard timeout to `vmsftp` (subprocess) so a future data-connection hang aborts + retries.
 - **I005 | 2026-07-12 | G3 | ENG_APPLY MOVE** — Implemented the MOVE action: ENGINE.MAR dispatches
   action 1 → guards phase → `TRY_MOVE` → `TN++`/`moved` on success, `deadEnd`/`blocked` otherwise
   (SC-4-9, event queue). SCCONF DO_MOVE now parses the action keyword+args and translates SCAVE_EVQ
