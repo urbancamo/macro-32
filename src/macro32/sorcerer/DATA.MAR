@@ -346,4 +346,9 @@ SCAVE_DATA_SMALL_PACK::
 	.LONG	303					; 1x MEDUSA
 	.LONG	304					; 1x GHOULS
 
+; Element count of the small-pack template, computed at assembly time so it
+; tracks edits to the pack above (SC-3-13).  Read at run time by INIT_DECKS
+; and the SCCONF self-check instead of a hard-coded literal.
+SCAVE_DATA_SMALL_N::	.LONG	<<. - SCAVE_DATA_SMALL_PACK>/4>
+
 	.END

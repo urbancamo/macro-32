@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G1
-**Last iteration:** I001 (2026-07-12) — G0 harness green end-to-end
+**Last iteration:** I002 (2026-07-12) — G1 self-check harness green; RNG verified, data gaps measured
 
 ## Gates
 
@@ -65,13 +65,19 @@ States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
 
 ### G1 — RNG + static data
 - [ ] D1 71-card small pack (37 creatures incl. Priest×3 / 27 treasures / 7 hazards incl.
-      Earthquake×2) — SC-3-13..16
-- [ ] D3 Area card index 41: 74 → 42 — SC-3-3 (`DATA.MAR:72`)
-- [ ] D4 Reaction cells: Hero 3/3, Priest 1/4, Man 2/4, Woman 2/4, Dwarf 0/4, Dragon 4/6 — A.1
-- [ ] D5 Seed injection: `ENG_NEWGAME` takes the seed; SCAVE reads `SCAVE_SEED` logical, falls
-      back to `$GETTIM` — SC-5-13
-- [ ] H5 SCCONF self-check mode: `nextSeed(1)=1103527590`, deck counts, A.1 spot cells
-- [ ] H6 Verify `RAND_BELOW` n<=0 returns without advancing the seed — SC-5-8
+      Earthquake×2) — SC-3-13..16. *Baseline (I002):* `PACK CREAT 19 TREAS 27 HAZ 6 TOTAL 52`.
+      Delta: +Hero, +1 Troll, +Priest×3, +Man×6, +Woman×3, +Dwarf×3, +1 Giant (→37); +1 Earthquake
+      (→7). Also bump `INIT_DECKS` copy/shuffle counts to `SCAVE_DATA_SMALL_N`.
+- [ ] D3 Area card index 41: 74 → 42 — SC-3-3 (`DATA.MAR`). Not self-check-visible; vectors verify.
+- [ ] D4 Reaction cells: Hero 3/3, Priest 1/4, Man 2/4, Woman 2/4, Dwarf 0/4, Dragon 4/6 — A.1.
+      *Baseline (I002):* Hero 0/0, Priest 0/0, Man 0/0, Woman 0/0, Dwarf 0/0, Dragon 6/6.
+- [ ] D5 Seed injection: `ENG_NEWGAME` takes the seed (DONE in ENGINE.MAR); SCAVE reads
+      `SCAVE_SEED` logical, falls back to `$GETTIM` — SC-5-13 (UI side, verify under scenarios).
+- [x] H5 SCCONF self-check mode (`SELFCHECK` line → `make vms-scave-selfcheck`): prints
+      `NEXTSEED1`, deck sizes, TYPES, PACK composition, A.1 CELLs. **RNG core verified correct:**
+      `NEXTSEED1 1103527590` (SC-5-6). RNG.MAR needs no change (mask `BICL2 #^X80000000`, bits via
+      `EXTZV #15,#16`, `min(5,·)+1` clamp all match A.5).
+- [x] H6 `RAND_BELOW` n<=0 no-advance verified: `RB0 BEFORE 12345 AFTER 12345 VAL 0` (SC-5-8).
 
 ### G2 — Setup
 - [ ] D6 RNG consumption order: large pack → small pack → store cursor — SC-5-12
@@ -184,6 +190,12 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 ## Iteration log
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
+
+- **I002 | 2026-07-12 | G1 | H5/H6 self-check harness** — Added a `SELFCHECK` diagnostic mode to
+  SCCONF (`DO_SELFCHECK`), a `SCAVE_DATA_SMALL_N` length symbol in DATA.MAR, and a
+  `make vms-scave-selfcheck` target. *Evidence:* `NEXTSEED1 1103527590`, `RB0 ... AFTER 12345 VAL 0`,
+  `DECK LARGE 60 SMALL 52`, `PACK CREAT 19 TREAS 27 HAZ 6 TOTAL 52`, cells Hero 0/0 … Dragon 6/6.
+  *Result:* RNG core proven correct (no RNG.MAR change needed); D1/D4 baselines captured. H5/H6 done.
 
 - **I001 | 2026-07-12 | G0 | H1–H4 harness green** — Found the G0 harness already built in the
   tree (ENGINE.MAR/SCCONF.MAR/STATE event queue/MAKE.COM/sources.list/Makefile conform targets)

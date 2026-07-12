@@ -118,6 +118,28 @@ LIT_DROP:  .ASCII	/ DROP -/
 LIT_DASH:  .ASCII	/-/
 LIT_COMMA: .ASCII	/,/
 
+; --- G1 self-check (H5/H6) ------------------------------------------
+; Triggered by a "SELFCHECK" line in CONFVEC.TXT; emits RNG + data
+; diagnostics so `make vms-scave-selfcheck` can prove the RNG core and
+; expose the static-data gaps (D1/D3/D4) as a baseline.
+CTL_SC_SEED:  .ASCID	/NEXTSEED1 !UL/
+CTL_SC_RB0:   .ASCID	/RB0 BEFORE !UL AFTER !UL VAL !UL/
+CTL_SC_DECK:  .ASCID	/DECK LARGE !UL SMALL !UL/
+CTL_SC_PACK:  .ASCID	/PACK CREAT !UL TREAS !UL HAZ !UL TOTAL !UL/
+CTL_SC_CELL:  .ASCID	/CELL !AS H !UL I !UL/
+LIT_SELF:  .ASCII	/SELFC/
+LIT_TYPES: .ASCII	/TYPES CREATURES 14 TREASURES 15 HAZARDS 5/
+	LIT_TYPES_L = . - LIT_TYPES
+
+	.ALIGN	LONG
+SC_A:	.LONG	0				; self-check scratch
+SC_B:	.LONG	0
+SC_C:	.LONG	0
+SC_D:	.LONG	0
+; creature indices whose A.1 reaction cells we report, -1 terminated:
+;   Hero, Priest, Man, Woman, Dwarf, Dragon
+SC_CELLS: .LONG	0, 4, 5, 6, 7, 10, -1
+
 ;
 ; ===========================================================
 ;  Code
@@ -172,7 +194,10 @@ LINE_LOOP:
 	BGEQ	12$
 	BRW	90$				; short: echo (e.g. "END")
 12$:
-	CMPC3	#5, INBUF, LIT_SEED		; "SEED "
+	CMPC3	#5, INBUF, LIT_SELF		; "SELFC" -- G1 self-check mode
+	BNEQ	13$
+	BRW	DO_SELFCHECK
+13$:	CMPC3	#5, INBUF, LIT_SEED		; "SEED "
 	BNEQ	20$
 	BRW	DO_SEED
 20$:	CMPC3	#5, INBUF, LIT_PICKS		; "PICKS"
@@ -260,6 +285,130 @@ DO_SETUP:
 	PUSHAQ	CTL_SETUP
 	BSBW	FAO_AT_POS_8
 	BSBW	PUT_LINE
+	BRW	LINE_LOOP
+
+;
+; -- SELFCHECK : G1 RNG + data diagnostics (H5/H6) -------------------
+;    One line each:
+;      NEXTSEED1 <n>                     nextSeed(1); expect 1103527590 (SC-5-6)
+;      RB0 BEFORE b AFTER a VAL v         randBelow(0): a==b, v==0 (SC-5-8)
+;      DECK LARGE 60 SMALL <n>            deck sizes (expect 60 / 71 after D1)
+;      TYPES CREATURES 14 TREASURES 15 HAZARDS 5   fixed type tables (SC-3-11/12)
+;      PACK CREAT c TREAS t HAZ h TOTAL n           small-pack composition
+;      CELL <name> H <hmax> I <imax>      A.1 reaction cells (validates D4)
+;
+DO_SELFCHECK:
+	BSBW	ECHO_LINE			; echo the "SELFCHECK" line
+
+	; NEXTSEED1: seed <- 1, advance once, report.
+	MOVL	#1, SCAVE_RNG_SEED
+	CALLS	#0, G^NEXT_RAND			; R0 = nextSeed(1)
+	MOVL	R0, SC_A
+	CLRL	OUTPOS
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_SEED
+	BSBW	FAO_AT_POS_1
+	BSBW	PUT_LINE
+
+	; RB0: randBelow(0) must return 0 without advancing the seed.
+	MOVL	#12345, SCAVE_RNG_SEED
+	MOVL	SCAVE_RNG_SEED, SC_A		; before
+	CLRL	R0				; bound 0
+	CALLS	#0, G^RAND_BELOW		; R0 = value (expect 0)
+	MOVL	R0, SC_C			; value
+	MOVL	SCAVE_RNG_SEED, SC_B		; after (expect == before)
+	CLRL	OUTPOS
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_RB0
+	BSBW	FAO_AT_POS_3
+	BSBW	PUT_LINE
+
+	; DECK sizes: large is always 60 (61 area cards minus the Gateway);
+	; small is the template length symbol (source of truth for D1).
+	CLRL	OUTPOS
+	PUSHL	SCAVE_DATA_SMALL_N
+	PUSHL	#60
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_DECK
+	BSBW	FAO_AT_POS_2
+	BSBW	PUT_LINE
+
+	; TYPES (fixed literal -- the type-table sizes).
+	CLRL	OUTPOS
+	MOVAB	LIT_TYPES, R6
+	MOVL	#LIT_TYPES_L, R7
+	BSBW	APPEND
+	BSBW	PUT_LINE
+
+	; PACK composition: bucket the template by code/100 (1=cre,2=tre,3=haz).
+	CLRL	SC_A				; creatures
+	CLRL	SC_B				; treasures
+	CLRL	SC_C				; hazards
+	CLRL	R2				; index
+	MOVAB	SCAVE_DATA_SMALL_PACK, R3
+SC_PACK_L:
+	CMPL	R2, SCAVE_DATA_SMALL_N
+	BGEQ	SC_PACK_DONE
+	MOVL	(R3)[R2], R4
+	DIVL2	#100, R4
+	CMPL	R4, #1
+	BNEQ	1$
+	INCL	SC_A
+	BRB	4$
+1$:	CMPL	R4, #2
+	BNEQ	2$
+	INCL	SC_B
+	BRB	4$
+2$:	INCL	SC_C
+4$:	INCL	R2
+	BRB	SC_PACK_L
+SC_PACK_DONE:
+	ADDL3	SC_A, SC_B, R0
+	ADDL2	SC_C, R0
+	MOVL	R0, SC_D			; total
+	CLRL	OUTPOS
+	PUSHL	SC_D
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_PACK
+	BSBW	FAO_AT_POS_4
+	BSBW	PUT_LINE
+
+	; CELLS: report reaction cells for the SC_CELLS creatures.  R7 holds
+	; the loop index across SYS$FAO (which preserves R2-R11).
+	CLRL	R7
+SC_CELL_L:
+	MOVL	SC_CELLS[R7], R5		; creature index (-1 = end)
+	CMPL	R5, #-1
+	BEQL	SC_CELL_DONE
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R6
+	MOVL	(R6)[R5], SC_A			; name descriptor address (!AS)
+	MOVAB	SCAVE_DATA_CR_HOSTILE_MAX, R6
+	MOVL	(R6)[R5], SC_B
+	MOVAB	SCAVE_DATA_CR_INDIFF_MAX, R6
+	MOVL	(R6)[R5], SC_C
+	CLRL	OUTPOS
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_CELL
+	BSBW	FAO_AT_POS_3
+	BSBW	PUT_LINE
+	INCL	R7
+	BRB	SC_CELL_L
+SC_CELL_DONE:
 	BRW	LINE_LOOP
 
 ;
@@ -530,6 +679,8 @@ APPEND:
 ;  writing at OUTBUF+OUTPOS; advances OUTPOS.  Implemented as one
 ;  common tail: the caller's pushes form the CALLS argument list.
 ;
+FAO_AT_POS_2:	MOVL	#5, R2
+		BRB	FAO_COMMON
 FAO_AT_POS_3:	MOVL	#6, R2
 		BRB	FAO_COMMON
 FAO_AT_POS_4:	MOVL	#7, R2

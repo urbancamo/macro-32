@@ -254,7 +254,24 @@ CONF_VECS    := solo-seed23-party4-6 solo-seed777-party5-6 \
                 solo-seed19-party2-7 solo-seed7-party1-7 \
                 solo-seed42-party3 solo-seed3-party0
 
-.PHONY: vms-scave-conform vms-scave-conform-all
+.PHONY: vms-scave-conform vms-scave-conform-all vms-scave-selfcheck
+
+# G1 RNG + data self-check (loop-spec G1 exit test).  Pushes a one-line
+# SELFCHECK vector, runs SCCONF's diagnostic mode, prints CONFRES.TXT:
+# nextSeed(1), randBelow(0) no-advance, deck sizes, type counts, small-pack
+# composition, and A.1 reaction cells.
+vms-scave-selfcheck: vms-up
+	@$(VMSDRIVE) ping --timeout 10 || { echo "emulator preflight failed -- aborting selfcheck" >&2; exit 1; }
+	@mkdir -p $(CONF_OUT_DIR)
+	@printf 'SELFCHECK\n' > $(CONF_OUT_DIR)/selfcheck.txt
+	@echo ">>> push SELFCHECK -> [.$(SCAVE_SUBDIR)]CONFVEC.TXT"
+	@$(VMSFTP) raw "$$(printf 'ascii\ncd [.%s]\nput %s CONFVEC.TXT\n' '$(SCAVE_SUBDIR)' '$(CONF_OUT_DIR)/selfcheck.txt')" >/dev/null
+	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]' >/dev/null
+	@echo ">>> RUN/NODEBUG SCCONF"
+	@$(VMSDRIVE) cmd 'RUN/NODEBUG SCCONF' --timeout 60
+	@$(VMSDRIVE) cmd 'SET DEFAULT [-]' >/dev/null
+	@$(VMSFTP) raw "$$(printf 'ascii\ncd [.%s]\nget CONFRES.TXT %s\n' '$(SCAVE_SUBDIR)' '$(CONF_OUT_DIR)/selfcheck.res')" >/dev/null
+	@echo "=== SCCONF self-check ===" && cat $(CONF_OUT_DIR)/selfcheck.res
 
 vms-scave-conform: vms-up
 	@test -n "$(VEC)" || { echo "set VEC=<vector basename, no .txt>" >&2; exit 1; }
