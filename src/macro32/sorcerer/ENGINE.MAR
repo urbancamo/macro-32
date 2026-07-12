@@ -36,8 +36,10 @@
 	SCAVE$_TREAS_PER = 20			; must equal STATE.MAR's value
 	SCAVE$_PH_EXPLORE = 0
 
-	SCAVE$_ACT_MOVE = 1			; SC-4-41 action code (MOVE)
+	SCAVE$_ACT_MOVE = 1			; SC-4-41 action codes
+	SCAVE$_ACT_LEAVE = 6
 	SCAVE$_EVQ_MAX = 32			; must equal STATE.MAR's value
+	SCAVE$_AREA_ITEMS = 8			; must equal STATE.MAR's value
 
 	; Phase codes (SC-4-3) -- must equal STATE.MAR's values.
 	SCAVE$_PH_ENCOUNTER = 1
@@ -132,8 +134,12 @@
 	MOVL	4(AP), R2			; R2 = action code
 
 	CMPL	R2, #SCAVE$_ACT_MOVE
-	BEQL	EA_MOVE
-	BRW	EA_DONE				; other actions: not yet implemented
+	BNEQ	1$
+	BRW	EA_MOVE
+1$:	CMPL	R2, #SCAVE$_ACT_LEAVE
+	BNEQ	2$
+	BRW	EA_LEAVE
+2$:	BRW	EA_DONE				; other actions: not yet implemented
 
 ;
 ; ---- MOVE (SC-4-9, SC-6.1-18, M1) ----
@@ -208,6 +214,22 @@ EA_CHAMBER:
 EA_DONE:
 	MOVL	#SS$_NORMAL, R0
 	RET
+
+;
+; ---- LEAVE (SC-4-30, leaveTreasure) ----
+;   Legal only in the pickup phase; else a no-op that emits blocked
+;   (SC-4-24).  Parks the chamber working set onto the area (persistAndExplore)
+;   and returns to explore.  No turn advance, no other events.
+;
+EA_LEAVE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BEQL	3$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+3$:	CALLS	#0, PERSIST_AREA		; park working set + clear it
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
 
 ;
 ; ---- EMIT_EVENT (JSB) -- append event code R0 to SCAVE_EVQ ----
@@ -304,6 +326,57 @@ DC_NEXT:
 	INCL	R2
 	BRW	DC_LOOP				; loop body > 127 bytes -> word branch
 DC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  PERSIST_AREA  --  park the chamber working set onto the party's area
+;                    (reference persistAndExplore) and clear it.
+;
+;  Writes AC[PA*8 + slot] = 100+cid for each stranger, then 200+tid for each
+;  live treasure (skips -1 = consumed), pads the remaining slots with 0, then
+;  clears NS/NT/NH.  Matches the reference order (strangers, treasures); the
+;  Deep-Pool `dropped` pile, sleeping/lulled parking and Medusa/Ghouls
+;  hazard re-park are added when a vector exercises them.
+; ===========================================================
+;
+	.ENTRY	PERSIST_AREA, ^M<R3,R6,R7,R8>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8
+	ADDL2	R0, R8				; R8 = &AC[PA*8]
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; free slots
+
+	CLRL	R6				; strangers -> 100+cid
+PA_S:	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	PA_T
+	TSTL	R3
+	BLEQ	PA_PAD
+	ADDL3	#100, SCAVE_CHAMBER_CS[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_S
+PA_T:	CLRL	R6				; treasures -> 200+tid
+PA_TL:	CMPL	R6, SCAVE_CHAMBER_NT
+	BGEQ	PA_PAD
+	TSTL	R3
+	BLEQ	PA_PAD
+	MOVL	SCAVE_CHAMBER_CT[R6], R0
+	BLSS	PA_TN				; -1 consumed -> skip
+	ADDL3	#200, R0, (R8)+
+	DECL	R3
+PA_TN:	INCL	R6
+	BRB	PA_TL
+PA_PAD:	TSTL	R3				; zero unused tail slots
+	BLEQ	PA_CLR
+	CLRL	(R8)+
+	DECL	R3
+	BRB	PA_PAD
+PA_CLR:	CLRL	SCAVE_CHAMBER_NS		; working set now lives on the area
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
 	MOVL	#SS$_NORMAL, R0
 	RET
 

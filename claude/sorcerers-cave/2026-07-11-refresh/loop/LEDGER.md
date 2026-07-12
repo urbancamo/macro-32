@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G4
-**Last iteration:** I007 (2026-07-12) — enteredSpecial: G3 movement complete (7/8 vectors reach their first non-move; solo-seed11 reaches move 4 = G6 crossing)
+**Last iteration:** I008 (2026-07-12) — LEAVE/persistAndExplore: solo-seed42 → move 10 (hazardFired), solo-seed3 → move 5 (TAKE)
 
 ## Gates
 
@@ -38,8 +38,8 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing on move-out); moves 1-3 incl. deadEnd + enteredSpecial match |
 | solo-seed19-party2-7 | 18 | moves✓ | move 2 WITHDRAW (G4 encounter) |
 | solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
-| solo-seed42-party3 | 31 | moves✓ | move 3 LEAVE (G4 pickup) |
-| solo-seed3-party0 | 61 | moves✓ | move 2 LEAVE (G4 pickup) |
+| solo-seed42-party3 | 31 | LEAVE✓ | move 10 `moved,drewChamber,hazardFired` (G4 on-draw hazard); moves 1-9 incl. 2× LEAVE match |
+| solo-seed3-party0 | 61 | LEAVE✓ | move 5 TAKE (G4 pickup) |
 
 ## Backlog
 
@@ -239,6 +239,13 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I008 | 2026-07-12 | G4 | LEAVE (leaveTreasure)** — Added a pure `PERSIST_AREA` (reference
+  persistAndExplore: park CS as 100+cid, CT as 200+tid into SCAVE_AREA_AC[PA*8+slot], pad 0, clear
+  the working set) and the LEAVE action (code 6): blocked outside pickup, else persist + phase
+  explore, no events. Extended SCCONF's action parser (MOVE + LEAVE). *Evidence:* build clean;
+  solo-seed42 divergence 3→**10** (moves incl. 2 LEAVEs match; move 10 = on-draw hazardFired),
+  solo-seed3 2→**5** (TAKE), no regression on solo-seed23. *Result:* pickup-phase persist works;
+  next TAKE (takeTreasure + Lost-Ruby statue) and on-draw hazard resolution.
 - **I007 | 2026-07-12 | G3 | enteredSpecial (SC-10-3)** — ENG_APPLY MOVE now decodes the arrived
   area's special type (card bits 7-9); Deep Pool (2) / Viper Pit (3) emit `enteredSpecial` + stay
   in explore, before the chamber path. Added the event code/name; fixed a far `BNEQ EA_DONE`

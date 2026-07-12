@@ -140,8 +140,9 @@ SC_D:	.LONG	0
 ;   Hero, Priest, Man, Woman, Dwarf, Dragon
 SC_CELLS: .LONG	0, 4, 5, 6, 7, 10, -1
 
-; --- G3 move reducer: action keyword, parsed args, event-name table ---
+; --- action reducer: keywords, parsed args, event-name table ---
 LIT_MOVE:  .ASCII	/MOVE/
+LIT_LEAVE: .ASCII	/LEAVE/
 
 	.ALIGN	LONG
 V_ACT:	.LONG	0				; parsed action code
@@ -460,14 +461,18 @@ DO_MOVE:
 	CLRL	V_A1
 	CLRL	V_A2
 	CLRL	V_A3
-	CMPC3	#4, INBUF+5, LIT_MOVE		; "MOVE"
-	BNEQ	DM_APPLY
+	CMPC3	#4, INBUF+5, LIT_MOVE		; "MOVE" -> action 1, 1 arg (dir)
+	BNEQ	60$
 	MOVL	#1, V_ACT
-	MOVAB	INBUF+9, R6			; args after "MOVE"
+	MOVAB	INBUF+9, R6			; args after the keyword
 	MOVL	LINELEN, R7
 	SUBL2	#9, R7
 	BSBW	PARSE_UINT			; R0 = direction
 	MOVL	R0, V_A1
+	BRB	DM_APPLY
+60$:	CMPC3	#5, INBUF+5, LIT_LEAVE		; "LEAVE" -> action 6, 0 args
+	BNEQ	DM_APPLY
+	MOVL	#6, V_ACT
 DM_APPLY:
 	PUSHL	V_A3
 	PUSHL	V_A2
