@@ -174,11 +174,14 @@ EV_D_SPECSL:  .ASCID	/spectreSlew/
 EV_D_RUBY:    .ASCID	/rubyTaken/
 EV_D_STATUE:  .ASCID	/statueAroused/
 EV_D_HAZ:     .ASCID	/hazardFired/
+EV_D_XSPEC:   .ASCID	/crossedSpecial/
+EV_D_VIPER:   .ASCID	/viperPit/
+EV_D_TDROP:   .ASCID	/treasureDropped/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
 		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL, EV_D_RUBY, -
-		EV_D_STATUE, EV_D_HAZ
+		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP
 
 ;
 ; ===========================================================

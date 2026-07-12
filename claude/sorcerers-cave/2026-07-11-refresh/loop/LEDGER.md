@@ -3,9 +3,9 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G6
-**Last iteration:** I020 (2026-07-12) — on-draw Earthquake hazard: seed42 10→27. **Both remaining vectors (seed42, seed11) now need special crossing (crossedSpecial)** — the last feature; 6/8 PASS
+**Status:** `DONE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
+**Current gate:** G6 complete (headless engine at bit-for-bit parity)
+**Last iteration:** I021 (2026-07-12) — special crossing (viper pit + deep pool): **ALL 8/8 VECTORS PASS bit-for-bit.** The headless engine (ENGINE.MAR + SCCONF.MAR) now conforms to the reference TS engine across every conformance vector. Remaining gates G7-G9 (Part I audit, UI rewire, UI playability) are follow-on work, not engine-parity.
 
 ## Gates
 
@@ -17,7 +17,7 @@
 | G3 Movement | PASS (movement) | I005-I007: all 8 vectors match every MOVE up to their first non-move action — MOVE (success/deadEnd/blocked), turn coupling, chamber-draw-on-arrival, special entry (enteredSpecial), event order. solo-seed11 reaches move 4 where the special **crossing** (crossedSpecial) begins = G6. D8/D9 (secret doors, quake rubble) not exercised in the pre-first-non-move moves — verify when a vector hits them |
 | G4 Chambers/encounters | PENDING | — |
 | G5 Fights | PENDING | — |
-| G6 Specials/artifacts/scoring | PENDING | — |
+| G6 Specials/artifacts/scoring | PASS | I008-I021: focus-fire fights + caster magic, gang-up (D28), Spectre auto-slay, Lost-Ruby statue wrestle (D49), secret doors (D8), on-draw Earthquake hazard (SC-7.2), and the special crossings — Viper Pit (SC-10.1, d6/member, fatal on 1-2, game-over on wipe) and Deep Pool (SC-10.2, Giant carries / heavy loot dropped). **All 8/8 vectors PASS bit-for-bit** (2026-07-12). Deferred (unexercised by valid vectors): flute-lull, Eye-of-God forfeit, RNG hazards (Medusa/Ghouls/Mutiny/Trap), pool treasureReclaimed, DROP-list emit |
 | G7 Part I audit | PENDING | — |
 | G8 UI rewire | PENDING | — |
 | G9 UI playability | PENDING | — |
@@ -35,10 +35,10 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed23-party4-6 | 7 | **PASS** ✅ | fully conforms (I019 Lost-Ruby statue) |
 | solo-seed777-party5-6 | 7 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed101-party1-7 | 8 | **PASS** ✅ | fully conforms (I014) |
-| solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
+| solo-seed11-party5-6-7 | 15 | **PASS** ✅ | fully conforms (I021 deep-pool crossing) |
 | solo-seed19-party2-7 | 18 | **PASS** ✅ | fully conforms (I017 Spectre auto-slay) |
 | solo-seed7-party1-7 | 19 | **PASS** ✅ | fully conforms (I018 gang-up) |
-| solo-seed42-party3 | 31 | hazard✓ | move 27 `crossedSpecial,viperPit,moved` (G6 viper-pit crossing) — Earthquake now fires |
+| solo-seed42-party3 | 31 | **PASS** ✅ | fully conforms (I020 Earthquake + I021 viper-pit crossing) |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
 
 ## Backlog
@@ -263,6 +263,20 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 ## Iteration log
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
+
+- **I021 | 2026-07-12 | G6 | special crossing (Viper Pit + Deep Pool) -- 8/8 PARITY** — New in
+  ENGINE.MAR: capture `fromSpecial`/`oldPrev` before the move, then in EA_MOVED fire the crossing
+  BEFORE `moved` when leaving a viper/pool for a genuinely new area (`newPA != oldPrev`).
+  `VIPER_CROSSING` rolls a d6 per living member (fatal on 1-2 -> memberDied + treasure lost),
+  emits `viperPit` then per-victim `memberDied`, and ends the game DEAD on a full wipe.
+  `DEEPPOOL_CROSSING` lets a living Giant carry all, else drops each member's heavy loot (ids 0-2)
+  with `treasureDropped`. SCCONF gains crossedSpecial/viperPit/treasureDropped (codes 17-19).
+  ENG_APPLY mask widened to ^M<R2..R7>. *Bug found + fixed:* the initial `EXTZV #7,#3,MAP_MP[R2],..`
+  read garbage -- a variable-bit-field instruction's base-operand index scales by **1 byte, not 4**
+  (same class as BBS/BBC). Fixed by `MOVL MAP_MP[R2],R6` first, then `EXTZV ...,R6,R6`. This one bug
+  had both spuriously fired crossings on plain areas (seed7/seed3 regressions) AND missed the real
+  viper/pool decodes (seed42/seed11). *Evidence:* `make vms-scave-conform` on all 8 vectors -> **8/8
+  PASS bit-for-bit** (seed23, seed777, seed101, seed11, seed19, seed7, seed42, seed3). Loop status -> DONE.
 
 - **I020 | 2026-07-12 | G4 | on-draw hazards (Earthquake)** — New `RESOLVE_HAZARDS` in ENGINE, called
   after the chamber draw: iterates the fixed priority order (Earthquake, Medusa, Ghouls, Mutiny, Trap

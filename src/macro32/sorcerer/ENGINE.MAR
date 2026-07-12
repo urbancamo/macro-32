@@ -74,10 +74,15 @@
 	SCAVE$_EV_RUBYTAKEN = 14
 	SCAVE$_EV_STATUEAROUSED = 15
 	SCAVE$_EV_HAZARDFIRED = 16
+	SCAVE$_EV_CROSSEDSPECIAL = 17
+	SCAVE$_EV_VIPERPIT = 18
+	SCAVE$_EV_TREASUREDROPPED = 19
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices
 	SCAVE$_CR_SPECTRE = 9			; creature indices
+	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
+	SCAVE$_TR_HEAVY_MAX = 2			; heavy treasure ids 0..2 (Silver, Gold, Gems)
 
 	; Area special types (card bits 7-9); the "stop at edge" specials.
 	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
@@ -154,7 +159,7 @@
 ;  state also emits no events (SC-4-6 discipline).
 ; ===========================================================
 ;
-	.ENTRY	ENG_APPLY, ^M<R2,R3>
+	.ENTRY	ENG_APPLY, ^M<R2,R3,R4,R5,R6,R7>
 
 	CLRL	SCAVE_EVQ_N			; SC-4-6: fresh event queue per action
 	MOVL	4(AP), R2			; R2 = action code
@@ -193,6 +198,14 @@ EA_MOVE:
 	BEQL	1$
 	BRW	EA_DONE				; SC-4-24: reject move outside explore (far -> BRW)
 1$:
+	; Capture the crossing inputs BEFORE the move: R6 = the special type of
+	; the area we are leaving, R7 = oldPrev.  TRY_MOVE overwrites SCAVE_MAP_PP
+	; (prev := old PA), so these must be sampled up front (SC-10, reduce.ts).
+	; TRY_MOVE saves R2-R11, so R6/R7 survive the call.
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R6		; from-card (MOVL scales the index x4)
+	EXTZV	#7, #3, R6, R6			; R6 = fromSpecial (card bits 7-9)
+	MOVL	SCAVE_MAP_PP, R7		; R7 = oldPrev
 	PUSHL	8(AP)				; direction
 	CALLS	#1, G^TRY_MOVE			; R0 = 1 moved / 0 not; sets DEADEND
 	TSTL	R0
@@ -212,6 +225,38 @@ EA_BLOCKED:
 
 EA_MOVED:
 	INCL	SCAVE_STATE_TN			; SC-4-9: +1 only on success
+
+	; Special crossing (SC-10, reduce.ts move handler): leaving a Viper Pit or
+	; Deep Pool for a genuinely new area (not straight back the way we came)
+	; fires the crossing BEFORE the moved event.  crossing = newPA != oldPrev.
+	MOVL	SCAVE_MAP_PA, R2
+	CMPL	R2, R7				; back the way we came? -> no crossing
+	BEQL	EA_NOCROSS
+	CMPL	R6, #SCAVE$_SPECIAL_VIPER
+	BEQL	EA_XVIPER
+	CMPL	R6, #SCAVE$_SPECIAL_POOL
+	BEQL	EA_XPOOL
+	BRB	EA_NOCROSS
+
+EA_XVIPER:
+	MOVL	#SCAVE$_EV_CROSSEDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, VIPER_CROSSING		; emits viperPit + memberDied; R0 = living count
+	TSTL	R0
+	BNEQ	EA_NOCROSS
+	; the pit swallowed the whole party -> game over DEAD (no moved emitted)
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+EA_XPOOL:
+	MOVL	#SCAVE$_EV_CROSSEDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, DEEPPOOL_CROSSING		; Giant carries all, else drop heavy loot
+
+EA_NOCROSS:
 	MOVL	#SCAVE$_EV_MOVED, R0
 	BSBW	EMIT_EVENT
 
@@ -570,6 +615,96 @@ RH_CLR:	ADDL3	R6, R4, R0
 RH_DONE:
 	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
 	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  VIPER_CROSSING  --  cross the Viper Pit (SC-10.1, special.ts viperCrossing).
+;
+;  Each living member rolls a d6 crossing the ledge; a 1 or 2 is a fatal fall
+;  (member dies, their treasure is lost to the pit).  Emits viperPit first (its
+;  per-member rolls payload is not printed), then memberDied per victim.
+;  Returns R0 = surviving-member count so the caller can end the game if the pit
+;  swallowed everyone.  (Charmed-Flute lull and the Eye-of-God forfeit are
+;  deferred -- no conformance vector holds either while crossing.)
+; ===========================================================
+;
+	.ENTRY	VIPER_CROSSING, ^M<R2,R3,R4,R5>
+	MOVL	#SCAVE$_EV_VIPERPIT, R0
+	BSBW	EMIT_EVENT
+	CLRL	R2				; party slot
+VC_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	VC_D
+	CMPL	SCAVE_PARTY_PS[R2], #2		; skip stone(2)/dead(3)
+	BGEQ	VC_N
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6, threads the seed
+	CMPL	R0, #2
+	BGTR	VC_N				; 3..6 crosses safely
+	; fatal fall: kill the member, lose their carried treasure, emit memberDied
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+VC_CLR:	ADDL3	R3, R5, R0
+	MOVL	#-1, (R4)[R0]			; -1 = empty slot
+	AOBLSS	#SCAVE$_TREAS_PER, R5, VC_CLR
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+VC_N:	INCL	R2
+	BRB	VC_L
+VC_D:	BSBW	COUNT_LIVING			; R0 = survivors
+	RET
+
+;
+; ===========================================================
+;  DEEPPOOL_CROSSING  --  cross the Deep Pool (SC-10.2, special.ts
+;                         deepPoolCrossing).
+;
+;  A living Giant (creature 12) carries all heavy treasure across; otherwise
+;  every living member leaves their heavy loot (ids 0..2 -- Silver/Gold/Gems)
+;  at the pool's edge, emitting one treasureDropped per member that drops any.
+;  No conformance vector crosses a pool while carrying heavy loot, so the drop
+;  loop is a verified no-op here, but it is wired for correctness.
+; ===========================================================
+;
+	.ENTRY	DEEPPOOL_CROSSING, ^M<R2,R3,R4,R5,R6>
+	CLRL	R2				; look for a living Giant
+DP_GL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	DP_DROP
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	DP_GN
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_GIANT
+	BNEQ	DP_GN
+	BRW	DP_RET				; Giant present -> carries all, no drops
+DP_GN:	INCL	R2
+	BRB	DP_GL
+
+DP_DROP:
+	CLRL	R2				; member slot
+DP_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	DP_M1
+	BRW	DP_RET
+DP_M1:	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	DP_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; dropped-count
+	CLRL	R6				; slot in row
+DP_SL:	ADDL3	R3, R6, R0
+	MOVL	(R4)[R0], R1
+	BLSS	DP_SN				; -1 empty
+	CMPL	R1, #SCAVE$_TR_HEAVY_MAX
+	BGTR	DP_SN				; light treasure stays with the member
+	MOVL	#-1, (R4)[R0]			; heavy -> left in the pool
+	INCL	R5
+DP_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, DP_SL
+	TSTL	R5
+	BEQL	DP_MN
+	MOVL	#SCAVE$_EV_TREASUREDROPPED, R0
+	BSBW	EMIT_EVENT
+DP_MN:	INCL	R2
+	BRB	DP_ML
+DP_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
