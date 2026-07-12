@@ -40,6 +40,8 @@
 	SCAVE$_ACT_WITHDRAW = 4
 	SCAVE$_ACT_TAKE = 5
 	SCAVE$_ACT_LEAVE = 6
+	SCAVE$_ACT_ATTACK = 12
+	SCAVE$_PH_FIGHT = 2			; must equal STATE.MAR
 	SCAVE$M_AF_DESTROYED = ^X04		; per-area flag (must equal STATE.MAR)
 	SCAVE$_EVQ_MAX = 32			; must equal STATE.MAR's value
 	SCAVE$_AREA_ITEMS = 8			; must equal STATE.MAR's value
@@ -55,6 +57,7 @@
 	SCAVE$_EV_BLOCKED  = 3
 	SCAVE$_EV_DREWCHAMBER = 4
 	SCAVE$_EV_ENTEREDSPECIAL = 5
+	SCAVE$_EV_FIGHTSTARTED = 6
 
 	; Area special types (card bits 7-9); the "stop at edge" specials.
 	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
@@ -148,7 +151,10 @@
 3$:	CMPL	R2, #SCAVE$_ACT_WITHDRAW
 	BNEQ	4$
 	BRW	EA_WITHDRAW
-4$:	BRW	EA_DONE				; other actions: not yet implemented
+4$:	CMPL	R2, #SCAVE$_ACT_ATTACK
+	BNEQ	5$
+	BRW	EA_ATTACK
+5$:	BRW	EA_DONE				; other actions: not yet implemented
 
 ;
 ; ---- MOVE (SC-4-9, SC-6.1-18, M1) ----
@@ -209,14 +215,17 @@ EA_CHAMBER:
 	TSTL	SCAVE_MAP_MV[R2]
 	BEQL	7$
 	CALLS	#0, REVISIT_CHAMBER		; visited -> reclassify parked contents
+	CLRL	R3				; fresh = 0 (revisit)
 	BRB	8$
 7$:	CALLS	#0, DRAW_CHAMBER		; first visit -> deal from the small pack
+	MOVL	#1, R3				; fresh = 1
 8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
 	; phase: strangers -> encounter; else treasure -> pickup; else explore
 	TSTL	SCAVE_CHAMBER_NS
 	BEQL	5$
 	MOVL	#SCAVE$_PH_ENCOUNTER, SCAVE_STATE_PH
+	MOVL	R3, SCAVE_STATE_SR		; surpriseReady = fresh entry (SC-4-16)
 	BRB	EA_DONE
 5$:	TSTL	SCAVE_CHAMBER_NT
 	BEQL	EA_DONE				; hazards-only stays explore until G4
@@ -291,6 +300,27 @@ EA_WITHDRAW:
 	MOVL	R0, SCAVE_MAP_PL
 	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- ATTACK (SC-8.4, startFight) ----
+;   From the encounter phase, begin a fight: surprise = surpriseReady (+1 on a
+;   fresh entry, else 0), round 1, phase fight, emit fightStarted.  No turn, no
+;   RNG -- the dice belong to the FIGHT action.  The pacified-area attack from
+;   explore (D22) is deferred.
+;
+EA_ATTACK:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	9$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+9$:	MOVL	SCAVE_STATE_SR, SCAVE_FIGHT_FS	; surprise (+1 fresh, else 0)
+	MOVL	#1, SCAVE_FIGHT_RD		; round 1
+	CLRL	SCAVE_STATE_SR			; surprise now baked into the fight
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
 	BSBW	EMIT_EVENT
 	BRW	EA_DONE
 

@@ -145,6 +145,7 @@ LIT_MOVE:  .ASCII	/MOVE/
 LIT_LEAVE: .ASCII	/LEAVE/
 LIT_TAKE:  .ASCII	/TAKE/
 LIT_WITH:  .ASCII	/WITHDRAW/
+LIT_ATT:   .ASCII	/ATTACK/
 
 	.ALIGN	LONG
 V_ACT:	.LONG	0				; parsed action code
@@ -158,9 +159,10 @@ EV_D_DEADEND: .ASCID	/deadEnd/
 EV_D_BLOCKED: .ASCID	/blocked/
 EV_D_DREW:    .ASCID	/drewChamber/
 EV_D_ENTSPEC: .ASCID	/enteredSpecial/
+EV_D_FIGHTST: .ASCID	/fightStarted/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
-		EV_D_ENTSPEC
+		EV_D_ENTSPEC, EV_D_FIGHTST
 
 ;
 ; ===========================================================
@@ -488,8 +490,12 @@ DO_MOVE:
 	MOVL	R0, V_A2
 	BRB	DM_APPLY
 62$:	CMPC3	#8, INBUF+5, LIT_WITH		; "WITHDRAW" -> action 4, 0 args
-	BNEQ	DM_APPLY
+	BNEQ	63$
 	MOVL	#4, V_ACT
+	BRB	DM_APPLY
+63$:	CMPC3	#6, INBUF+5, LIT_ATT		; "ATTACK" -> action 12, 0 args
+	BNEQ	DM_APPLY
+	MOVL	#12, V_ACT
 DM_APPLY:
 	PUSHL	V_A3
 	PUSHL	V_A2

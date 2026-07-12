@@ -112,6 +112,7 @@ SCAVE_STATE_SC::	.LONG	0			; current/final score
 SCAVE_STATE_NC::	.LONG	0			; curse count
 SCAVE_STATE_SK::	.LONG	0			; sorcerer-killed flag
 SCAVE_STATE_PH::	.LONG	SCAVE$_PH_EXPLORE	; interactive phase (SC-4-3)
+SCAVE_STATE_SR::	.LONG	0			; surprise-ready: fresh encounter entry (SC-4-16)
 
 ;
 ; ===========================================================

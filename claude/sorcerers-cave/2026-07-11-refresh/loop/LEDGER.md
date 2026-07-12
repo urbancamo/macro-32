@@ -4,8 +4,8 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G4
-**Last iteration:** I011 (2026-07-12) — WITHDRAW: solo-seed19 2→9, solo-seed3 48→52 (51/61). Most vectors now converge on ATTACK (G5 fights)
+**Current gate:** G5
+**Last iteration:** I012 (2026-07-12) — ATTACK (startFight): all vectors now converge on FIGHT/resolveRound (the dice combat)
 
 ## Gates
 
@@ -239,6 +239,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I012 | 2026-07-12 | G5 | ATTACK (startFight)** — ATTACK (code 12): blocked outside encounter;
+  else FS = surpriseReady (+1 fresh entry, else 0), RD=1, phase fight, emit fightStarted; clears SR.
+  Added `SCAVE_STATE_SR` (surprise-ready), set in EA_CHAMBER's encounter branch (fresh draw=1,
+  revisit=0). SCCONF parses ATTACK; fightStarted event added. Pacified-area attack from explore
+  (D22) deferred. *Evidence:* build clean; solo-seed19 9→10, solo-seed3 52→53, solo-seed777 4→5 —
+  **all now at FIGHT 0>0**. *Result:* fight ENTRY done; next is FIGHT/resolveRound (battle-plan
+  grammar `<front>[+..][|<backer>]><stranger>`, per-match dice + modifiers, casualty queue,
+  sweepFallen, win/loss) -- the biggest single piece.
 - **I011 | 2026-07-12 | G4 | WITHDRAW** — Added the WITHDRAW action (code 4): blocked outside
   encounter / if prev area is AF_DESTROYED (fellThroughTrap block deferred with trap falls); else
   parks the current area (PERSIST_AREA), moves back to prev (PA=PP, level from ML[PP]), phase
