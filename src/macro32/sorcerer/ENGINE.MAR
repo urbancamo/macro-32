@@ -202,9 +202,11 @@ EA_SPECIAL:
 EA_CHAMBER:
 	BBC	#4, R1, EA_DONE			; not a chamber (SCAVE$M_AREA_CHAMBER)
 	TSTL	SCAVE_MAP_MV[R2]
-	BNEQ	EA_DONE				; already visited -> G4 revisit
-	CALLS	#0, DRAW_CHAMBER
-	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
+	BEQL	7$
+	CALLS	#0, REVISIT_CHAMBER		; visited -> reclassify parked contents
+	BRB	8$
+7$:	CALLS	#0, DRAW_CHAMBER		; first visit -> deal from the small pack
+8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
 	; phase: strangers -> encounter; else treasure -> pickup; else explore
 	TSTL	SCAVE_CHAMBER_NS
@@ -476,5 +478,58 @@ SP_D:	DECL	SCAVE_CHAMBER_NT
 	BNEQ	TT_NO
 	MOVL	#1, R0				; floor now empty
 TT_NO:	RET
+
+;
+; ===========================================================
+;  REVISIT_CHAMBER  --  re-entering an already-visited chamber
+;                       (reference enterChamber "visited" branch).
+;
+;  Rebuilds the working set (CS/CT/CH) from the area's parked contents
+;  AC[PA*8+slot] by type (100+cid, 200+tid, 300+hid), clearing each slot as
+;  it goes (reference area.contents = []).  No RNG: parked cards, not a draw.
+; ===========================================================
+;
+	.ENTRY	REVISIT_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8
+	ADDL2	R0, R8				; R8 = &AC[PA*8]
+
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; slots to scan
+RC_L:	TSTL	R3
+	BLEQ	RC_DONE
+	MOVL	(R8), R0			; AC[slot]
+	CLRL	(R8)+				; clear as we reclassify (contents=[])
+	TSTL	R0
+	BEQL	RC_N				; 0 = empty
+	DIVL3	#100, R0, R1			; R1 = type (1/2/3)
+	MULL3	#100, R1, R2
+	SUBL3	R2, R0, R2			; R2 = index within type
+	CMPL	R1, #1
+	BNEQ	RC_TR
+	MOVL	SCAVE_CHAMBER_NS, R4		; creature -> CS[]
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	RC_N
+RC_TR:	CMPL	R1, #2
+	BNEQ	RC_HZ
+	MOVL	SCAVE_CHAMBER_NT, R4		; treasure -> CT[]
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	RC_N
+RC_HZ:	CMPL	R1, #3
+	BNEQ	RC_N				; ignore 400+ (sleeping) for now
+	MOVL	SCAVE_CHAMBER_NH, R4		; hazard -> CH[]
+	MOVL	R2, SCAVE_CHAMBER_CH[R4]
+	INCL	SCAVE_CHAMBER_NH
+RC_N:	DECL	R3
+	BRB	RC_L
+RC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
 
 	.END

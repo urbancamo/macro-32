@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G4
-**Last iteration:** I009 (2026-07-12) — TAKE/takeTreasure (plain + canCarry): solo-seed3 → move 8 (chamber revisit reclassify)
+**Last iteration:** I010 (2026-07-12) — chamber revisit (reclassify parked): solo-seed3 8→48 (now matches 47/61 moves, diverges at WITHDRAW)
 
 ## Gates
 
@@ -39,7 +39,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed19-party2-7 | 18 | moves✓ | move 2 WITHDRAW (G4 encounter) |
 | solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 `moved,drewChamber,hazardFired` (G4 on-draw hazard); moves 1-9 incl. 2× LEAVE match |
-| solo-seed3-party0 | 61 | TAKE✓ | move 8 chamber revisit (reclassify parked contents -> drewChamber); TAKE + LEAVE match |
+| solo-seed3-party0 | 61 | revisit✓ | **move 48 WITHDRAW** (G4 encounter) — moves 1-47 match (MOVE/TAKE/LEAVE/revisit) |
 
 ## Backlog
 
@@ -239,6 +239,13 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I010 | 2026-07-12 | G4 | chamber revisit** — Added a pure `REVISIT_CHAMBER` (reference
+  enterChamber "visited" branch): rebuilds CS/CT/CH from the area's parked AC[PA*8+slot] codes by
+  type (100/200/300), clearing each slot (contents=[]); EA_CHAMBER now splits fresh (DRAW_CHAMBER)
+  vs visited (REVISIT_CHAMBER), both -> drewChamber + ENC/PKP phase. No RNG. *Evidence:* build
+  clean; **solo-seed3 8→48** (matches 47/61 moves now; diverges at WITHDRAW = encounter); no
+  regression on solo-seed23/seed42. *Result:* pickup+revisit machinery solid; the big remaining
+  unblocker is encounters (WITHDRAW/ATTACK/TEST + reaction roll, needed by seed3/777/101/19/7).
 - **I009 | 2026-07-12 | G4 | TAKE (takeTreasure, plain)** — Added `TAKE_TREASURE(ti,mi)` (reference
   pickup.ts): canCarry weight check (carriedWeight + WT[tid] <= CR_CARRY[creature]), push tid to the
   member's first empty PT slot, splice CT (shift down, NT--); returns floor-emptied so EA_TAKE
