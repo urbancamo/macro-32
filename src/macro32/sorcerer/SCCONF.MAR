@@ -140,6 +140,23 @@ SC_D:	.LONG	0
 ;   Hero, Priest, Man, Woman, Dwarf, Dragon
 SC_CELLS: .LONG	0, 4, 5, 6, 7, 10, -1
 
+; --- G3 move reducer: action keyword, parsed args, event-name table ---
+LIT_MOVE:  .ASCII	/MOVE/
+
+	.ALIGN	LONG
+V_ACT:	.LONG	0				; parsed action code
+V_A1:	.LONG	0				; parsed args
+V_A2:	.LONG	0
+V_A3:	.LONG	0
+
+; Event-code -> name, indexed by code (KEEP IN SYNC with ENGINE.MAR).
+EV_D_MOVED:   .ASCID	/moved/
+EV_D_DEADEND: .ASCID	/deadEnd/
+EV_D_BLOCKED: .ASCID	/blocked/
+EV_D_DREW:    .ASCID	/drewChamber/
+	.ALIGN	LONG
+EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW
+
 ;
 ; ===========================================================
 ;  Code
@@ -433,12 +450,27 @@ DO_MOVE:
 	MOVL	R2, R7
 	BSBW	APPEND				; echo prefix into OUTBUF
 
-	; G0: apply the action as a stub (no parsing yet; the real
-	; action decode lands with gate G2).
-	PUSHL	#0
-	PUSHL	#0
-	PUSHL	#0
-	PUSHL	#0
+	; Parse the action keyword + args, then apply.  The step number is a
+	; 4-char right-justified field, so the ACTION keyword always begins at
+	; INBUF+5.  G3 implements MOVE; other actions pass action 0 and
+	; ENG_APPLY no-ops them until their gate fills them in.
+	CLRL	V_ACT
+	CLRL	V_A1
+	CLRL	V_A2
+	CLRL	V_A3
+	CMPC3	#4, INBUF+5, LIT_MOVE		; "MOVE"
+	BNEQ	DM_APPLY
+	MOVL	#1, V_ACT
+	MOVAB	INBUF+9, R6			; args after "MOVE"
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	BSBW	PARSE_UINT			; R0 = direction
+	MOVL	R0, V_A1
+DM_APPLY:
+	PUSHL	V_A3
+	PUSHL	V_A2
+	PUSHL	V_A1
+	PUSHL	V_ACT
 	CALLS	#4, G^ENG_APPLY
 
 	; checkpoint: TRN LVL ARA PH GS SEED EV <events>
@@ -455,11 +487,32 @@ DO_MOVE:
 	PUSHAQ	CTL_CHKPT
 	BSBW	FAO_AT_POS_6
 
-	; event list: no event-name table yet (G0) -- queue is
-	; always empty, print the "-" placeholder
+	; event list: translate SCAVE_EVQ codes to names (comma-separated,
+	; emission order = SC-4-42), or "-" when the queue is empty.
+	MOVL	SCAVE_EVQ_N, R8
+	TSTL	R8
+	BNEQ	DM_EV_LOOP
 	MOVAB	LIT_DASH, R6
 	MOVL	#1, R7
 	BSBW	APPEND
+	BRB	DM_EV_END
+DM_EV_LOOP:
+	CLRL	R9				; event index
+DM_EV_ONE:
+	TSTL	R9
+	BEQL	DM_EV_NAME
+	MOVAB	LIT_COMMA, R6			; separator between names
+	MOVL	#1, R7
+	BSBW	APPEND
+DM_EV_NAME:
+	MOVL	SCAVE_EVQ[R9], R5		; event code
+	MOVAB	EV_NAME_PTR, R6
+	MOVL	(R6)[R5], R6			; name descriptor address
+	MOVZWL	(R6), R7			; descriptor length
+	MOVL	4(R6), R6			; descriptor text address
+	BSBW	APPEND
+	AOBLSS	R8, R9, DM_EV_ONE
+DM_EV_END:
 	BSBW	PUT_LINE
 	BRW	LINE_LOOP
 

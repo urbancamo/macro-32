@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G3
-**Last iteration:** I004 (2026-07-12) — G2 exit test PASS: all 8 SETUP lines match the reference
+**Last iteration:** I005 (2026-07-12) — ENG_APPLY MOVE reducer: solo-seed23 move 1 now matches
 
 ## Gates
 
@@ -32,7 +32,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed23-party4-6 | 7 | move1✓ | move 2: chamber-draw-on-arrival missing (PH EXP vs PKP, EV lacks drewChamber); TRN/ARA/SEED/moved all match |
 | solo-seed777-party5-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
 | solo-seed101-party1-7 | 8 | SETUP✓ | move 1 (ENG_APPLY stub) |
 | solo-seed11-party5-6-7 | 15 | SETUP✓ | move 1 (ENG_APPLY stub) |
@@ -109,6 +109,12 @@ States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
 - **Then** the D7–D12 edge fixes below (secret-door numbering, L1 stair-up = cave exit, quake rubble,
   large-pack exhaustion moved:false, turn coupling). Grind `solo-seed23`: move1 `MOVE 3`→ARA1 (plain,
   no draw, PH EXP); move2 `MOVE 4`→ARA2 (chamber draw, PH PKP, EV moved,drewChamber, SEED unchanged).
+
+**Progress (I005):** `ENG_APPLY` action 1 (MOVE) implemented — calls headless `TRY_MOVE`, turn++
+on success (SC-4-9), emits `moved`/`deadEnd`/`blocked` via a SCAVE_EVQ event queue; SCCONF now
+parses the action keyword (at INBUF+5) + args and translates event codes to names (EV_NAME_PTR).
+`MAP.OBJ` added to the SCCONF link. solo-seed23 **move 1 matches**; next: chamber-draw-on-arrival
+(the `drewChamber` event + ENC/PKP phase on landing in an unvisited chamber) — shared with G4.
 
 - [ ] D7 Any printed level-1 stair-up is a cave exit; DIR_UP still blocked on L1 — SC-6.1-12
 - [ ] D8 Secret doors: mirrored stairs (fresh draws AND already-placed areas), numbered — SC-6.1-13/14/15/17
@@ -215,6 +221,13 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I005 | 2026-07-12 | G3 | ENG_APPLY MOVE** — Implemented the MOVE action: ENGINE.MAR dispatches
+  action 1 → guards phase → `TRY_MOVE` → `TN++`/`moved` on success, `deadEnd`/`blocked` otherwise
+  (SC-4-9, event queue). SCCONF DO_MOVE now parses the action keyword+args and translates SCAVE_EVQ
+  codes to names. Linked MAP.OBJ into SCCONF. *Evidence:* build clean; `conform solo-seed23` diff
+  moved from move 1 to move 2 — move 1 (`MOVE 3`→TRN 2 ARA 1 PH EXP EV moved) matches exactly, and
+  move 2 matches on TRN/ARA/SEED/moved, diverging only on the chamber draw (PH EXP vs PKP, no
+  drewChamber). *Result:* G3 partial; chamber-draw-on-arrival next.
 - **I004 | 2026-07-12 | G2 | SETUP exit test** — Verified all 8 vectors' SETUP lines against the
   reference (per-vector run + `grep SETUP` on the diff). *Evidence:* solo-seed23/777/101/11/19/7/42/3
   all "SETUP OK". *Result:* G2 exit test PASS (shuffle + consumption order correct). D2/S1 deferred
