@@ -30,6 +30,13 @@ SOCKET_PATH = "/tmp/vmsdrive.sock"
 LOGFILE = "/tmp/vmsdrive.log"
 ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 
+# Hard ceiling (seconds) on any single command's wait. The daemon is
+# single-threaded in its accept loop, so one over-long command would block
+# every later one; clamping here guarantees an unresponsive VAX can never wedge
+# the daemon (or stall the automation loop) for longer than this. Mirrors
+# MAX_TIMEOUT in the vmsdrive client.
+MAX_TIMEOUT = 300.0
+
 # Telnet IAC codes (RFC 854)
 IAC = 0xFF
 DONT, DO, WONT, WILL = 0xFE, 0xFD, 0xFC, 0xFB
@@ -316,7 +323,9 @@ def handle_client(client: socket.socket, session: VMSSession) -> None:
         data += chunk
     req = json.loads(data.decode("utf-8"))
     action = req.get("action")
-    timeout = float(req.get("timeout", 30))
+    # Clamp to the hard ceiling so no client (present or future) can wedge the
+    # single-threaded daemon past MAX_TIMEOUT.
+    timeout = min(float(req.get("timeout", 30)), MAX_TIMEOUT)
 
     if action == "cmd":
         # Optional --expect overrides the default DCL/DBG prompt -- useful for

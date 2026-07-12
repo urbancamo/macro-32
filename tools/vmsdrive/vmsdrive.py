@@ -5,6 +5,7 @@ Subcommands:
     start                spawn the daemon and log in (idempotent)
     stop                 logout cleanly and kill the daemon
     status               daemon health + last 200 bytes of session buffer
+    ping                 fast emulator liveness probe (SHOW TIME, bounded)
     cmd "<dcl>"          send a DCL command, print captured output, exit 0
     dbg "<debugger>"     send a DEBUG command, print captured output
     raw "<text>" [-e P]  send literal bytes; optionally wait for regex P
@@ -38,6 +39,16 @@ SOCKET_PATH = "/tmp/vmsdrive.sock"
 LOGFILE = "/tmp/vmsdrive.log"
 DAEMON_SCRIPT = Path(__file__).resolve().parent / "vmsdrived.py"
 
+# Hard ceiling (seconds) on any single emulator command. The daemon enforces
+# the same cap; clamping here too keeps the socket wait bounded. Rationale: an
+# unresponsive VAX must never stall the automation loop for longer than this
+# (loop-spec section 8) -- "5 minutes, for example."
+MAX_TIMEOUT = 300.0
+
+
+def _clamp_timeout(t: float) -> float:
+    return max(1.0, min(float(t), MAX_TIMEOUT))
+
 
 def call(req: dict, timeout: float = 35) -> dict:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -54,6 +65,24 @@ def call(req: dict, timeout: float = 35) -> dict:
     finally:
         sock.close()
     return json.loads(data.decode("utf-8")) if data else {"ok": False, "error": "no response"}
+
+
+def call_safe(req: dict, timeout: float) -> dict:
+    """call() but turn connection/timeout failures into a clean error dict
+    instead of an uncaught traceback. A wedged emulator or daemon then becomes a
+    fast non-zero exit the loop can recover from (loop-spec section 8: retry
+    once, else stop the session cleanly)."""
+    try:
+        return call(req, timeout=timeout)
+    except socket.timeout:
+        return {"ok": False,
+                "error": f"vmsdrive: no response within {timeout:.0f}s "
+                         f"(emulator or daemon unresponsive)"}
+    except (FileNotFoundError, ConnectionRefusedError):
+        return {"ok": False,
+                "error": "vmsdrive: daemon not running (try `make vms-up`)"}
+    except OSError as e:
+        return {"ok": False, "error": f"vmsdrive: socket error: {e}"}
 
 
 def cmd_start() -> int:
@@ -134,23 +163,42 @@ def _print_response(r: dict) -> int:
 
 
 def cmd_cmd(text: str, timeout: float, expect: str | None = None) -> int:
+    timeout = _clamp_timeout(timeout)
     req = {"action": "cmd", "text": text, "timeout": timeout}
     if expect:
         req["expect"] = expect
-    return _print_response(call(req, timeout=timeout + 5))
+    return _print_response(call_safe(req, timeout=timeout + 5))
 
 
 def cmd_dbg(text: str, timeout: float) -> int:
+    timeout = _clamp_timeout(timeout)
     return _print_response(
-        call({"action": "dbg", "text": text, "timeout": timeout}, timeout=timeout + 5)
+        call_safe({"action": "dbg", "text": text, "timeout": timeout}, timeout=timeout + 5)
     )
 
 
 def cmd_raw(text: str, expect: str | None, timeout: float) -> int:
+    timeout = _clamp_timeout(timeout)
     req = {"action": "raw", "text": text, "timeout": timeout}
     if expect:
         req["expect"] = expect
-    return _print_response(call(req, timeout=timeout + 5))
+    return _print_response(call_safe(req, timeout=timeout + 5))
+
+
+def cmd_ping(timeout: float) -> int:
+    """Fast liveness probe: SHOW TIME, bounded. Exit 0 if the emulator answers,
+    non-zero otherwise. Batch/test make targets call this as a preflight so a
+    wedged VAX aborts the loop step in seconds instead of grinding through many
+    long per-command timeouts."""
+    timeout = _clamp_timeout(timeout)
+    r = call_safe({"action": "cmd", "text": "SHOW TIME", "timeout": timeout},
+                  timeout=timeout + 5)
+    if r.get("ok"):
+        out = (r.get("output") or "").strip().replace("\n", " ")
+        print(f"emulator alive: {out}" if out else "emulator alive")
+        return 0
+    sys.stderr.write("emulator unresponsive: " + (r.get("error") or "no prompt") + "\n")
+    return 1
 
 
 def cmd_log(n: int) -> int:
@@ -172,6 +220,9 @@ def main() -> int:
     sub.add_parser("start", help="spawn daemon and log in")
     sub.add_parser("stop", help="logout and stop daemon")
     sub.add_parser("status", help="daemon health and recent buffer")
+
+    pp = sub.add_parser("ping", help="fast emulator liveness probe (SHOW TIME)")
+    pp.add_argument("--timeout", type=float, default=10.0)
 
     pc = sub.add_parser("cmd", help="send a DCL command")
     pc.add_argument("text")
@@ -197,6 +248,8 @@ def main() -> int:
         return cmd_stop()
     if args.action == "status":
         return cmd_status()
+    if args.action == "ping":
+        return cmd_ping(args.timeout)
     if args.action == "cmd":
         return cmd_cmd(args.text, args.timeout, args.expect)
     if args.action == "dbg":

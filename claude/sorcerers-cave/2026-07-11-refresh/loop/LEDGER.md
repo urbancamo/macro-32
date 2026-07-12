@@ -4,14 +4,14 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G0
-**Last iteration:** — (none yet)
+**Current gate:** G1
+**Last iteration:** I001 (2026-07-12) — G0 harness green end-to-end
 
 ## Gates
 
 | Gate | State | Evidence (command + date) |
 |---|---|---|
-| G0 Harness | PENDING | — |
+| G0 Harness | PASS | `make vms-scave-build` links SCAVE.EXE + SCCONF.EXE clean (0 warnings); `make vms-scave-conform VEC=solo-seed23-party4-6` runs end-to-end, emits well-formed `SETUP` line, diff pinpoints first divergence at the SETUP SEED (2026-07-12, I001) |
 | G1 RNG + data | PENDING | — |
 | G2 Setup | PENDING | — |
 | G3 Movement | PENDING | — |
@@ -25,12 +25,15 @@
 ## Vector status
 
 Re-run `make vms-scave-conform-all` after any engine change; record the first divergent line
-(or PASS). N/A until G0 delivers the harness.
+(or PASS). As of I001 the harness runs, but `ENG_APPLY` is still a stub, so **every** vector
+diverges at the `SETUP` line (SEED value) — the newGame deck-build RNG order is pre-parity.
+This is one root cause (G1 RNG order + G2 setup); the per-vector baseline below is recorded only
+for the shortest vector until G2 makes the SETUP line match.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | UNRUN | — |
-| solo-seed777-party5-6 | 7 | UNRUN | — |
+| solo-seed23-party4-6 | 7 | FAIL | SETUP SEED: exp 446078340, got 1559363521 (pre-parity RNG order) |
+| solo-seed777-party5-6 | 7 | UNRUN | — (expected: SETUP SEED) |
 | solo-seed101-party1-7 | 8 | UNRUN | — |
 | solo-seed11-party5-6-7 | 15 | UNRUN | — |
 | solo-seed19-party2-7 | 18 | UNRUN | — |
@@ -43,14 +46,22 @@ Re-run `make vms-scave-conform-all` after any engine change; record the first di
 D-numbers refer to [../gap-analysis.md](../gap-analysis.md) §3. Work strictly by gate order.
 States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
 
-### G0 — Harness
-- [ ] H1 Engine boundary skeleton: `ENGINE.MAR` with `ENG_NEWGAME`/`ENG_APPLY` stubs, event
-      queue in `STATE.MAR`, action/event code tables (SC-4-41/42)
-- [ ] H2 `SCCONF.MAR`: RMS vector reader + action-grammar parser + checkpoint-line writer
-      (exact format of `conformance/README.md`)
-- [ ] H3 `MAKE.COM`/`sources.list`: second link target `SCCONF.EXE`
-- [ ] H4 Makefile: `vms-scave-conform` / `vms-scave-conform-all` targets (push vector as
-      `CONFVEC.TXT`, run, fetch `CONFRES.TXT`, diff, report first divergent line)
+### G0 — Harness  (DONE, I001)
+- [x] H1 Engine boundary skeleton: `ENGINE.MAR` with `ENG_NEWGAME` (real deck/map/party seat)
+      + `ENG_APPLY` stub, event queue in `STATE.MAR` (`SCAVE_EVQ_N`/`SCAVE_EVQ`, cap 32),
+      `SCAVE_STATE_PH` phase (SC-4-3). Action codes 1..17 redeclared file-local per module.
+- [x] H2 `SCCONF.MAR`: RMS `CONFVEC.TXT` reader + action-grammar parser + `FAO`-formatted
+      checkpoint writer (`CONFRES.TXT`), exact vector format. `ENG_APPLY` stub → post-SETUP
+      lines repeat newGame state with `EV -` (the honest baseline the gates burn down).
+- [x] H3 `MAKE.COM`/`sources.list`: second link target `SCCONF.EXE`
+      (SCCONF,ENGINE,SETUP,UI,RNG,DATA,STATE). Added a headless `HELP_BROWSER` stub in
+      `SCCONF.MAR` so the SETUP.OBJ→HELP_BROWSER ref resolves without dragging in SMG$
+      (SCCONF never enters interactive setup). *Follow-up (later gate):* migrate the pure
+      `INIT_DECKS`/`INIT_MAP` out of `SETUP.MAR` into the engine layer, then SCCONF can drop
+      `SETUP.OBJ` and the stub.
+- [x] H4 Makefile: `vms-scave-conform` / `vms-scave-conform-all` (push vector → run SCCONF →
+      fetch `CONFRES.TXT` → diff → first divergent line). Both gained a `vmsdrive ping`
+      emulator preflight + a hard 300s command cap so a wedged VAX can't stall the loop.
 
 ### G1 — RNG + static data
 - [ ] D1 71-card small pack (37 creatures incl. Priest×3 / 27 treasures / 7 hazards incl.
@@ -174,4 +185,11 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
-— none yet —
+- **I001 | 2026-07-12 | G0 | H1–H4 harness green** — Found the G0 harness already built in the
+  tree (ENGINE.MAR/SCCONF.MAR/STATE event queue/MAKE.COM/sources.list/Makefile conform targets)
+  but unbuilt/unrecorded. Built it: SCAVE.EXE linked clean; SCCONF.EXE had one NUDFSYM
+  (`HELP_BROWSER`, pulled in via SETUP.OBJ). Fixed with a headless stub in SCCONF.MAR.
+  *Evidence:* `make vms-scave-build` → `LINK SCAVE`/`LINK SCCONF`/`DONE`, zero warnings;
+  `make vms-scave-conform VEC=solo-seed23-party4-6` → well-formed `SETUP` line, first divergence
+  at SETUP SEED (exp 446078340, got 1559363521). *Result:* G0 PASS; advance to G1.
+  Also hardened the emulator harness against stalls (300s cap + `vmsdrive ping` preflight).

@@ -35,6 +35,18 @@
 	SCAVE$_GS_QUIT    = 3
 
 ;
+; -- interactive phase values (engine-spec SC-4-3) --
+;    The reducer's mode: which actions ENG_APPLY accepts and which
+;    controls the UI may offer.  Printed by SCCONF as EXP/ENC/FGT/
+;    PKP/END in conformance checkpoint lines.
+;
+	SCAVE$_PH_EXPLORE   = 0
+	SCAVE$_PH_ENCOUNTER = 1
+	SCAVE$_PH_FIGHT     = 2
+	SCAVE$_PH_PICKUP    = 3
+	SCAVE$_PH_GAMEOVER  = 4
+
+;
 ; -- party-creature status values --
 ;
 	SCAVE$_PS_ORIG    = 0			; chosen during party selection
@@ -99,6 +111,21 @@ SCAVE_STATE_TN::	.LONG	1			; turn counter
 SCAVE_STATE_SC::	.LONG	0			; current/final score
 SCAVE_STATE_NC::	.LONG	0			; curse count
 SCAVE_STATE_SK::	.LONG	0			; sorcerer-killed flag
+SCAVE_STATE_PH::	.LONG	SCAVE$_PH_EXPLORE	; interactive phase (SC-4-3)
+
+;
+; ===========================================================
+;  Engine event queue (SC-4-42).  ENG_APPLY clears the queue on
+;  entry and appends one longword event code per game fact, in
+;  emission order.  Callers (UI, SCCONF) drain it after each
+;  action; the engine never reads it back.
+; ===========================================================
+;
+	SCAVE$_EVQ_MAX = 32			; events per action, generous
+
+	.ALIGN	LONG
+SCAVE_EVQ_N::		.LONG	0			; events queued this action
+SCAVE_EVQ::		.BLKL	SCAVE$_EVQ_MAX		; event codes, in order
 
 ;
 ; ===========================================================

@@ -219,8 +219,18 @@ full game (seeded, agent-driven, title to score screen) completes without a rubr
 - **Suspected reference bug**: record under `Reference discrepancies` (vector, line, why the
   engine looks wrong) and continue with other items. The port does NOT change behaviour to
   disagree with the vectors, and vectors are never edited.
-- **Daemon flakiness** (lost prompt, stale socket): `make vms-down && make vms-up`, retry once;
-  still failing → ledger note + stop the session cleanly (the next firing retries).
+- **Emulator hard timeout (5 min cap).** Every emulator command is bounded: `vmsdrive`/`vmsdrived`
+  clamp any single command to **`MAX_TIMEOUT = 300s`**, and a stall now returns a clean non-zero
+  exit rather than an uncaught traceback. So no single VAX interaction can ever hang the loop
+  past 5 minutes. This is a hard ceiling — do not raise per-command `--timeout` above it.
+- **Emulator preflight (fail fast).** The emulator-testing make targets (`vms-scave-conform`,
+  `vms-scave-run`) run `vmsdrive ping` (a bounded `SHOW TIME`) first, so a wedged VAX aborts the
+  step in ~10s instead of grinding through many long per-command timeouts. `vms-scave-conform-all`
+  stops at the first vector whose preflight or diff fails. Probe health any time with `make
+  vms-status` (daemon socket) + `python3 tools/vmsdrive/vmsdrive.py ping` (emulator round-trip).
+- **Daemon/emulator flakiness** (lost prompt, stale socket, `ping` fails while the daemon reports
+  `alive`): `make vms-down && make vms-up`, retry once; still failing → ledger note + stop the
+  session cleanly (the next firing retries).
 - **Build regressions**: if a change breaks previously-passing vectors, revert it (`git
   checkout -- <file>` or revert commit) before iterating further — never leave the tree red
   between iterations.
@@ -243,6 +253,9 @@ full game (seeded, agent-driven, title to score screen) completes without a rubr
 - RMS control blocks (`$FAB`/`$RAB`) must be `.ALIGN LONG`.
 - `tools/gen_help.py` regenerates `SCAVEHLP.TXT` from `help/*.md` on every build — help-text
   edits go in `help/`, not the `.TXT`.
+- Emulator commands are hard-capped at **300s** (client + daemon) and the test targets preflight
+  with `vmsdrive ping`; a wedged VAX fails fast (see section 8) — never assume a hang means
+  "still working".
 
 ## 10. Launching the loop
 

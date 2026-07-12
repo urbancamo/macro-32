@@ -1,0 +1,116 @@
+	.TITLE	ENGINE	Headless game-engine boundary for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; ENGINE.MAR
+;
+;   The pure, headless entry points to the game rules (engine-spec
+;   SC-4-1): no SMG$, no keyboard, no clock.  Both SCAVE.EXE (the
+;   interactive UI) and SCCONF.EXE (the conformance-vector replayer)
+;   link against this module and drive the game exclusively through:
+;
+;     ENG_NEWGAME(seed, npicks, picks)   build a fresh game state
+;     ENG_APPLY(action, a1, a2, a3)      the single reducer
+;
+;   Game facts are reported through the event queue in STATE.MAR
+;   (SCAVE_EVQ_N / SCAVE_EVQ, one longword code per event, in
+;   emission order -- SC-4-42).  ENG_APPLY clears the queue on entry.
+;
+;   Status: G0 skeleton.  ENG_NEWGAME performs the real deck build /
+;   map init / party seat against the CURRENT (pre-parity) data
+;   tables; ENG_APPLY is a stub that accepts every action and emits
+;   nothing.  The per-gate work in claude/sorcerers-cave/
+;   2026-07-11-refresh/loop/LEDGER.md fills it in.
+;
+; Action codes (SC-4-41, keep in sync with SCCONF.MAR's parser --
+; MACRO-32 "=" constants are file-local, so modules redeclare them):
+;
+;    1 MOVE      2 QUIT       3 EXITCAVE   4 WITHDRAW   5 TAKE
+;    6 LEAVE     7 RETAKE     8 GIVE       9 DROP      10 BORNE
+;   11 TEST     12 ATTACK    13 FIGHT     14 CASUALTY  15 RETREAT
+;   16 USE      17 OPENCHEST
+;--
+
+	SCAVE$_PS_ORIG  = 0
+	SCAVE$_PARTY_MAX = 12
+	SCAVE$_TREAS_PER = 20			; must equal STATE.MAR's value
+	SCAVE$_PH_EXPLORE = 0
+
+	.PSECT	ENGINE_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  ENG_NEWGAME(seed, npicks, picks)
+;
+;    seed    longword LCG seed, by value (SC-5-13: caller-supplied)
+;    npicks  number of starting creatures, by value
+;    picks   address of npicks longword creature ids
+;
+;  Builds decks in the normative RNG order -- large pack first,
+;  then small pack (SC-5-12; INIT_DECKS already shuffles in that
+;  order) -- places the Gateway and seats the party.
+;
+;  G0 note: picks are trusted (SCCONF feeds vector data); the
+;  SC-5-1..4 validation arrives with gate G2.
+; ===========================================================
+;
+	.ENTRY	ENG_NEWGAME, ^M<R2,R3,R4,R5,R6>
+
+	MOVL	4(AP), SCAVE_RNG_SEED		; the seed IS the argument
+
+	CALLS	#0, G^INIT_DECKS		; large then small (SC-5-12)
+	CALLS	#0, G^INIT_MAP			; zero map, place Gateway
+
+	; Seat the party: PC[i] = picks[i], status ORIG, no kills.
+	MOVL	8(AP), R2			; R2 = npicks
+	MOVL	12(AP), R3			; R3 = picks base
+	MOVL	R2, SCAVE_PARTY_NP
+	CLRL	R4				; i = 0
+	TSTL	R2
+	BEQL	20$
+10$:	MOVL	(R3)[R4], SCAVE_PARTY_PC[R4]
+	CLRL	SCAVE_PARTY_PS[R4]		; SCAVE$_PS_ORIG
+	CLRL	SCAVE_PARTY_PK[R4]
+	AOBLSS	R2, R4, 10$
+20$:
+
+	; Empty every treasure slot (-1 = empty).
+	CLRL	R4
+	MOVAB	SCAVE_PARTY_PT, R5
+30$:	MOVL	#-1, (R5)[R4]
+	AOBLSS	#<SCAVE$_PARTY_MAX*SCAVE$_TREAS_PER>, R4, 30$
+
+	; Top-level state (SC-3-23).
+	CLRL	SCAVE_STATE_GS			; GS_PLAYING
+	MOVL	#1, SCAVE_STATE_TN
+	CLRL	SCAVE_STATE_SC
+	CLRL	SCAVE_STATE_NC
+	CLRL	SCAVE_STATE_SK
+	CLRL	SCAVE_STATE_PH			; explore
+
+	; Clear the chamber working set and the event queue.
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_EVQ_N
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  ENG_APPLY(action, a1, a2, a3)
+;
+;  The single reducer (SC-4-1).  G0 stub: clears the event queue,
+;  changes nothing, succeeds.  Real dispatch lands with gates
+;  G2..G6; the contract already holds -- a call that changes no
+;  state also emits no events (SC-4-6 discipline).
+; ===========================================================
+;
+	.ENTRY	ENG_APPLY, ^M<>
+
+	CLRL	SCAVE_EVQ_N
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+	.END

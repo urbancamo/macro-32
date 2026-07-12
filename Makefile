@@ -204,7 +204,7 @@ vms-scave-build: vms-up
 	@echo ">>> SET DEFAULT [.$(SCAVE_SUBDIR)]"
 	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]'
 	@echo ">>> @MAKE.COM"
-	@$(VMSDRIVE) cmd '@MAKE.COM'
+	@$(VMSDRIVE) cmd '@MAKE.COM' --timeout 180
 	@echo ">>> SET DEFAULT [-]"
 	@$(VMSDRIVE) cmd 'SET DEFAULT [-]'
 	@$(MAKE) --no-print-directory vms-scave-fetch-lis
@@ -220,6 +220,7 @@ vms-scave-fetch-lis:
 	@ls -l $(SCAVE_LIS_DIR)/*.lis
 
 vms-scave-run: vms-scave-build vms-scave-cd
+	@$(VMSDRIVE) ping --timeout 10 || { echo "emulator preflight failed -- aborting run" >&2; $(MAKE) --no-print-directory vms-scave-cd-back; exit 1; }
 	@echo ">>> RUN/NODEBUG $(SCAVE_NAME)  (capturing to $(SCAVE_LOG))"
 	@$(VMSDRIVE) cmd 'RUN/NODEBUG $(SCAVE_NAME)' | tee $(SCAVE_LOG)
 	@echo ">>> exit status:"
@@ -234,6 +235,52 @@ vms-scave-debug: vms-scave-build vms-scave-cd
 	@echo "you 'make vms-scave-cd-back' (or run another scave target)."
 	@echo "Drive the debugger with:"
 	@echo "  $(VMSDRIVE) dbg '<command>'"
+
+# ----------------------------------------------------------------------
+# Conformance-vector replay (loop-spec gate G0+).  Pushes one reference
+# vector to the VAX as CONFVEC.TXT, runs SCCONF.EXE (built by
+# vms-scave-build), fetches CONFRES.TXT and diffs it against the
+# reference.  Vectors live in the reference repo; override
+# REF_CONF_DIR if it moves.
+#
+#   make vms-scave-conform VEC=solo-seed23-party4-6
+#   make vms-scave-conform-all
+# ----------------------------------------------------------------------
+
+REF_CONF_DIR ?= /Users/msw/code/retro/sorcerers-cave/docs/specs/conformance
+CONF_OUT_DIR := $(SCAVE_DIR)/conf
+CONF_VECS    := solo-seed23-party4-6 solo-seed777-party5-6 \
+                solo-seed101-party1-7 solo-seed11-party5-6-7 \
+                solo-seed19-party2-7 solo-seed7-party1-7 \
+                solo-seed42-party3 solo-seed3-party0
+
+.PHONY: vms-scave-conform vms-scave-conform-all
+
+vms-scave-conform: vms-up
+	@test -n "$(VEC)" || { echo "set VEC=<vector basename, no .txt>" >&2; exit 1; }
+	@test -f $(REF_CONF_DIR)/$(VEC).txt || { echo "missing $(REF_CONF_DIR)/$(VEC).txt" >&2; exit 1; }
+	@$(VMSDRIVE) ping --timeout 10 || { echo "emulator preflight failed -- aborting conform $(VEC)" >&2; exit 1; }
+	@mkdir -p $(CONF_OUT_DIR)
+	@echo ">>> push $(VEC).txt -> [.$(SCAVE_SUBDIR)]CONFVEC.TXT"
+	@$(VMSFTP) raw "$$(printf 'ascii\ncd [.%s]\nput %s CONFVEC.TXT\n' '$(SCAVE_SUBDIR)' '$(REF_CONF_DIR)/$(VEC).txt')" >/dev/null
+	@$(VMSDRIVE) cmd 'SET DEFAULT [.$(SCAVE_SUBDIR)]' >/dev/null
+	@echo ">>> RUN/NODEBUG SCCONF"
+	@$(VMSDRIVE) cmd 'RUN/NODEBUG SCCONF' --timeout 90
+	@$(VMSDRIVE) cmd 'SET DEFAULT [-]' >/dev/null
+	@$(VMSFTP) raw "$$(printf 'ascii\ncd [.%s]\nget CONFRES.TXT %s\n' '$(SCAVE_SUBDIR)' '$(CONF_OUT_DIR)/$(VEC).res')" >/dev/null
+	@if diff -q $(REF_CONF_DIR)/$(VEC).txt $(CONF_OUT_DIR)/$(VEC).res >/dev/null 2>&1; then \
+	   echo "PASS $(VEC)"; \
+	 else \
+	   echo "FAIL $(VEC) -- first divergence:"; \
+	   diff $(REF_CONF_DIR)/$(VEC).txt $(CONF_OUT_DIR)/$(VEC).res | head -16; \
+	   exit 1; \
+	 fi
+
+vms-scave-conform-all:
+	@for v in $(CONF_VECS); do \
+	   $(MAKE) --no-print-directory vms-scave-conform VEC=$$v || exit 1; \
+	 done
+	@echo "ALL 8 VECTORS PASS"
 
 vms-scave-clean: vms-up vms-scave-cd
 	@for s in $(SCAVE_SRCS); do \
