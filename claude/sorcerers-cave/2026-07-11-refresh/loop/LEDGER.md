@@ -4,8 +4,8 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G2
-**Last iteration:** I003 (2026-07-12) — G1 data fixes green; SETUP line now matches on solo-seed23
+**Current gate:** G3
+**Last iteration:** I004 (2026-07-12) — G2 exit test PASS: all 8 SETUP lines match the reference
 
 ## Gates
 
@@ -13,7 +13,7 @@
 |---|---|---|
 | G0 Harness | PASS | `make vms-scave-build` links SCAVE.EXE + SCCONF.EXE clean (0 warnings); `make vms-scave-conform VEC=solo-seed23-party4-6` runs end-to-end, emits well-formed `SETUP` line, diff pinpoints first divergence at the SETUP SEED (2026-07-12, I001) |
 | G1 RNG + data | PASS | `make vms-scave-selfcheck` (I003): `NEXTSEED1 1103527590`, `DECK LARGE 60 SMALL 71`, `TYPES 14/15/5`, `PACK 37/27/7 = 71`, cells Hero 3/3 Priest 1/4 Man 2/4 Woman 2/4 Dwarf 0/4 Dragon 4/6 — all match A.1 (2026-07-12) |
-| G2 Setup | PENDING | — |
+| G2 Setup | PASS (exit) | All 8 vectors' SETUP lines match the reference (I004 per-vector diff, 2026-07-12): shuffle + consumption order (large60→small71→store) correct. **D2/S1 deferred** — see backlog note (not SETUP-visible; D2 verified at G4 draws, S1 not exercised by valid vectors) |
 | G3 Movement | PENDING | — |
 | G4 Chambers/encounters | PENDING | — |
 | G5 Fights | PENDING | — |
@@ -25,21 +25,21 @@
 ## Vector status
 
 Re-run `make vms-scave-conform-all` after any engine change; record the first divergent line
-(or PASS). As of I001 the harness runs, but `ENG_APPLY` is still a stub, so **every** vector
-diverges at the `SETUP` line (SEED value) — the newGame deck-build RNG order is pre-parity.
-This is one root cause (G1 RNG order + G2 setup); the per-vector baseline below is recorded only
-for the shortest vector until G2 makes the SETUP line match.
+(or PASS). As of **I004 all 8 SETUP lines match the reference** (per-vector `grep SETUP` diff).
+`ENG_APPLY` is still a stub, so every vector's FIRST divergence is now at **move 1** (no
+move/turn/event applied). G3 (movement) starts closing these. `conform-all` still stops at the
+first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | FAIL | **SETUP now matches** (SEED 446078340); first divergence at move 1 (ENG_APPLY stub: no move/turn/event) |
-| solo-seed777-party5-6 | 7 | UNRUN | — (SETUP likely matches too; verify in G2) |
-| solo-seed101-party1-7 | 8 | UNRUN | — |
-| solo-seed11-party5-6-7 | 15 | UNRUN | — |
-| solo-seed19-party2-7 | 18 | UNRUN | — |
-| solo-seed7-party1-7 | 19 | UNRUN | — |
-| solo-seed42-party3 | 31 | UNRUN | — |
-| solo-seed3-party0 | 61 | UNRUN | — |
+| solo-seed23-party4-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed777-party5-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed101-party1-7 | 8 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed11-party5-6-7 | 15 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed19-party2-7 | 18 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed7-party1-7 | 19 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed42-party3 | 31 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed3-party0 | 61 | SETUP✓ | move 1 (ENG_APPLY stub) |
 
 ## Backlog
 
@@ -78,11 +78,19 @@ States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
       `EXTZV #15,#16`, `min(5,·)+1` clamp all match A.5).
 - [x] H6 `RAND_BELOW` n<=0 no-advance verified: `RB0 BEFORE 12345 AFTER 12345 VAL 0` (SC-5-8).
 
-### G2 — Setup
-- [ ] D6 RNG consumption order: large pack → small pack → store cursor — SC-5-12
-- [ ] D2 Party drawn FROM the shuffled small pack (each pick's 100+id removed once) — SC-5-5
-- [ ] S1 newGame init: turn/level/score/phase/Gateway faceUp — SC-3-23/24; pick validation
-      (empty, non-starter, budget, stock) — SC-5-1..4
+### G2 — Setup  (exit test PASS, I004)
+- [x] D6 RNG consumption order: large pack → small pack → store cursor — SC-5-12. Verified: all 8
+      SETUP lines match (INIT_DECKS shuffles LP then SP then stores; already correct).
+- [ ] D2 Party drawn FROM the shuffled small pack (each pick's 100+id removed once) — SC-5-5.
+      **Deferred to G4**: not SETUP-visible (removal is post-shuffle, consumes no RNG), and its
+      effect (picked card can't appear as a stranger) is only exercised once the engine draws
+      chambers (G4). Implement in `ENG_NEWGAME` (post-INIT_DECKS): scan `SCAVE_DECK_SP`, remove
+      first `100+id` per pick, compact, track a live count `SCAVE_DECK_SN`; CHAMBER draw bound
+      reads `SCAVE_DECK_SN`. Reference: setup.ts `smallPack.indexOf(100+id)`+splice.
+- [ ] S1 newGame init: turn/level/score/phase/Gateway faceUp — SC-3-23/24 (DONE in ENG_NEWGAME);
+      pick validation (empty, non-starter, budget≤6, stock) — SC-5-1..4. **Deferred**: all vectors
+      use valid picks, so validation isn't vector-verified; add as a guard (validatePicks:
+      len>0, id∈0..7 selectable, Σ SEL[id]≤6, count[id]≤START_COUNT[id]).
 
 ### G3 — Movement
 - [ ] D7 Any printed level-1 stair-up is a cave exit; DIR_UP still blocked on L1 — SC-6.1-12
@@ -190,6 +198,10 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I004 | 2026-07-12 | G2 | SETUP exit test** — Verified all 8 vectors' SETUP lines against the
+  reference (per-vector run + `grep SETUP` on the diff). *Evidence:* solo-seed23/777/101/11/19/7/42/3
+  all "SETUP OK". *Result:* G2 exit test PASS (shuffle + consumption order correct). D2/S1 deferred
+  (not SETUP-visible / not vector-exercised) — see G2 backlog. Next: G3 movement (clears move 1).
 - **I003 | 2026-07-12 | G1 | D1/D3/D4 static data** — Small pack 52→71 (DATA.MAR template +
   `SCAVE$_SMALL_COUNT`=71 + `INIT_DECKS`/`CHAMBER` counts via `SCAVE_DATA_SMALL_N`); area card 41
   74→42; reaction cells corrected. *Evidence:* self-check `SMALL 71`, `PACK 37/27/7`, cells
