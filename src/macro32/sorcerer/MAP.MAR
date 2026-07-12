@@ -42,6 +42,9 @@
 	.EXTRN	SCAVE_DECK_LP
 	.EXTRN	SCAVE_DECK_LI
 	.EXTRN	SCAVE_DATA_AREA_CARDS
+	.EXTRN	SCAVE_AREA_MIR
+	.EXTRN	SCAVE_AREA_SD
+	.EXTRN	SCAVE_MAP_SDN
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -304,9 +307,25 @@ M_FAIL:
 ; ===========================================================
 ;
 MIRROR_UP_STAIR:
-	CMPL	R6, #6				; D = descend a staircase
+	; Choose the return-stair bit: descend (dir 6) needs an up-stair (AU=^X20),
+	; ascend (dir 5) needs a down-stair (AD=^X40).  Lateral moves: nothing.
+	CMPL	R6, #6
+	BNEQ	2$
+	MOVL	#^X20, R0			; stair-up
+	BRB	3$
+2$:	CMPL	R6, #5
 	BNEQ	1$
-	BISL2	#^X20, SCAVE_MAP_MP[R2]		; set AU (bit 5) on destination
+	MOVL	#^X40, R0			; stair-down
+3$:	; If the card already pictures that stair, it's a real doorway -- no
+	; mirror, no secret door (SC-6.1-13/14).
+	BITL	R0, SCAVE_MAP_MP[R2]
+	BNEQ	1$
+	BISL2	R0, SCAVE_MAP_MP[R2]		; mirror the return stair onto the card
+	BISL2	R0, SCAVE_AREA_MIR[R2]		; record it as a mirrored (secret) stair
+	CMPL	SCAVE_AREA_SD[R2], #-1		; lay a secret-door ordinal if none yet
+	BNEQ	1$
+	MOVL	SCAVE_MAP_SDN, SCAVE_AREA_SD[R2]
+	INCL	SCAVE_MAP_SDN
 1$:	RSB
 
 

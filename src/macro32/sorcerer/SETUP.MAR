@@ -637,7 +637,10 @@ SP_LOOP:
 	CLRL	SCAVE_MAP_MV[R2]
 	CLRL	SCAVE_AREA_AF[R2]
 	CLRL	SCAVE_AREA_AI[R2]
+	CLRL	SCAVE_AREA_MIR[R2]		; D8: no mirrored stairs yet
+	MNEGL	#1, SCAVE_AREA_SD[R2]		; D8: secret-door ordinal = none (-1)
 	AOBLSS	#61, R2, 1$
+	CLRL	SCAVE_MAP_SDN			; D8: next secret-door ordinal
 
 	; Zero AC (SCAVE$_AREA_ITEMS longwords per area).  Must match
 	; the per-area slot count CHAMBER's LOAD_PERSISTED /

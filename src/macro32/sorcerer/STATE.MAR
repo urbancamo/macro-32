@@ -163,6 +163,10 @@ SCAVE_AREA_AC::		.BLKL	<SCAVE$_AREA_COUNT*SCAVE$_AREA_ITEMS>
 							; encoded creature=100+i, treasure=200+i
 SCAVE_AREA_AF::		.BLKL	SCAVE$_AREA_COUNT	; per-area flag bits
 SCAVE_AREA_AI::		.BLKL	SCAVE$_AREA_COUNT	; indifference test count
+SCAVE_AREA_MIR::	.BLKL	SCAVE$_AREA_COUNT	; mirrored-stair bits per area (D8 secret doors)
+SCAVE_AREA_SD::		.BLKL	SCAVE$_AREA_COUNT	; secret-door ordinal per area (-1 = none)
+	.ALIGN	LONG
+SCAVE_MAP_SDN::		.LONG	0			; next secret-door ordinal (global counter)
 							; (rolls of "indifferent" in this
 							; chamber's stranger encounter; on
 							; the 3rd, set AF_PERMINDIFF)

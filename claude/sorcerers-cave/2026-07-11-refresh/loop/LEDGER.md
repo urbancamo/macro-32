@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G5
-**Last iteration:** I013 (2026-07-12) — FIGHT (single 1v1 resolveRound): seed777/seed101 match ALL move lines (FINAL-block only); seed3 60/61
+**Last iteration:** I014 (2026-07-12) — D8 secret doors (mirrored-stair MIR + SD ordinal): **solo-seed777 + solo-seed101 fully PASS** (first conforming vectors!)
 
 ## Gates
 
@@ -33,8 +33,8 @@ first vector because every vector fails at move 1 until the reducer is built.
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
 | solo-seed23-party4-6 | 7 | moves✓ | move 3 TAKE — Lost-Ruby statue (G4/D49) |
-| solo-seed777-party5-6 | 7 | **ALL moves✓** | FINAL/STATE block only (deferred loot bookkeeping) |
-| solo-seed101-party1-7 | 8 | **ALL moves✓** | FINAL/STATE block only (deferred loot bookkeeping) |
+| solo-seed777-party5-6 | 7 | **PASS** ✅ | fully conforms (I014) |
+| solo-seed101-party1-7 | 8 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
 | solo-seed19-party2-7 | 18 | FIGHT✓ | move 17 `FIGHT -` = Spectre auto-slay (spectreSlew, G5) |
 | solo-seed7-party1-7 | 19 | ATTACK✓ | move 19 `FIGHT 0>0;1>1` = **multi-match fight** (parser does single-match) |
@@ -264,6 +264,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I014 | 2026-07-12 | G3/D8 | secret doors (mirrored stairs)** — A vertical move onto a card
+  lacking the return stair mirrors it (MAP.MAR `MIRROR_UP_STAIR` now both dirs: descend->AU ^X20,
+  ascend->AD ^X40) AND records it: `SCAVE_AREA_MIR[area]` |= bit, and lays a secret-door ordinal
+  `SCAVE_AREA_SD[area]` = `SCAVE_MAP_SDN++` if none yet (SC-6.1-13/14). New STATE fields, INIT_MAP
+  inits (MIR=0, SD=-1, SDN=0). SCCONF's AREA line now emits the real `MIR !SL SD <n|->` instead of
+  the hardcoded `MIR 0 SD -`. *Evidence:* the lone remaining divergence on seed777/seed101 (`AREA 2
+  ... MIR 32 SD 0`) closes -> **both vectors now fully PASS** (2/8). *Remaining FAILs:* seed23 statue,
+  seed11 crossedSpecial (G6), seed19 Spectre `FIGHT -`, seed7 multi-match, seed42 hazard, seed3 EXITCAVE.
 - **I013 | 2026-07-12 | G5 | FIGHT (single 1v1 resolveRound)** — Added FIGHT (code 13): SCCONF
   marshals `<f>><s>` into FA[0]/FD[0]/NF=1; ENGINE `FIGHT_ROUND` computes partyStr (FS+PK+MP) /
   enemyStr (FS+MP), rolls party-then-enemy die per match, adds rollBonus(-curses)+surprise, emits
