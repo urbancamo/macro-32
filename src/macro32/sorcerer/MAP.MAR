@@ -42,6 +42,7 @@
 	.EXTRN	SCAVE_DECK_LP
 	.EXTRN	SCAVE_DECK_LI
 	.EXTRN	SCAVE_DATA_AREA_CARDS
+	.EXTRN	SCAVE_AREA_FU
 	.EXTRN	SCAVE_AREA_MIR
 	.EXTRN	SCAVE_AREA_SD
 	.EXTRN	SCAVE_MAP_SDN
@@ -129,6 +130,15 @@ CARD_VAL:	.LONG	0
 	SUBL3	#1, R6, R5			; R5 = direction-1 = 0..5
 	CLRL	SCAVE_MAP_DEADEND		; assume not a dead end
 
+	; SC-6.1-12: on level 1 an up-stair is a cave EXIT (the exitCave action),
+	; never a climbable move -- a DIR_UP (5) move stays blocked here.
+	CMPL	R6, #5
+	BNEQ	M_DIR_OK
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	M_DIR_OK
+	BRW	M_FAIL
+M_DIR_OK:
+
 	; Decode the current card to find its exits.
 	MOVL	SCAVE_MAP_PA, R7		; R7 = current PA
 	PUSHL	SCAVE_MAP_MP[R7]
@@ -211,6 +221,7 @@ M_USE_EXISTING:
 
 M_DO_MOVE_EXISTING:
 	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
+	MOVL	#1, SCAVE_AREA_FU[R2]		; entering it turns the tile face up
 	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2	; PP2 = area two moves back
 	MOVL	R7, SCAVE_MAP_PP		; PP = old PA
 	MOVL	R2, SCAVE_MAP_PA		; new PA
@@ -232,13 +243,9 @@ M_DRAW:
 	MOVL	SCAVE_DATA_AREA_CARDS[R0], R0	; R0 = packed card value
 	MOVL	R0, CARD_VAL
 
-	; No up-staircases on level 1 except the gateway: the only way up
-	; from the first level is out through the gateway, so a freshly
-	; drawn level-1 card never keeps its up-stair.  (R8 = target level.)
-	CMPL	R8, #1
-	BNEQ	M_DRAW_LVLOK
-	BICL2	#^X20, CARD_VAL			; clear AU (bit 5)
-M_DRAW_LVLOK:
+	; SC-6.1-12: a printed level-1 up-stair is KEPT -- it is a cave exit
+	; (exitCave), not a move (a DIR_UP move is blocked in TRY_MOVE above), so
+	; several cards besides the Gateway can let a party escape.  Do NOT strip it.
 
 	PUSHL	CARD_VAL
 	CALLS	#1, DECODE_AREA
@@ -259,6 +266,7 @@ M_PLACE_OPEN:
 	MOVL	SCAVE_MAP_NM, R2
 	MOVL	CARD_VAL, SCAVE_MAP_MP[R2]
 	MOVL	R10, SCAVE_MAP_ML[R2]
+	MOVL	#1, SCAVE_AREA_FU[R2]		; a connecting tile is placed face up
 
 	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
 	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2	; PP2 = area two moves back
