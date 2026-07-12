@@ -49,6 +49,11 @@
 	SCAVE$_EV_DEADEND  = 2
 	SCAVE$_EV_BLOCKED  = 3
 	SCAVE$_EV_DREWCHAMBER = 4
+	SCAVE$_EV_ENTEREDSPECIAL = 5
+
+	; Area special types (card bits 7-9); the "stop at edge" specials.
+	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
+	SCAVE$_SPECIAL_VIPER = 3			; Viper Pit
 
 	.PSECT	ENGINE_CODE, EXE, NOWRT, LONG
 
@@ -121,7 +126,7 @@
 ;  state also emits no events (SC-4-6 discipline).
 ; ===========================================================
 ;
-	.ENTRY	ENG_APPLY, ^M<R2>
+	.ENTRY	ENG_APPLY, ^M<R2,R3>
 
 	CLRL	SCAVE_EVQ_N			; SC-4-6: fresh event queue per action
 	MOVL	4(AP), R2			; R2 = action code
@@ -138,8 +143,9 @@
 ;
 EA_MOVE:
 	TSTL	SCAVE_STATE_PH			; SCAVE$_PH_EXPLORE = 0
-	BNEQ	EA_DONE				; SC-4-24: reject move outside explore
-
+	BEQL	1$
+	BRW	EA_DONE				; SC-4-24: reject move outside explore (far -> BRW)
+1$:
 	PUSHL	8(AP)				; direction
 	CALLS	#1, G^TRY_MOVE			; R0 = 1 moved / 0 not; sets DEADEND
 	TSTL	R0
@@ -162,12 +168,28 @@ EA_MOVED:
 	MOVL	#SCAVE$_EV_MOVED, R0
 	BSBW	EMIT_EVENT
 
-	; Chamber-draw-on-arrival (SC-7.1-2): the first visit to a chamber-type
-	; area deals the small-pack cards, emits drewChamber, and sets the
-	; encounter/pickup phase.  (Hazard firing + stranger reaction rolls, and
-	; the revisit "reclassify from parked contents" path, are gate G4.)
+	; Resolve the area just entered (reference resolveArea order).
 	MOVL	SCAVE_MAP_PA, R2
 	MOVL	SCAVE_MAP_MP[R2], R1
+	EXTZV	#7, #3, R1, R3			; R3 = special type (card bits 7-9)
+
+	; Deep Pool / Viper Pit: entry stops at the edge -- emit enteredSpecial,
+	; stay in explore (SC-10-3).  The crossing (crossedSpecial + viper/pool
+	; rolls on the move OUT) and the Giant pool-recovery are gate G6.
+	CMPL	R3, #SCAVE$_SPECIAL_POOL
+	BEQL	EA_SPECIAL
+	CMPL	R3, #SCAVE$_SPECIAL_VIPER
+	BNEQ	EA_CHAMBER
+EA_SPECIAL:
+	MOVL	#SCAVE$_EV_ENTEREDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+	; Chamber-draw-on-arrival (SC-7.1-2): first visit to a chamber-type area
+	; deals the small-pack cards, emits drewChamber, sets ENC/PKP.  (Hazard
+	; firing + reaction rolls, and the revisit reclassify path, are gate G4.)
+EA_CHAMBER:
 	BBC	#4, R1, EA_DONE			; not a chamber (SCAVE$M_AREA_CHAMBER)
 	TSTL	SCAVE_MAP_MV[R2]
 	BNEQ	EA_DONE				; already visited -> G4 revisit

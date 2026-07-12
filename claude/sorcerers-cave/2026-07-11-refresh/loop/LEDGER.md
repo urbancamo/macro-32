@@ -4,8 +4,8 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G3
-**Last iteration:** I006 (2026-07-12) — chamber-draw-on-arrival: solo-seed23 matches through both moves (first divergence now the first non-move action, TAKE)
+**Current gate:** G4
+**Last iteration:** I007 (2026-07-12) — enteredSpecial: G3 movement complete (7/8 vectors reach their first non-move; solo-seed11 reaches move 4 = G6 crossing)
 
 ## Gates
 
@@ -14,7 +14,7 @@
 | G0 Harness | PASS | `make vms-scave-build` links SCAVE.EXE + SCCONF.EXE clean (0 warnings); `make vms-scave-conform VEC=solo-seed23-party4-6` runs end-to-end, emits well-formed `SETUP` line, diff pinpoints first divergence at the SETUP SEED (2026-07-12, I001) |
 | G1 RNG + data | PASS | `make vms-scave-selfcheck` (I003): `NEXTSEED1 1103527590`, `DECK LARGE 60 SMALL 71`, `TYPES 14/15/5`, `PACK 37/27/7 = 71`, cells Hero 3/3 Priest 1/4 Man 2/4 Woman 2/4 Dwarf 0/4 Dragon 4/6 — all match A.1 (2026-07-12) |
 | G2 Setup | PASS (exit) | All 8 vectors' SETUP lines match the reference (I004 per-vector diff, 2026-07-12): shuffle + consumption order (large60→small71→store) correct. **D2/S1 deferred** — see backlog note (not SETUP-visible; D2 verified at G4 draws, S1 not exercised by valid vectors) |
-| G3 Movement | PENDING | — |
+| G3 Movement | PASS (movement) | I005-I007: all 8 vectors match every MOVE up to their first non-move action — MOVE (success/deadEnd/blocked), turn coupling, chamber-draw-on-arrival, special entry (enteredSpecial), event order. solo-seed11 reaches move 4 where the special **crossing** (crossedSpecial) begins = G6. D8/D9 (secret doors, quake rubble) not exercised in the pre-first-non-move moves — verify when a vector hits them |
 | G4 Chambers/encounters | PENDING | — |
 | G5 Fights | PENDING | — |
 | G6 Specials/artifacts/scoring | PENDING | — |
@@ -32,14 +32,14 @@ first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | moves✓ | **first divergence = move 3 TAKE** (first non-move; stub emits EV -). Both MOVE actions + the chamber draw match exactly (G3 exit boundary reached for this vector) |
-| solo-seed777-party5-6 | 7 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed101-party1-7 | 8 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed11-party5-6-7 | 15 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed19-party2-7 | 18 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed7-party1-7 | 19 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed42-party3 | 31 | SETUP✓ | move 1 (ENG_APPLY stub) |
-| solo-seed3-party0 | 61 | SETUP✓ | move 1 (ENG_APPLY stub) |
+| solo-seed23-party4-6 | 7 | moves✓ | move 3 TAKE (G4 pickup + Lost-Ruby statue) |
+| solo-seed777-party5-6 | 7 | moves✓ | move 4 ATTACK (G4 encounter/fight) |
+| solo-seed101-party1-7 | 8 | moves✓ | move 5 ATTACK (G4 encounter/fight) |
+| solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing on move-out); moves 1-3 incl. deadEnd + enteredSpecial match |
+| solo-seed19-party2-7 | 18 | moves✓ | move 2 WITHDRAW (G4 encounter) |
+| solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
+| solo-seed42-party3 | 31 | moves✓ | move 3 LEAVE (G4 pickup) |
+| solo-seed3-party0 | 61 | moves✓ | move 2 LEAVE (G4 pickup) |
 
 ## Backlog
 
@@ -221,6 +221,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I007 | 2026-07-12 | G3 | enteredSpecial (SC-10-3)** — ENG_APPLY MOVE now decodes the arrived
+  area's special type (card bits 7-9); Deep Pool (2) / Viper Pit (3) emit `enteredSpecial` + stay
+  in explore, before the chamber path. Added the event code/name; fixed a far `BNEQ EA_DONE`
+  (invert+BRW). *Evidence:* ran all 8 vectors (fast now) and classified each first divergence:
+  **7/8 reach their first non-move action; solo-seed11 reaches move 4** (its move 3 `MOVE 1 ->
+  moved,enteredSpecial` now matches; move 4 is `crossedSpecial` = G6 crossing). No regression on
+  solo-seed23/seed7. *Result:* G3 movement complete; advance to G4. Deferred to G6: special
+  crossing on move-out (solo-seed11 move 4).
 - **I006 | 2026-07-12 | G3 | chamber-draw-on-arrival** — Added a pure `DRAW_CHAMBER` to ENGINE.MAR
   (headless counterpart to CHAMBER.MAR's UI-coupled deal loop): marks the area visited, deals
   min(level,4)(+Tomb/+Hall, cap 8) small-pack cards into CS/CT/CH by type, advancing SI (SC-7.1-2/4).
