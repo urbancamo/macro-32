@@ -93,6 +93,23 @@ States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
       len>0, id∈0..7 selectable, Σ SEL[id]≤6, count[id]≤START_COUNT[id]).
 
 ### G3 — Movement
+
+**Study notes (I004, from reference `map.ts`/`coords.ts`/`reduce.ts` + local `MAP.MAR`):**
+- `MAP.MAR:TRY_MOVE(dir@4(AP))` is **already headless** (STATE globals only, no SMG$) and largely
+  implements the reference `tryMove`: exit check via decoded bits, `targetCoord` (N:y-1 E:x+1 S:y+1
+  W:x-1 U:lvl-1 D:lvl+1), find existing area by coord, draw next `SCAVE_DECK_LP[LI++]`, reverse-door
+  connect test, face-down + `pruneExit` on dead end, `MIRROR_UP_STAIR` for secret doors. Slot model:
+  PA is 1-based (checkpoint `ARA = PA-1`); NM = area count; move → NM++, PA=NM (≈ engine push/idx).
+- **Plan for ENG_APPLY MOVE (SC-4-1/4-9, M1):** dispatch action 1 → guard phase=explore → call
+  `TRY_MOVE` → on moved: `TN++`, clear fellThroughTrap, emit `moved`; if the arrived area is an
+  unvisited chamber (card chamber-bit 16) draw `min(level,4)` small-pack cards, emit `drewChamber`,
+  set phase ENC (strangers present) or PKP (treasure only) — the chamber draw is shared with G4.
+  On dead end: emit `deadEnd`, no `TN++`. On no-exit: emit `blocked`, no `TN++`. Event codes must
+  match the reference emission order (SC-6.1-18).
+- **Then** the D7–D12 edge fixes below (secret-door numbering, L1 stair-up = cave exit, quake rubble,
+  large-pack exhaustion moved:false, turn coupling). Grind `solo-seed23`: move1 `MOVE 3`→ARA1 (plain,
+  no draw, PH EXP); move2 `MOVE 4`→ARA2 (chamber draw, PH PKP, EV moved,drewChamber, SEED unchanged).
+
 - [ ] D7 Any printed level-1 stair-up is a cave exit; DIR_UP still blocked on L1 — SC-6.1-12
 - [ ] D8 Secret doors: mirrored stairs (fresh draws AND already-placed areas), numbered — SC-6.1-13/14/15/17
 - [ ] D9 Quake rubble impassable + withdraw-blocked-onto-destroyed — SC-6.1-5, SC-7.2-12
