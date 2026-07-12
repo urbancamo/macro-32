@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G4
-**Last iteration:** I008 (2026-07-12) — LEAVE/persistAndExplore: solo-seed42 → move 10 (hazardFired), solo-seed3 → move 5 (TAKE)
+**Last iteration:** I009 (2026-07-12) — TAKE/takeTreasure (plain + canCarry): solo-seed3 → move 8 (chamber revisit reclassify)
 
 ## Gates
 
@@ -39,7 +39,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed19-party2-7 | 18 | moves✓ | move 2 WITHDRAW (G4 encounter) |
 | solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 `moved,drewChamber,hazardFired` (G4 on-draw hazard); moves 1-9 incl. 2× LEAVE match |
-| solo-seed3-party0 | 61 | LEAVE✓ | move 5 TAKE (G4 pickup) |
+| solo-seed3-party0 | 61 | TAKE✓ | move 8 chamber revisit (reclassify parked contents -> drewChamber); TAKE + LEAVE match |
 
 ## Backlog
 
@@ -239,6 +239,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I009 | 2026-07-12 | G4 | TAKE (takeTreasure, plain)** — Added `TAKE_TREASURE(ti,mi)` (reference
+  pickup.ts): canCarry weight check (carriedWeight + WT[tid] <= CR_CARRY[creature]), push tid to the
+  member's first empty PT slot, splice CT (shift down, NT--); returns floor-emptied so EA_TAKE
+  persists + explores. TAKE action (code 5, blocked outside pickup). Lost Ruby (tid 11) no-ops here
+  pending the statue path. SCCONF parses TAKE `<ti> <mi>`. *Evidence:* build clean; solo-seed3
+  5→**8** (TAKE + revisit; move 8 = chamber-revisit reclassify, deferred); solo-seed23 move 3 Ruby
+  now no-ops (PH PKP matches, only EV/statue differ); no regression on solo-seed42. *Next:* chamber
+  revisit (LOAD_PERSISTED-style reclassify), on-draw hazards, Lost-Ruby statue, encounters.
 - **I008 | 2026-07-12 | G4 | LEAVE (leaveTreasure)** — Added a pure `PERSIST_AREA` (reference
   persistAndExplore: park CS as 100+cid, CT as 200+tid into SCAVE_AREA_AC[PA*8+slot], pad 0, clear
   the working set) and the LEAVE action (code 6): blocked outside pickup, else persist + phase

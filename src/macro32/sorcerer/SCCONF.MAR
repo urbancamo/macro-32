@@ -143,6 +143,7 @@ SC_CELLS: .LONG	0, 4, 5, 6, 7, 10, -1
 ; --- action reducer: keywords, parsed args, event-name table ---
 LIT_MOVE:  .ASCII	/MOVE/
 LIT_LEAVE: .ASCII	/LEAVE/
+LIT_TAKE:  .ASCII	/TAKE/
 
 	.ALIGN	LONG
 V_ACT:	.LONG	0				; parsed action code
@@ -471,8 +472,19 @@ DO_MOVE:
 	MOVL	R0, V_A1
 	BRB	DM_APPLY
 60$:	CMPC3	#5, INBUF+5, LIT_LEAVE		; "LEAVE" -> action 6, 0 args
-	BNEQ	DM_APPLY
+	BNEQ	61$
 	MOVL	#6, V_ACT
+	BRB	DM_APPLY
+61$:	CMPC3	#4, INBUF+5, LIT_TAKE		; "TAKE" -> action 5, 2 args (ti mi)
+	BNEQ	DM_APPLY
+	MOVL	#5, V_ACT
+	MOVAB	INBUF+9, R6
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	BSBW	PARSE_UINT			; ti
+	MOVL	R0, V_A1
+	BSBW	PARSE_UINT			; mi
+	MOVL	R0, V_A2
 DM_APPLY:
 	PUSHL	V_A3
 	PUSHL	V_A2
