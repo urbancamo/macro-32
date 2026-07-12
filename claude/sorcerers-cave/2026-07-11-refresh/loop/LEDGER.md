@@ -4,7 +4,25 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G7→engine-completion. **UNBLOCKED:** the reference side already minted 6 extra vectors (seed174 sorcerer, seed225 escape, seed257/1237/2355/2678 artifacts) that collectively exercise EVERY gap subsystem (TEST/reaction, all 8 artifacts, RNG hazards, multi-front fights, chest, unicorn, Eye). Finishing the engine port is now a **verifiable vector grind** against them, not a code-read. Baseline: seed174 diverges at step 8 (TEST -> reaction,strangersJoined; no TEST handler in ENG_APPLY). Grind order: TEST/reaction (§8) -> hazards (§7) -> multi-front fights + sorcerer/casualty (§9) -> artifacts (§11) -> chest/scoring (§12). Extend SCCONF to parse TEST/USE/OPENCHEST/CASUALTY + richer FIGHT plans first.
+**Current gate:** G7→engine-completion. **UNBLOCKED:** the reference side already minted 6 extra vectors (seed174 sorcerer, seed225 escape, seed257/1237/2355/2678 artifacts) that collectively exercise EVERY gap subsystem (TEST/reaction, all 8 artifacts, RNG hazards, multi-front fights, chest, unicorn, Eye). Finishing the engine port is now a **verifiable vector grind** against them. **Done so far:** §8 TEST/reaction ported (I023) -> seed174 8->55, base-8 still 8/8. **Next:** §9 multi-front fight model (seed174 step 55 `FIGHT 4+0>0`). Then §7 RNG hazards, §11 artifacts, §12 chest/scoring.
+
+**§9 study notes (reference combatPlan.ts resolvePlannedRound + previewPlan):**
+- Plan is a list of matches; each match = front-list + backer-list + stranger-list. Current engine
+  STATE has 1D FA/FD (one front, one stranger per match) -- needs a **2D restructure**: FN[i]/BN[i]/SN[i]
+  counts + flattened FA/FB/FD[i*MPM+j] (MPM ~= PARTY_MAX). SCCONF plan parser must handle
+  `<front>[+<front>][|<backer>[+..]]><stranger>[+<stranger>]` (currently only 1v1 `<f>><s>`).
+- Per match: `partyStr = Σ frontStrength(front) + Σ casterMP(backers)`; `enemyStr = Σ (fs+MP)(strangers)
+  + Σ MP(foldedCasters)`. frontStrength = fs + dragonKills + casterMP (+Sword/Potion when artifacts land).
+  rollBonus = (Ring?1:0) - activeCurses; surprise ±1 round 1. Two dice/match (party then enemy).
+- Win: kill the STRONGEST foe in the match (by fs+MP); single-handed lone-Dragon match -> dragonKills++;
+  Sorcerer killed -> sorcererKilled=1 + sorcererSlain. Lose: mortal front (excl. Ring) -> 0 deathPrevented
+  / 1 memberDied / >1 **casualtyQueue** (pause; CASUALTY(14): d6>=4 honors the pick, else the other falls;
+  emit casualtyChosen+memberDied; empty queue -> finalizeRound).
+- previewPlan also does the gang-up attach (leftover extra-hand foes onto 1v1 matches) + leftover-caster
+  fold onto the focus match (my current GANG_UP precomputes these into ATTACH/FOLD -- keep, but re-fit to
+  the 2D structure). Idle-Spectre auto-slay stays (SPECTRE_CHECK). finalizeRound: Unicorn depart, no
+  survivor -> sweepFallen + gameOver(DEAD); strangers cleared -> fightWon + reclaim floor drops +
+  sweepFallen into pickup; else keep fighting. This is the single biggest remaining piece.
 **Last iteration:** I022 (2026-07-12) — G7 Part I audit (10-agent workflow, 317 SC-rows mapped with file:line evidence → [G7-AUDIT.md](G7-AUDIT.md)). **Key finding:** `ENGINE.MAR` implements only the rules the 8 vectors exercise; **164 gap-rows** (TEST/reaction, all 8 artifacts, Eye of God, openChest, moveTreasure/drop/setBorne, multi-front fights, RNG hazards Medusa/Ghouls/Mutiny/Trap) live only in the **legacy interactive modules** (STRANGER/ARTIFACT/FIGHT/SPECIAL), several with their own defects, none vector-covered. True G8 ("no game fact in UI") requires porting these into the engine — most need **new conformance vectors** to verify (see "New vectors requested" below).
 
 ## Gates
