@@ -70,6 +70,9 @@
 	SCAVE$_EV_FIGHTWON = 10
 	SCAVE$_EV_GAMEOVER = 11
 	SCAVE$_EV_SORCERERSLAIN = 12
+	SCAVE$_EV_SPECTRESLEW = 13
+	SCAVE$_CR_SPECTRE = 9			; creature indices
+	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 
 	; Area special types (card bits 7-9); the "stop at edge" specials.
 	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
@@ -690,6 +693,8 @@ RC_DONE:
 ;
 	.ENTRY	FIGHT_ROUND, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
 
+	CALLS	#0, SPECTRE_CHECK		; SC-9.4: idle Spectre auto-slay (no RNG)
+
 	; rollBonus (R9) = (Ring?+1:0) - activeCurses.  Ring deferred; curses = 0
 	; once the Sorcerer is dead (SK), else NC.
 	CLRL	R9
@@ -783,6 +788,90 @@ CL_L:	CMPL	R1, SCAVE_PARTY_NP
 CL_N:	INCL	R1
 	BRB	CL_L
 CL_D:	RSB
+
+;
+; ===========================================================
+;  SPECTRE_CHECK  --  the Spectre rule (SC-9.4, reference resolvePlannedRound).
+;
+;  If an IDLE Spectre (creature 9, not the target of any match's FD) is present
+;  and NO living member can engage it -- caster (base MP>0) or Magic Sword
+;  bearer -- the Spectre slays the strongest living member (max FS+PK) and emits
+;  spectreSlew.  Consumes no RNG.  (Ring-invincibility / Eye paths deferred.)
+; ===========================================================
+;
+	.ENTRY	SPECTRE_CHECK, ^M<R2,R3,R4,R5,R6>
+
+	; -- find an idle Spectre in CS --
+	CLRL	R2
+SK_F:	CMPL	R2, SCAVE_CHAMBER_NS
+	BLSS	SK_F1
+	BRW	SK_RET				; no idle Spectre
+SK_F1:	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	SK_FN
+	CLRL	R3				; is CS[R2] engaged by a match?
+SK_E:	CMPL	R3, SCAVE_FIGHT_NF
+	BGEQ	SK_ENGAGE			; scanned all matches -> idle
+	CMPL	SCAVE_FIGHT_FD[R3], R2
+	BEQL	SK_FN				; engaged -> not idle
+	INCL	R3
+	BRB	SK_E
+SK_FN:	INCL	R2
+	BRB	SK_F
+
+	; -- idle Spectre present: can any living member engage it? --
+SK_ENGAGE:
+	CLRL	R2
+SK_CE:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SK_SLAY				; nobody can engage -> slay
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	SK_CEN
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	TSTL	(R4)[R3]
+	BEQL	SK_SWCHK
+	BRW	SK_RET				; a caster engages -> no slay
+SK_SWCHK:
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; else look for a Magic Sword
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R3
+SK_SW:	CMPL	R3, #SCAVE$_TREAS_PER
+	BGEQ	SK_CEN
+	ADDL3	R5, R3, R4
+	CMPL	(R6)[R4], #SCAVE$_TR_SWORD
+	BNEQ	SK_SWN
+	BRW	SK_RET				; sword bearer engages -> no slay
+SK_SWN:
+	INCL	R3
+	BRB	SK_SW
+SK_CEN:	INCL	R2
+	BRB	SK_CE
+
+	; -- slay the strongest living member (max FS+PK) --
+SK_SLAY:
+	MNEGL	#1, R4				; best slot
+	MNEGL	#1, R5				; best strength
+	CLRL	R2
+SK_ST:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SK_HIT
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	SK_STN
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_FS, R6
+	MOVL	(R6)[R3], R0
+	ADDL2	SCAVE_PARTY_PK[R2], R0
+	CMPL	R0, R5
+	BLEQ	SK_STN
+	MOVL	R0, R5
+	MOVL	R2, R4
+SK_STN:	INCL	R2
+	BRB	SK_ST
+SK_HIT:	TSTL	R4
+	BLSS	SK_RET				; no living member (shouldn't happen)
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R4]
+	MOVL	#SCAVE$_EV_SPECTRESLEW, R0
+	BSBW	EMIT_EVENT
+SK_RET:	MOVL	#SS$_NORMAL, R0
+	RET
 
 ;
 ; ===========================================================

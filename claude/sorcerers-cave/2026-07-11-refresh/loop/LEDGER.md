@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G5
-**Last iteration:** I016 (2026-07-12) — EXITCAVE + D7 level-1 exits + faceUp + scoring (SC-12): **3/8 vectors PASS** (solo-seed3 joins 777/101)
+**Last iteration:** I017 (2026-07-12) — Spectre auto-slay (`FIGHT -`) + multi-match parser: **4/8 vectors PASS** (solo-seed19 joins). solo-seed7 needs gang-up (D28)
 
 ## Gates
 
@@ -36,8 +36,8 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed777-party5-6 | 7 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed101-party1-7 | 8 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
-| solo-seed19-party2-7 | 18 | FIGHT✓ | move 17 `FIGHT -` = Spectre auto-slay (spectreSlew, G5) |
-| solo-seed7-party1-7 | 19 | ATTACK✓ | move 19 `FIGHT 0>0;1>1` = **multi-match fight** (parser does single-match) |
+| solo-seed19-party2-7 | 18 | **PASS** ✅ | fully conforms (I017 Spectre auto-slay) |
+| solo-seed7-party1-7 | 19 | move-parse✓ | move 19 outcome flips — needs **gang-up (§395/D28)**: leftover stranger attaches to a match, raising enemyStr (dice already match) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 hazardFired (G4 on-draw hazard) |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
 
@@ -264,6 +264,15 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I017 | 2026-07-12 | G5 | Spectre + multi-match** — SCCONF FIGHT parser now handles a
+  `;`-separated list of 1v1 matches into FA[i]/FD[i]/NF (and `FIGHT -` -> NF=0). New `SPECTRE_CHECK`
+  in ENGINE (SC-9.4): an idle Spectre (creature 9 in no match) that the party can't engage (no caster
+  base-MP, no Magic Sword) slays the strongest living member (max FS+PK) -> spectreSlew, no RNG; runs
+  before the match loop in FIGHT_ROUND. Added the event code/name; fixed 3 far `SK_RET` branches
+  (invert+BRW). *Evidence:* **solo-seed19 fully PASSES** (Spectre wipe over 2 rounds) -> 4/8.
+  solo-seed7 multi-match parses right but move-19 outcome flips: it needs **gang-up (§395/D28)** --
+  with no free fighters a leftover stranger attaches to a 1v1 match, raising enemyStr (the dice/seed
+  already match). *Remaining:* seed7 gang-up, seed23 statue, seed42 hazards, seed11 crossing.
 - **I016 | 2026-07-12 | G6 | scoring (SC-12)** — Pure `COMPUTE_SCORE` in ENGINE (reference
   scoreBreakdown): per ALIVE member `CR_PTS[cid]*(PK>0?2:1) + Σ TR_PTS[carried]`, +30 sorcerer
   bonus, -30 flat curse penalty (unless SK), DEAD->0 else floor 0. SCCONF DO_FINAL calls it for the

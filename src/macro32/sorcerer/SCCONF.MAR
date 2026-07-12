@@ -170,10 +170,11 @@ EV_D_MDIED:   .ASCID	/memberDied/
 EV_D_FWON:    .ASCID	/fightWon/
 EV_D_GOVER:   .ASCID	/gameOver/
 EV_D_SORCSL:  .ASCID	/sorcererSlain/
+EV_D_SPECSL:  .ASCID	/spectreSlew/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
-		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL
+		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL
 
 ;
 ; ===========================================================
@@ -515,22 +516,31 @@ DO_MOVE:
 66$:	CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
 	BNEQ	DM_APPLY
 	MOVL	#13, V_ACT
-	; Marshal a single 1v1 match into FA[0]/FD[0], NF=1 (multi-front '+',
-	; backers '|', ';'-separated matches and "FIGHT -" empty plan are deferred).
+	; Marshal the plan into FA[i]/FD[i] for i=0..NF-1: a ';'-separated list of
+	; 1v1 matches `<f>><s>`.  "FIGHT -" (no digits) -> NF=0 (forced-Spectre empty
+	; plan).  Multi-front '+' and backers '|' are still deferred.
 	MOVAB	INBUF+11, R6			; plan starts after "FIGHT "
 	MOVL	LINELEN, R7
 	SUBL2	#11, R7
-	BSBW	PARSE_UINT			; front (R0), digit count R1
+	CLRL	R8				; match index
+FM_L:	BSBW	PARSE_UINT			; front (R0), digit count R1
 	TSTL	R1
-	BEQL	65$				; no digits ("FIGHT -") -> empty plan
-	MOVL	R0, SCAVE_FIGHT_FA		; FA[0]
+	BEQL	FM_DONE				; no (more) matches
+	MOVL	R0, SCAVE_FIGHT_FA[R8]		; FA[i] = front slot
 	INCL	R6				; skip the '>' separator
 	DECL	R7
 	BSBW	PARSE_UINT			; stranger
-	MOVL	R0, SCAVE_FIGHT_FD		; FD[0]
-	MOVL	#1, SCAVE_FIGHT_NF
+	MOVL	R0, SCAVE_FIGHT_FD[R8]		; FD[i] = stranger idx
+	INCL	R8
+	TSTL	R7				; another match after a ';'?
+	BLEQ	FM_DONE
+	CMPB	(R6), #^A/;/
+	BNEQ	FM_DONE
+	INCL	R6
+	DECL	R7
+	BRB	FM_L
+FM_DONE: MOVL	R8, SCAVE_FIGHT_NF		; NF = number of matches
 	BRW	DM_APPLY
-65$:	CLRL	SCAVE_FIGHT_NF			; empty plan (forced-Spectre)
 DM_APPLY:
 	PUSHL	V_A3
 	PUSHL	V_A2
