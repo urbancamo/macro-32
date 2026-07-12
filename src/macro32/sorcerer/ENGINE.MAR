@@ -73,6 +73,8 @@
 	SCAVE$_EV_SPECTRESLEW = 13
 	SCAVE$_EV_RUBYTAKEN = 14
 	SCAVE$_EV_STATUEAROUSED = 15
+	SCAVE$_EV_HAZARDFIRED = 16
+	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices
 	SCAVE$_CR_SPECTRE = 9			; creature indices
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
@@ -245,6 +247,7 @@ EA_CHAMBER:
 	MOVL	#1, R3				; fresh = 1
 8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
+	CALLS	#0, RESOLVE_HAZARDS		; on-draw hazards (SC-7.2)
 	; phase: strangers -> encounter; else treasure -> pickup; else explore
 	TSTL	SCAVE_CHAMBER_NS
 	BEQL	5$
@@ -517,6 +520,55 @@ DC_NEXT:
 	INCL	R2
 	BRW	DC_LOOP				; loop body > 127 bytes -> word branch
 DC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  RESOLVE_HAZARDS  --  fire the drawn chamber's hazards (SC-7.2), in the
+;                       fixed priority order Earthquake, Medusa, Ghouls,
+;                       Mutiny, Trap.  Emits hazardFired per present hazard.
+;
+;  Only Earthquake's effect is implemented: it collapses the previous area
+;  (prev != partyArea) -- AF_DESTROYED + cleared contents -- and consumes no
+;  RNG.  The RNG-bearing hazards (Medusa gaze, Ghouls fight, Mutiny, Trap) and
+;  the Talisman/Staff wards still emit hazardFired but skip their effect; add
+;  them when a vector exercises them.  Clears the working hazard set after.
+; ===========================================================
+;
+	.ALIGN	LONG
+HAZ_ORDER: .LONG 2, 3, 4, 0, 1, -1		; Earthquake, Medusa, Ghouls, Mutiny, Trap
+
+	.ENTRY	RESOLVE_HAZARDS, ^M<R2,R3,R4,R5,R6>
+
+	MOVAB	HAZ_ORDER, R2
+RH_L:	MOVL	(R2)+, R3			; next hazard in priority order
+	CMPL	R3, #-1
+	BEQL	RH_DONE
+	CLRL	R4				; is R3 present in CH?
+RH_P:	CMPL	R4, SCAVE_CHAMBER_NH
+	BGEQ	RH_L
+	CMPL	SCAVE_CHAMBER_CH[R4], R3
+	BEQL	RH_FIRE
+	INCL	R4
+	BRB	RH_P
+RH_FIRE:
+	MOVL	#SCAVE$_EV_HAZARDFIRED, R0
+	BSBW	EMIT_EVENT
+	CMPL	R3, #SCAVE$_HZ_EARTHQUAKE	; only Earthquake's effect is wired
+	BNEQ	RH_L
+	MOVL	SCAVE_MAP_PP, R5		; collapse prev (if it isn't the party's area)
+	CMPL	R5, SCAVE_MAP_PA
+	BEQL	RH_L
+	BISL2	#SCAVE$M_AF_DESTROYED, SCAVE_AREA_AF[R5]
+	MULL3	#SCAVE$_AREA_ITEMS, R5, R6	; clear its AC slots
+	CLRL	R4
+RH_CLR:	ADDL3	R6, R4, R0
+	CLRL	SCAVE_AREA_AC[R0]
+	AOBLSS	#SCAVE$_AREA_ITEMS, R4, RH_CLR
+	BRB	RH_L
+RH_DONE:
+	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
 	MOVL	#SS$_NORMAL, R0
 	RET
 

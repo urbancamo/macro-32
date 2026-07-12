@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G6
-**Last iteration:** I019 (2026-07-12) — Lost-Ruby statue (SC-11/D49): **6/8 vectors PASS** (solo-seed23 joins). Remaining: seed42 hazards, seed11 crossing
+**Last iteration:** I020 (2026-07-12) — on-draw Earthquake hazard: seed42 10→27. **Both remaining vectors (seed42, seed11) now need special crossing (crossedSpecial)** — the last feature; 6/8 PASS
 
 ## Gates
 
@@ -38,7 +38,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
 | solo-seed19-party2-7 | 18 | **PASS** ✅ | fully conforms (I017 Spectre auto-slay) |
 | solo-seed7-party1-7 | 19 | **PASS** ✅ | fully conforms (I018 gang-up) |
-| solo-seed42-party3 | 31 | LEAVE✓ | move 10 hazardFired (G4 on-draw hazard) |
+| solo-seed42-party3 | 31 | hazard✓ | move 27 `crossedSpecial,viperPit,moved` (G6 viper-pit crossing) — Earthquake now fires |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
 
 ## Backlog
@@ -264,6 +264,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I020 | 2026-07-12 | G4 | on-draw hazards (Earthquake)** — New `RESOLVE_HAZARDS` in ENGINE, called
+  after the chamber draw: iterates the fixed priority order (Earthquake, Medusa, Ghouls, Mutiny, Trap
+  via HAZ_ORDER), emits `hazardFired` per present hazard, then clears NH. Earthquake's effect wired
+  (collapse prev if prev!=partyArea: AF_DESTROYED + clear its AC), no RNG. RNG hazards + wards still
+  emit hazardFired but skip the effect (deferred). *Evidence:* solo-seed42 10→**27** (Earthquake +
+  the following moves/fights match); no regression (still 6/8). *Both remaining vectors now blocked on
+  the SAME feature:* special crossing (`crossedSpecial`) -- seed11 move 4 (Deep Pool, no roll),
+  seed42 move 27 (Viper Pit, `viperPit` roll). That's the last feature for a full 8/8 sweep.
 - **I019 | 2026-07-12 | G6 | Lost-Ruby statue (SC-11/D49)** — Taking the Ruby (tid 11) now routes to
   a new `STATUE_WRESTLE` (reference takeTreasure tid===11): the taker wrestles a strength-8 statue --
   fighterTotal = frontStrength + d6 vs 8 + d6 (fighter die first, 2 rolls) -> `combatRoll`; on a win
