@@ -694,6 +694,7 @@ RC_DONE:
 	.ENTRY	FIGHT_ROUND, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
 
 	CALLS	#0, SPECTRE_CHECK		; SC-9.4: idle Spectre auto-slay (no RNG)
+	CALLS	#0, GANG_UP			; SC-9.1-10/11: leftover-foe attach + fold
 
 	; rollBonus (R9) = (Ring?+1:0) - activeCurses.  Ring deferred; curses = 0
 	; once the Sorcerer is dead (SK), else NC.
@@ -730,6 +731,18 @@ FR_L:	CMPL	R2, SCAVE_FIGHT_NF
 	MOVL	(R5)[R4], R7
 	MOVAB	SCAVE_DATA_CR_MP, R5
 	ADDL2	(R5)[R4], R7
+	; gang-up: an attached leftover stranger adds its FS+MP to this match
+	MOVL	SCAVE_FIGHT_ATTACH[R2], R3
+	BLSS	6$
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	MOVAB	SCAVE_DATA_CR_FS, R5
+	ADDL2	(R5)[R4], R7
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	ADDL2	(R5)[R4], R7
+6$:	TSTL	R2				; the focus match (0) carries the folded magic
+	BNEQ	FR_ROLL
+	ADDL2	SCAVE_FIGHT_FOLD, R7
+FR_ROLL:
 	CALLS	#0, G^ROLL_DIE			; party die (order: party then enemy)
 	ADDL2	R0, R6
 	CALLS	#0, G^ROLL_DIE			; enemy die
@@ -871,6 +884,114 @@ SK_HIT:	TSTL	R4
 	MOVL	#SCAVE$_EV_SPECTRESLEW, R0
 	BSBW	EMIT_EVENT
 SK_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GANG_UP  --  §395 gang-up (reference previewPlan).  Fills the per-match
+;               attach list + folded-magic total, used only when the party has
+;               NO free fighter (every living member is a front).
+;
+;  ATTACH[i] = the strongest unengaged, unassigned, non-caster, non-Spectre
+;  leftover stranger, one per match (strongest first).  FOLD = total MP of the
+;  leftover CASTER strangers (they lend magic from the background to the focus
+;  match).  When a free fighter remains, leftover foes stay separate: ATTACH all
+;  -1, FOLD 0.
+; ===========================================================
+;
+	.ENTRY	GANG_UP, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CLRL	SCAVE_FIGHT_FOLD		; default: no gang-up
+	CLRL	R2
+GU_I:	MNEGL	#1, SCAVE_FIGHT_ATTACH[R2]
+	AOBLSS	#8, R2, GU_I
+
+	; -- free fighter? (a living member that is not a front) --
+	CLRL	R2
+GU_FF:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GU_GANG				; none free -> gang up
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	GU_FFN
+	CLRL	R3
+GU_FA:	CMPL	R3, SCAVE_FIGHT_NF
+	BLSS	GU_FA1
+	BRW	GU_RET				; R2 is not a front -> free fighter -> no gang-up
+GU_FA1:	CMPL	SCAVE_FIGHT_FA[R3], R2
+	BEQL	GU_FFN
+	INCL	R3
+	BRB	GU_FA
+GU_FFN:	INCL	R2
+	BRW	GU_FF
+
+	; -- no free fighter: attach the strongest eligible leftover per match --
+GU_GANG:
+	CLRL	R2				; match i
+GU_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BLSS	GU_ML1
+	BRW	GU_FOLD
+GU_ML1:	MNEGL	#1, R8				; best stranger idx
+	MNEGL	#1, R9				; best FS
+	CLRL	R3				; stranger s
+GU_SL:	CMPL	R3, SCAVE_CHAMBER_NS
+	BGEQ	GU_SD
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	CMPL	R4, #SCAVE$_CR_SPECTRE
+	BEQL	GU_SN				; Spectre never gangs up
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	TSTL	(R5)[R4]
+	BNEQ	GU_SN				; caster -> folds, not an extra hand
+	CLRL	R10				; engaged in a match (FD)?
+GU_S1:	CMPL	R10, SCAVE_FIGHT_NF
+	BGEQ	GU_S2
+	CMPL	SCAVE_FIGHT_FD[R10], R3
+	BEQL	GU_SN
+	INCL	R10
+	BRB	GU_S1
+GU_S2:	CLRL	R10				; already attached elsewhere?
+GU_S3:	CMPL	R10, SCAVE_FIGHT_NF
+	BGEQ	GU_S4
+	CMPL	SCAVE_FIGHT_ATTACH[R10], R3
+	BEQL	GU_SN
+	INCL	R10
+	BRB	GU_S3
+GU_S4:	MOVAB	SCAVE_DATA_CR_FS, R5		; eligible -> keep the strongest
+	MOVL	(R5)[R4], R6
+	CMPL	R6, R9
+	BLEQ	GU_SN
+	MOVL	R6, R9
+	MOVL	R3, R8
+GU_SN:	INCL	R3
+	BRB	GU_SL
+GU_SD:	TSTL	R8
+	BLSS	GU_MN
+	MOVL	R8, SCAVE_FIGHT_ATTACH[R2]
+GU_MN:	INCL	R2
+	BRW	GU_ML
+
+	; -- fold leftover casters' MP (unengaged, unattached, non-Spectre) --
+GU_FOLD:
+	CLRL	R7
+	CLRL	R3
+GU_FL:	CMPL	R3, SCAVE_CHAMBER_NS
+	BGEQ	GU_FDONE
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	CMPL	R4, #SCAVE$_CR_SPECTRE
+	BEQL	GU_FLN
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	MOVL	(R5)[R4], R6
+	BLEQ	GU_FLN				; MP<=0 -> non-caster
+	CLRL	R10				; engaged?
+GU_F1:	CMPL	R10, SCAVE_FIGHT_NF
+	BGEQ	GU_F2
+	CMPL	SCAVE_FIGHT_FD[R10], R3
+	BEQL	GU_FLN
+	INCL	R10
+	BRB	GU_F1
+GU_F2:	ADDL2	R6, R7				; (attached casters can't happen -- only non-casters attach)
+GU_FLN:	INCL	R3
+	BRB	GU_FL
+GU_FDONE: MOVL	R7, SCAVE_FIGHT_FOLD
+GU_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;

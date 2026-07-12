@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G5
-**Last iteration:** I017 (2026-07-12) — Spectre auto-slay (`FIGHT -`) + multi-match parser: **4/8 vectors PASS** (solo-seed19 joins). solo-seed7 needs gang-up (D28)
+**Last iteration:** I018 (2026-07-12) — gang-up (§395/D28): **5/8 vectors PASS** (solo-seed7 joins). Fight system complete (1v1 / multi-match / Spectre / gang-up)
 
 ## Gates
 
@@ -37,7 +37,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed101-party1-7 | 8 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
 | solo-seed19-party2-7 | 18 | **PASS** ✅ | fully conforms (I017 Spectre auto-slay) |
-| solo-seed7-party1-7 | 19 | move-parse✓ | move 19 outcome flips — needs **gang-up (§395/D28)**: leftover stranger attaches to a match, raising enemyStr (dice already match) |
+| solo-seed7-party1-7 | 19 | **PASS** ✅ | fully conforms (I018 gang-up) |
 | solo-seed42-party3 | 31 | LEAVE✓ | move 10 hazardFired (G4 on-draw hazard) |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
 
@@ -264,6 +264,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I018 | 2026-07-12 | G5 | gang-up (§395/D28)** — New `GANG_UP` in ENGINE (reference previewPlan):
+  when the party has NO free fighter, the strongest unengaged/unassigned non-caster non-Spectre
+  leftover stranger ATTACHES to each match (strongest first, into `SCAVE_FIGHT_ATTACH[i]`) and the
+  leftover CASTERS fold their MP (`SCAVE_FIGHT_FOLD`) onto the focus match. FIGHT_ROUND adds the
+  attached stranger's FS+MP to that match's enemyStr and the fold to match 0. Fixed 2 far branches
+  (invert+BRW). *Evidence:* **solo-seed7 PASSES** (its W-Hero match now loses to an attached foe) ->
+  5/8. No regression. Fight system complete: 1v1 / multi-match / Spectre / gang-up.
+  *Remaining 3:* seed23 statue (G4/D49), seed42 on-draw hazards (G4), seed11 special crossing (G6).
 - **I017 | 2026-07-12 | G5 | Spectre + multi-match** — SCCONF FIGHT parser now handles a
   `;`-separated list of 1v1 matches into FA[i]/FD[i]/NF (and `FIGHT -` -> NF=0). New `SPECTRE_CHECK`
   in ENGINE (SC-9.4): an idle Spectre (creature 9 in no match) that the party can't engage (no caster
