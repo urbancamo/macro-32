@@ -4,7 +4,7 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G7 audit COMPLETE → reveals the engine is a vector-subset; G8 now blocked on porting ~160 unexercised rules
+**Current gate:** G7→engine-completion. **UNBLOCKED:** the reference side already minted 6 extra vectors (seed174 sorcerer, seed225 escape, seed257/1237/2355/2678 artifacts) that collectively exercise EVERY gap subsystem (TEST/reaction, all 8 artifacts, RNG hazards, multi-front fights, chest, unicorn, Eye). Finishing the engine port is now a **verifiable vector grind** against them, not a code-read. Baseline: seed174 diverges at step 8 (TEST -> reaction,strangersJoined; no TEST handler in ENG_APPLY). Grind order: TEST/reaction (§8) -> hazards (§7) -> multi-front fights + sorcerer/casualty (§9) -> artifacts (§11) -> chest/scoring (§12). Extend SCCONF to parse TEST/USE/OPENCHEST/CASUALTY + richer FIGHT plans first.
 **Last iteration:** I022 (2026-07-12) — G7 Part I audit (10-agent workflow, 317 SC-rows mapped with file:line evidence → [G7-AUDIT.md](G7-AUDIT.md)). **Key finding:** `ENGINE.MAR` implements only the rules the 8 vectors exercise; **164 gap-rows** (TEST/reaction, all 8 artifacts, Eye of God, openChest, moveTreasure/drop/setBorne, multi-front fights, RNG hazards Medusa/Ghouls/Mutiny/Trap) live only in the **legacy interactive modules** (STRANGER/ARTIFACT/FIGHT/SPECIAL), several with their own defects, none vector-covered. True G8 ("no game fact in UI") requires porting these into the engine — most need **new conformance vectors** to verify (see "New vectors requested" below).
 
 ## Gates
@@ -283,6 +283,19 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 ## Iteration log
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
+
+- **I023 | 2026-07-12 | §8 | TEST/reaction layer ported into the engine** — Unblocked the
+  engine-completion grind against the 6 existing reference vectors. Extended SCCONF to parse
+  TEST(11)/CASUALTY(14)/OPENCHEST(17) and added event names reaction/strangersJoined/pacified/
+  unicornGuards (codes 20-23). Implemented action 11 (EA_TEST) in ENGINE.MAR with helpers
+  REACTION_ROLL (leader d6 + charisma +1 - activeCurses, clamp, natural-1, classify vs
+  hostileMax/indiffMax), FIND_LEADER (highest leaderPri, ties->first), HAS_CHARISMA, HAS_WOMAN;
+  new state SCAVE_STATE_IS (indiffStreak, reset on chamber entry). Outcomes: hostile->fight
+  surprise-1; indifferent->streak, 3rd pacifies (AF_PERMINDIFF + persist); friendly->recruit all
+  as allies (no cap), womanless Unicorn guards + pacifies, then pickup/explore. *Evidence:*
+  `make vms-scave-conform VEC=solo-seed174-party1-7-sorcerer` advances **step 8 -> step 55** (all
+  TEST/reaction/recruit lines match bit-for-bit); base-8 still **8/8 PASS** (no regression). Next
+  divergence: step 55 multi-front FIGHT plan `4+0>0` + CASUALTY + sorcererSlain (§9 fight model).
 
 - **I022 | 2026-07-12 | G7 | Part I audit (10-agent workflow)** — Fanned out one read-only audit
   agent per spec section §3-§12; each mapped every solo SC-row of engine-spec.md Part I to the

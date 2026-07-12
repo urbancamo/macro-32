@@ -150,6 +150,10 @@ LIT_WITH:  .ASCII	/WITHDRAW/
 LIT_ATT:   .ASCII	/ATTACK/
 LIT_FIGHT: .ASCII	/FIGHT/
 LIT_EXIT:  .ASCII	/EXITCAVE/
+LIT_TEST:  .ASCII	/TEST/
+LIT_CAS:   .ASCII	/CASUALTY/
+LIT_USE:   .ASCII	/USE/
+LIT_CHEST: .ASCII	/OPENCHEST/
 
 	.ALIGN	LONG
 V_ACT:	.LONG	0				; parsed action code
@@ -177,11 +181,16 @@ EV_D_HAZ:     .ASCID	/hazardFired/
 EV_D_XSPEC:   .ASCID	/crossedSpecial/
 EV_D_VIPER:   .ASCID	/viperPit/
 EV_D_TDROP:   .ASCID	/treasureDropped/
+EV_D_REACT:   .ASCID	/reaction/
+EV_D_JOINED:  .ASCID	/strangersJoined/
+EV_D_PACIF:   .ASCID	/pacified/
+EV_D_UNIGRD:  .ASCID	/unicornGuards/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
 		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL, EV_D_RUBY, -
-		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP
+		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP, -
+		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD
 
 ;
 ; ===========================================================
@@ -517,9 +526,27 @@ DO_MOVE:
 	MOVL	#12, V_ACT
 	BRW	DM_APPLY
 64$:	CMPC3	#8, INBUF+5, LIT_EXIT		; "EXITCAVE" -> action 3, 0 args
-	BNEQ	66$
+	BNEQ	65$
 	MOVL	#3, V_ACT
 	BRW	DM_APPLY
+65$:	CMPC3	#4, INBUF+5, LIT_TEST		; "TEST" -> action 11, 0 args
+	BNEQ	67$
+	MOVL	#11, V_ACT
+	BRW	DM_APPLY
+67$:	CMPC3	#8, INBUF+5, LIT_CAS		; "CASUALTY <idx>" -> action 14, 1 arg
+	BNEQ	68$
+	MOVL	#14, V_ACT
+	MOVAB	INBUF+14, R6			; args after "CASUALTY "
+	MOVL	LINELEN, R7
+	SUBL2	#14, R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A1
+	BRW	DM_APPLY
+68$:	CMPC3	#9, INBUF+5, LIT_CHEST		; "OPENCHEST" -> action 17, 0 args
+	BNEQ	66$
+	MOVL	#17, V_ACT
+	BRW	DM_APPLY
+	; USE (action 16) parsing is added with the artifact grind.
 66$:	CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
 	BNEQ	DM_APPLY
 	MOVL	#13, V_ACT

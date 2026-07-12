@@ -41,8 +41,15 @@
 	SCAVE$_ACT_WITHDRAW = 4
 	SCAVE$_ACT_TAKE = 5
 	SCAVE$_ACT_LEAVE = 6
+	SCAVE$_ACT_TEST = 11
 	SCAVE$_ACT_ATTACK = 12
 	SCAVE$_ACT_FIGHT = 13
+
+	; creature-flag masks (file-local `=` in DATA.MAR/STATE.MAR; redeclare here)
+	SCAVE$M_CR_CHARISMA = ^X02		; +1 reaction (Hero / W-Hero)
+	SCAVE$M_CR_BEFRIENDS_UNICORN = ^X04	; a "Woman" for Unicorn purposes
+	SCAVE$M_AF_PERMINDIFF = ^X10		; area is permanently indifferent (pacified)
+	SCAVE$_CR_UNICORN = 13
 	SCAVE$_PH_FIGHT = 2			; must equal STATE.MAR
 	SCAVE$_PH_GAMEOVER = 4
 	SCAVE$_GS_ESCAPED = 1			; SC-3-23 game states
@@ -77,6 +84,10 @@
 	SCAVE$_EV_CROSSEDSPECIAL = 17
 	SCAVE$_EV_VIPERPIT = 18
 	SCAVE$_EV_TREASUREDROPPED = 19
+	SCAVE$_EV_REACTION = 20
+	SCAVE$_EV_STRANGERSJOINED = 21
+	SCAVE$_EV_PACIFIED = 22
+	SCAVE$_EV_UNICORNGUARDS = 23
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices
 	SCAVE$_CR_SPECTRE = 9			; creature indices
 	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
@@ -176,7 +187,10 @@
 3$:	CMPL	R2, #SCAVE$_ACT_WITHDRAW
 	BNEQ	4$
 	BRW	EA_WITHDRAW
-4$:	CMPL	R2, #SCAVE$_ACT_ATTACK
+4$:	CMPL	R2, #SCAVE$_ACT_TEST
+	BNEQ	41$
+	BRW	EA_TEST
+41$:	CMPL	R2, #SCAVE$_ACT_ATTACK
 	BNEQ	5$
 	BRW	EA_ATTACK
 5$:	CMPL	R2, #SCAVE$_ACT_FIGHT
@@ -298,6 +312,7 @@ EA_CHAMBER:
 	BEQL	5$
 	MOVL	#SCAVE$_PH_ENCOUNTER, SCAVE_STATE_PH
 	MOVL	R3, SCAVE_STATE_SR		; surpriseReady = fresh entry (SC-4-16)
+	CLRL	SCAVE_STATE_IS			; SC-8.4-5: indiffStreak resets on chamber entry
 	BRB	EA_DONE
 5$:	TSTL	SCAVE_CHAMBER_NT
 	BEQL	EA_DONE				; hazards-only stays explore until G4
@@ -408,6 +423,125 @@ EA_ATTACK:
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
 	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- TEST (SC-4-18, SC-8.*, reduce.ts "test") ----
+;   Approach the strangers and roll a reaction.  Legal only in encounter and
+;   while indiffStreak < 3.  Forfeits surprise, rolls one d6 (REACTION_ROLL,
+;   threads the seed), emits reaction, then acts on the outcome:
+;     hostile    -> start a fight, surprise -1 (strangers gain it)  (SC-8.4-2)
+;     indifferent -> indiffStreak++; the 3rd pacifies the area (AF_PERMINDIFF),
+;                    parks strangers+treasure guarded, back to explore (SC-8.4-3/4)
+;     friendly   -> recruit every stranger as an ally (status 1, no size cap);
+;                    a womanless Unicorn (13) instead guards the area, pacifying
+;                    it; then treasure -> pickup else explore  (SC-8.4-7/8, SC-8.5-4)
+;
+EA_TEST:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	ET_OK
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+ET_OK:	CMPL	SCAVE_STATE_IS, #3		; permanently indifferent -> blocked
+	BLSS	ET_GO
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+ET_GO:	CLRL	SCAVE_STATE_SR			; SC-8.1-6: testing forfeits surprise
+	CALLS	#0, REACTION_ROLL		; R0 = 0 hostile / 1 indiff / 2 friendly
+	MOVL	R0, R11				; save outcome
+	MOVL	#SCAVE$_EV_REACTION, R0
+	BSBW	EMIT_EVENT
+	TSTL	R11
+	BEQL	ET_HOST
+	CMPL	R11, #1
+	BEQL	ET_INDIF
+	BRW	ET_FRIEND
+
+ET_HOST:					; SC-8.4-2: hostile -> fight, surprise -1
+	MOVL	#-1, SCAVE_FIGHT_FS
+	MOVL	#1, SCAVE_FIGHT_RD
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+ET_INDIF:					; SC-8.4-3..5
+	INCL	SCAVE_STATE_IS
+	CMPL	SCAVE_STATE_IS, #3
+	BGEQ	ET_PACIFY
+	BRW	EA_DONE				; < 3 -> stay in encounter
+ET_PACIFY:
+	MOVL	SCAVE_MAP_PA, R2
+	BISL2	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	MOVL	#SCAVE$_EV_PACIFIED, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+ET_FRIEND:					; SC-8.4-7/8: recruit all, womanless Unicorn guards
+	CALLS	#0, HAS_WOMAN			; R0 = 1 if a "woman" is present
+	MOVL	R0, R10				; womanPresent
+	CLRL	R2				; stranger index
+ET_FL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	ET_FJOINED
+	MOVL	SCAVE_CHAMBER_CS[R2], R3	; cid
+	CMPL	R3, #SCAVE$_CR_UNICORN
+	BNEQ	ET_FADD
+	TSTL	R10				; womanless Unicorn -> does not join
+	BEQL	ET_FNEXT
+ET_FADD:					; append as ally (status 1, empty treasure)
+	MOVL	SCAVE_PARTY_NP, R4
+	MOVL	R3, SCAVE_PARTY_PC[R4]
+	MOVL	#1, SCAVE_PARTY_PS[R4]		; SCAVE$_PS_ALLY
+	CLRL	SCAVE_PARTY_PK[R4]
+	MULL3	#SCAVE$_TREAS_PER, R4, R5	; clear its PT row to -1
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R7
+ET_FPT:	ADDL3	R5, R7, R0
+	MOVL	#-1, (R6)[R0]
+	AOBLSS	#SCAVE$_TREAS_PER, R7, ET_FPT
+	INCL	SCAVE_PARTY_NP
+ET_FNEXT: INCL	R2
+	BRB	ET_FL
+ET_FJOINED:
+	MOVL	#SCAVE$_EV_STRANGERSJOINED, R0
+	BSBW	EMIT_EVENT
+	; Rebuild CS to hold only the womanless Unicorn guards (emit unicornGuards each).
+	CLRL	R2				; read index
+	CLRL	R8				; write index = guard count
+ET_GL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	ET_GDONE
+	MOVL	SCAVE_CHAMBER_CS[R2], R3
+	CMPL	R3, #SCAVE$_CR_UNICORN
+	BNEQ	ET_GNEXT
+	TSTL	R10
+	BNEQ	ET_GNEXT			; woman present -> Unicorn joined, not a guard
+	MOVL	R3, SCAVE_CHAMBER_CS[R8]		; keep as guard
+	INCL	R8
+	MOVL	#SCAVE$_EV_UNICORNGUARDS, R0
+	BSBW	EMIT_EVENT
+ET_GNEXT: INCL	R2
+	BRB	ET_GL
+ET_GDONE:
+	MOVL	R8, SCAVE_CHAMBER_NS		; NS = guard count (0 if none)
+	TSTL	R8
+	BEQL	ET_NOGUARD
+	MOVL	SCAVE_MAP_PA, R2		; womanless Unicorn guards -> pacify + park
+	BISL2	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+ET_NOGUARD:					; all recruited: treasure -> pickup else explore
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	ET_NG1
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+ET_NG1:	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
 	BRW	EA_DONE
 
 ;
@@ -1084,6 +1218,118 @@ CL_L:	CMPL	R1, SCAVE_PARTY_NP
 CL_N:	INCL	R1
 	BRB	CL_L
 CL_D:	RSB
+
+;
+; ===========================================================
+;  REACTION_ROLL  --  one reaction die for a stranger encounter (SC-8.3).
+;    R0 <- outcome: 0 hostile, 1 indifferent, 2 friendly.  Threads the seed.
+;    roll = d6 (+1 if any living member has Charisma) - activeCurses, clamped
+;    to [1..6]; a natural 1 always counts as 1.  Classified against the leader's
+;    hostileMax / indiffMax (reaction.ts reactionRoll).
+; ===========================================================
+;
+	.ENTRY	REACTION_ROLL, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10>
+	CALLS	#0, FIND_LEADER			; R0 = leader creature id
+	MOVL	R0, R10
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6 natural; threads the seed
+	MOVL	R0, R9				; natural roll
+	MOVL	R0, R8				; working roll
+	CALLS	#0, HAS_CHARISMA
+	TSTL	R0
+	BEQL	RR1
+	INCL	R8				; SC-8.3-2: +1 charisma
+RR1:	TSTL	SCAVE_STATE_SK			; SC-8.3-3: activeCurses = curses unless SK
+	BNEQ	RR2
+	SUBL2	SCAVE_STATE_NC, R8
+RR2:	CMPL	R8, #1				; SC-8.3-4: clamp [1..6]
+	BGEQ	RR3
+	MOVL	#1, R8
+RR3:	CMPL	R8, #6
+	BLEQ	RR4
+	MOVL	#6, R8
+RR4:	CMPL	R9, #1				; SC-8.3-5: natural 1 forced to 1
+	BNEQ	RR5
+	MOVL	#1, R8
+RR5:	MOVL	SCAVE_DATA_CR_HOSTILE_MAX[R10], R6	; SC-8.4-1: classify
+	CMPL	R8, R6
+	BLEQ	RR_HOST
+	MOVL	SCAVE_DATA_CR_INDIFF_MAX[R10], R6
+	CMPL	R8, R6
+	BLEQ	RR_INDIF
+	MOVL	#2, R0				; friendly
+	RET
+RR_HOST: CLRL	R0				; hostile
+	RET
+RR_INDIF: MOVL	#1, R0				; indifferent
+	RET
+
+;
+; ===========================================================
+;  FIND_LEADER  --  R0 <- creature id of the highest-leaderPri stranger in the
+;    chamber working set (CS[0..NS-1]); ties resolve to the first (SC-8.2-1).
+; ===========================================================
+;
+	.ENTRY	FIND_LEADER, ^M<R2,R3,R4,R5,R6>
+	CLRL	R2				; index 0 seeds the best
+	MOVL	SCAVE_CHAMBER_CS[R2], R3	; best cid
+	MOVL	SCAVE_DATA_CR_LEADER_PRI[R3], R4	; best pri
+	MOVL	#1, R2
+FL_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	FL_D
+	MOVL	SCAVE_CHAMBER_CS[R2], R5
+	MOVL	SCAVE_DATA_CR_LEADER_PRI[R5], R6
+	CMPL	R6, R4
+	BLEQ	FL_N				; not strictly greater -> keep first
+	MOVL	R5, R3
+	MOVL	R6, R4
+FL_N:	INCL	R2
+	BRB	FL_L
+FL_D:	MOVL	R3, R0
+	RET
+
+;
+; ===========================================================
+;  HAS_CHARISMA  --  R0 <- 1 if any living/ally member's creature has the
+;    Charisma flag (SC-8.3-2); Ring is excluded (SC-8.3-6 -- reaction never
+;    consults it).  HAS_WOMAN  --  R0 <- 1 if a living member counts as a
+;    "Woman" for the Unicorn (BEFRIENDS_UNICORN flag, not the Unicorn itself).
+; ===========================================================
+;
+	.ENTRY	HAS_CHARISMA, ^M<R2,R3>
+	CLRL	R1
+HC_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	HC_NO
+	CMPL	SCAVE_PARTY_PS[R1], #2		; alive (0/1) only
+	BGEQ	HC_N
+	MOVL	SCAVE_PARTY_PC[R1], R2
+	MOVL	SCAVE_DATA_CR_FLAGS[R2], R3
+	BITL	#SCAVE$M_CR_CHARISMA, R3
+	BNEQ	HC_YES
+HC_N:	INCL	R1
+	BRB	HC_L
+HC_NO:	CLRL	R0
+	RET
+HC_YES:	MOVL	#1, R0
+	RET
+
+	.ENTRY	HAS_WOMAN, ^M<R2,R3>
+	CLRL	R1
+HW_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	HW_NO
+	CMPL	SCAVE_PARTY_PS[R1], #2
+	BGEQ	HW_N
+	MOVL	SCAVE_PARTY_PC[R1], R2
+	CMPL	R2, #SCAVE$_CR_UNICORN		; the Unicorn is not its own "Woman"
+	BEQL	HW_N
+	MOVL	SCAVE_DATA_CR_FLAGS[R2], R3
+	BITL	#SCAVE$M_CR_BEFRIENDS_UNICORN, R3
+	BNEQ	HW_YES
+HW_N:	INCL	R1
+	BRB	HW_L
+HW_NO:	CLRL	R0
+	RET
+HW_YES:	MOVL	#1, R0
+	RET
 
 ;
 ; ===========================================================
