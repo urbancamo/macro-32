@@ -3,9 +3,9 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `DONE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G6 complete (headless engine at bit-for-bit parity)
-**Last iteration:** I021 (2026-07-12) — special crossing (viper pit + deep pool): **ALL 8/8 VECTORS PASS bit-for-bit.** The headless engine (ENGINE.MAR + SCCONF.MAR) now conforms to the reference TS engine across every conformance vector. Remaining gates G7-G9 (Part I audit, UI rewire, UI playability) are follow-on work, not engine-parity.
+**Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
+**Current gate:** G7 audit COMPLETE → reveals the engine is a vector-subset; G8 now blocked on porting ~160 unexercised rules
+**Last iteration:** I022 (2026-07-12) — G7 Part I audit (10-agent workflow, 317 SC-rows mapped with file:line evidence → [G7-AUDIT.md](G7-AUDIT.md)). **Key finding:** `ENGINE.MAR` implements only the rules the 8 vectors exercise; **164 gap-rows** (TEST/reaction, all 8 artifacts, Eye of God, openChest, moveTreasure/drop/setBorne, multi-front fights, RNG hazards Medusa/Ghouls/Mutiny/Trap) live only in the **legacy interactive modules** (STRANGER/ARTIFACT/FIGHT/SPECIAL), several with their own defects, none vector-covered. True G8 ("no game fact in UI") requires porting these into the engine — most need **new conformance vectors** to verify (see "New vectors requested" below).
 
 ## Gates
 
@@ -18,8 +18,8 @@
 | G4 Chambers/encounters | PENDING | — |
 | G5 Fights | PENDING | — |
 | G6 Specials/artifacts/scoring | PASS | I008-I021: focus-fire fights + caster magic, gang-up (D28), Spectre auto-slay, Lost-Ruby statue wrestle (D49), secret doors (D8), on-draw Earthquake hazard (SC-7.2), and the special crossings — Viper Pit (SC-10.1, d6/member, fatal on 1-2, game-over on wipe) and Deep Pool (SC-10.2, Giant carries / heavy loot dropped). **All 8/8 vectors PASS bit-for-bit** (2026-07-12). Deferred (unexercised by valid vectors): flute-lull, Eye-of-God forfeit, RNG hazards (Medusa/Ghouls/Mutiny/Trap), pool treasureReclaimed, DROP-list emit |
-| G7 Part I audit | PENDING | — |
-| G8 UI rewire | PENDING | — |
+| G7 Part I audit | AUDIT DONE / gaps open | I022: all 317 solo SC-rows mapped to the port with file:line evidence → [G7-AUDIT.md](G7-AUDIT.md). Tally: **136 conformant, 164 gap, 9 ui-pending, 7 discrepancy, 1 na-mp**. §3 100% conformant; §5/§6/§12 core conformant with unexercised-rule gaps; §7-§11 the bulk of the gaps (engine is a vector-subset). 2 discrepancies (SC-6-5, SC-6.2-2 global-mutation vs structuredClone) accepted as deliberate MACRO-port architecture. Audit checklist delivered = G7 exit test met; the 164 gaps are now the G8 backlog |
+| G8 UI rewire | BLOCKED (engine incomplete) | Cannot "route UI through the engine exclusively" until the engine implements the actions the UI offers (test, useArtifact×8, openChest, moveTreasure/drop/setBorne, retreat, full fight model). That is ~160 rows of engine work, mostly unverifiable without new vectors. Partial G8 (rewire the vector-covered explore/move/chamber/pickup/score path onto ENG_APPLY) IS doable now — see backlog |
 | G9 UI playability | PENDING | — |
 
 ## Vector status
@@ -40,6 +40,26 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed7-party1-7 | 19 | **PASS** ✅ | fully conforms (I018 gang-up) |
 | solo-seed42-party3 | 31 | **PASS** ✅ | fully conforms (I020 Earthquake + I021 viper-pit crossing) |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
+
+## New vectors requested (for the human / reference side)
+
+Per loop-spec §6, logging targeted vectors that would let the port of the §7-§11 gap rules be
+verified bit-for-bit instead of only code-read against the reference. The reference side can mint
+these cheaply; the loop must **never block** on them, but without them the engine-port of these
+rules is unverifiable. Priority order:
+
+1. **A TEST/reaction game** (§8): a solo seed+party that draws a chamber with strangers and issues
+   `TEST` repeatedly — covers reaction roll, charisma +1, curses −1 (and the zero-on-Sorcerer-kill
+   rule), natural-1, hostile→fight, 3×indifferent→pacified, friendly→recruit-all. This is the single
+   biggest coverage hole (26 §8 gaps + the STRANGER.MAR defects).
+2. **An artifact game** (§11): a seed that draws artifacts and issues `USE` — Potion, Lotus, Balm,
+   Staff, Carpet, Flute, plus `OPENCHEST` outcomes and the Eye-of-God curse paths.
+3. **An RNG-hazard game** (§7): a chamber drawing Medusa / Ghouls / Mutiny / Trap so their effects
+   (petrify, ghoul fight, mutiny, trap-fall relocation) and Talisman/Staff wards are exercised.
+4. **A multi-front / Sorcerer fight** (§9): several strangers vs a multi-member party with a
+   `RETREAT` and a `CASUALTY` choice, and a Sorcerer kill (curses-lifted + sorcererSlain +30).
+5. **An escape-with-loot ending** (§12): a party that reaches a level-1 stair-up carrying treasure,
+   to exercise the full per-member scoring breakdown incl. bonusScore.
 
 ## Backlog
 
@@ -263,6 +283,22 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 ## Iteration log
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
+
+- **I022 | 2026-07-12 | G7 | Part I audit (10-agent workflow)** — Fanned out one read-only audit
+  agent per spec section §3-§12; each mapped every solo SC-row of engine-spec.md Part I to the
+  MACRO-32 port with a verdict + file:line evidence. Synthesized to
+  [G7-AUDIT.md](G7-AUDIT.md) (317 rows). *Tally:* 136 conformant, 164 gap, 9 ui-pending, 7
+  discrepancy, 1 na-multiplayer. *Decisive finding:* `ENGINE.MAR` is a **vector-driven subset** --
+  it implements exactly what the 8 vectors touch. The 164 gaps are the rules no vector exercises
+  (TEST/reaction §8, artifacts+Eye §11, RNG hazards §7, multi-front fights §9, retreat/carpet/flute
+  §6, openChest/bonusScore §12, pick-validation §5). Most live in the legacy interactive modules
+  that SCCONF doesn't link -- and the audit flagged real defects in several of those legacy paths
+  (STRANGER.MAR: curses not zeroed on Sorcerer-kill SC-8.3-3; natural-1 clobbered by HAS_CHARISMA
+  SC-8.3-5; friendlies capped at 12 vs no-cap SC-8.4-7; per-area indiff counter persists across
+  visits + never resets vs per-visit streak SC-8.4-3/5). *Accepted discrepancies* (deliberate MACRO
+  architecture, not work): SC-6-5 / SC-6.2-2 -- global in-place mutation instead of structuredClone.
+  *Consequence:* G7's exit test (checklist 100% marked with evidence) is MET, but it proves the
+  strangler-fig migration only covered the vector subset. A true G8 needs the engine finished first.
 
 - **I021 | 2026-07-12 | G6 | special crossing (Viper Pit + Deep Pool) -- 8/8 PARITY** — New in
   ENGINE.MAR: capture `fromSpecial`/`oldPrev` before the move, then in EA_MOVED fire the crossing
