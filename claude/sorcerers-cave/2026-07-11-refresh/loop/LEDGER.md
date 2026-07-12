@@ -5,7 +5,7 @@
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
 **Current gate:** G5
-**Last iteration:** I012 (2026-07-12) — ATTACK (startFight): all vectors now converge on FIGHT/resolveRound (the dice combat)
+**Last iteration:** I013 (2026-07-12) — FIGHT (single 1v1 resolveRound): seed777/seed101 match ALL move lines (FINAL-block only); seed3 60/61
 
 ## Gates
 
@@ -32,14 +32,14 @@ first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | moves✓ | move 3 TAKE (G4 pickup + Lost-Ruby statue) |
-| solo-seed777-party5-6 | 7 | moves✓ | move 4 ATTACK (G4 encounter/fight) |
-| solo-seed101-party1-7 | 8 | moves✓ | move 5 ATTACK (G4 encounter/fight) |
-| solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing on move-out); moves 1-3 incl. deadEnd + enteredSpecial match |
-| solo-seed19-party2-7 | 18 | WITHDRAW✓ | move 9 ATTACK (G5 fight); moves 1-8 match |
-| solo-seed7-party1-7 | 19 | moves✓ | move 18 ATTACK — **17 moves match** (G4 fight) |
-| solo-seed42-party3 | 31 | LEAVE✓ | move 10 `moved,drewChamber,hazardFired` (G4 on-draw hazard); moves 1-9 incl. 2× LEAVE match |
-| solo-seed3-party0 | 61 | WITHDRAW✓ | **move 52 ATTACK** (G5 fight) — moves 1-51 match (MOVE/TAKE/LEAVE/revisit/WITHDRAW) |
+| solo-seed23-party4-6 | 7 | moves✓ | move 3 TAKE — Lost-Ruby statue (G4/D49) |
+| solo-seed777-party5-6 | 7 | **ALL moves✓** | FINAL/STATE block only (deferred loot bookkeeping) |
+| solo-seed101-party1-7 | 8 | **ALL moves✓** | FINAL/STATE block only (deferred loot bookkeeping) |
+| solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
+| solo-seed19-party2-7 | 18 | FIGHT✓ | move 17 `FIGHT -` = Spectre auto-slay (spectreSlew, G5) |
+| solo-seed7-party1-7 | 19 | ATTACK✓ | move 19 `FIGHT 0>0;1>1` = **multi-match fight** (parser does single-match) |
+| solo-seed42-party3 | 31 | LEAVE✓ | move 10 hazardFired (G4 on-draw hazard) |
+| solo-seed3-party0 | 61 | FIGHT✓ | **move 61 EXITCAVE** — 60/61 moves match! (escape → gameOver) |
 
 ## Backlog
 
@@ -160,6 +160,31 @@ LEAVE, solo-seed3 move 2 LEAVE, then solo-seed23 move 3 TAKE).
       drop/transfer — SC-4-29..33, SC-7.3-*
 
 ### G5 — Fights (battle-plan rewrite)
+
+**FIGHT/resolveRound study (I012, reference combatPlan.ts / combat.ts / reduce.ts):**
+- **Plan buffer**: reuse STATE's `SCAVE_FIGHT_FA[i]` (front party slot) / `FD[i]` (stranger idx) / `NF`
+  (match count) for 1v1 matches (`0>0`, `0>0;1>1`). `+`(multi-front) / `|`(backers) / gang-up need
+  more structure -- add when a vector uses them. SCCONF parses the grammar into this buffer.
+- **Per-match strength** (simple, no artifacts/Eye): `partyStr = FS[cid] + PK[slot] + MP[cid]`
+  (frontStrength = FS + dragonKills + casterMP; caster front adds its own MP); `enemyStr =
+  FS[sid] + MP[sid]` (enemyMP, non-Sorcerer no-Eye = creature MP).
+- **Dice** (2 per match, in order): `pr=rollDie(seed); er=rollDie(seed)` (RNG verified). Seed
+  advances by 2 per match REGARDLESS of outcome. `partyTotal = partyStr + pr + rollBonus + surpriseP`;
+  `enemyTotal = enemyStr + er + surpriseE`. rollBonus = (Ring?1:0) - activeCurses (0 simple).
+  surpriseP = (round1 && FS==+1)?1:0; surpriseE = (round1 && FS==-1)?1:0.
+- **Outcome**: emit `combatRoll` always. party>enemy -> kill strongest stranger in match
+  (`strangerKilled`; Dragon single-handed -> PK++; Sorcerer -> sorcererKilled+`sorcererSlain`).
+  enemy>party -> mortal front (not ring-inv): 1 -> `memberDied` (status 3); 0 -> deathPrevented;
+  >1 -> casualtyQueue (pause for chooseCasualty). tie -> nothing. Then splice killed strangers
+  (descending idx), round++.
+- **finalizeRound** (after round if no casualtyQueue): party all dead -> gameOver(DEAD) +
+  sweepFallen(contents) + `gameOver`; else strangers empty -> reclaim floor heavy -> treasures,
+  sweepFallen(working), fight=null, `fightWon`, then treasures>0 ? phase pickup : persistAndExplore
+  (explore). else still fighting (phase stays fight, round already ++).
+- **Deferred within G5**: validatePlan (planRejected), heavy-treasure drop-before-fight (§387),
+  Spectre auto-slay, multi-front/backers/gang-up (§395), casualty choice, retreat, sweepFallen loot
+  detail. Start: single 1v1 match, no artifacts -> clears solo-seed19 m10 (win) + solo-seed777 m5 (loss).
+
 - [ ] D27 resolveRound(plan) + full validation set (rejection reasons; no state change on
       reject) — SC-9.1-1..9
 - [ ] D28 Gang-up §395 + enemy-caster fold-in — SC-9.1-10/11
@@ -239,6 +264,17 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I013 | 2026-07-12 | G5 | FIGHT (single 1v1 resolveRound)** — Added FIGHT (code 13): SCCONF
+  marshals `<f>><s>` into FA[0]/FD[0]/NF=1; ENGINE `FIGHT_ROUND` computes partyStr (FS+PK+MP) /
+  enemyStr (FS+MP), rolls party-then-enemy die per match, adds rollBonus(-curses)+surprise, emits
+  combatRoll, kills the loser (strangerKilled / memberDied), compacts CS, round++. `EA_FIGHT` then
+  finalizes: wiped→gameOver(DEAD); strangers cleared→fightWon (+pickup/explore); else keep fighting.
+  Added COUNT_LIVING, 6 event codes/names, GS/PS/PH consts. Fixed 6 far `BRB DM_APPLY`→BRW (parser
+  grew past 127B). *Evidence:* build clean; **seed777 + seed101 now match every move line**
+  (FINAL-block only); seed3 53→**61** (60/61, only EXITCAVE); seed19 10→17 (Spectre `FIGHT -`);
+  seed7 at multi-match `0>0;1>1`. No regression. *Deferred within G5:* multi-match/`;`, `FIGHT -`
+  Spectre, validatePlan, casualty queue, heavy-drop + sweepFallen loot (the FINAL-block gap), Dragon
+  /Sorcerer credit. Also next: EXITCAVE (seed3), on-draw hazards (seed42), statue (seed23).
 - **I012 | 2026-07-12 | G5 | ATTACK (startFight)** — ATTACK (code 12): blocked outside encounter;
   else FS = surpriseReady (+1 fresh entry, else 0), RD=1, phase fight, emit fightStarted; clears SR.
   Added `SCAVE_STATE_SR` (surprise-ready), set in EA_CHAMBER's encounter branch (fresh draw=1,

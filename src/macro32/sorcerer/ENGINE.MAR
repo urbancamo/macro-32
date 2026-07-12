@@ -41,7 +41,11 @@
 	SCAVE$_ACT_TAKE = 5
 	SCAVE$_ACT_LEAVE = 6
 	SCAVE$_ACT_ATTACK = 12
+	SCAVE$_ACT_FIGHT = 13
 	SCAVE$_PH_FIGHT = 2			; must equal STATE.MAR
+	SCAVE$_PH_GAMEOVER = 4
+	SCAVE$_GS_DEAD = 2			; SC-3-23 game states
+	SCAVE$_PS_DEAD = 3			; SC-3-21 member status
 	SCAVE$M_AF_DESTROYED = ^X04		; per-area flag (must equal STATE.MAR)
 	SCAVE$_EVQ_MAX = 32			; must equal STATE.MAR's value
 	SCAVE$_AREA_ITEMS = 8			; must equal STATE.MAR's value
@@ -58,6 +62,12 @@
 	SCAVE$_EV_DREWCHAMBER = 4
 	SCAVE$_EV_ENTEREDSPECIAL = 5
 	SCAVE$_EV_FIGHTSTARTED = 6
+	SCAVE$_EV_COMBATROLL = 7
+	SCAVE$_EV_STRANGERKILLED = 8
+	SCAVE$_EV_MEMBERDIED = 9
+	SCAVE$_EV_FIGHTWON = 10
+	SCAVE$_EV_GAMEOVER = 11
+	SCAVE$_EV_SORCERERSLAIN = 12
 
 	; Area special types (card bits 7-9); the "stop at edge" specials.
 	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
@@ -154,7 +164,10 @@
 4$:	CMPL	R2, #SCAVE$_ACT_ATTACK
 	BNEQ	5$
 	BRW	EA_ATTACK
-5$:	BRW	EA_DONE				; other actions: not yet implemented
+5$:	CMPL	R2, #SCAVE$_ACT_FIGHT
+	BNEQ	6$
+	BRW	EA_FIGHT
+6$:	BRW	EA_DONE				; other actions: not yet implemented
 
 ;
 ; ---- MOVE (SC-4-9, SC-6.1-18, M1) ----
@@ -322,6 +335,43 @@ EA_ATTACK:
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
 	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- FIGHT (SC-9.1, resolveRound) -- single 1v1 matches ----
+;   Reads the plan buffer marshalled by the caller: FA[i]=front party slot,
+;   FD[i]=stranger index, NF=match count.  Resolves one round (FIGHT_ROUND),
+;   then finalizes: party wiped -> gameOver(DEAD); all strangers cleared ->
+;   fightWon (then pickup if floor treasure, else persistAndExplore/explore);
+;   otherwise keep fighting.  Deferred within G5: validatePlan, multi-front /
+;   backers / gang-up, casualty queue, heavy-drop, sweepFallen loot detail.
+;
+EA_FIGHT:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BEQL	10$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+10$:	CALLS	#0, FIGHT_ROUND			; dice + kills + combatRoll/killed/died
+	BSBW	COUNT_LIVING			; R0 = living party count
+	TSTL	R0
+	BNEQ	11$
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS	; party wiped
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+11$:	TSTL	SCAVE_CHAMBER_NS
+	BEQL	12$
+	BRW	EA_DONE				; strangers remain -> keep fighting (PH FGT)
+12$:	MOVL	#SCAVE$_EV_FIGHTWON, R0		; all strangers cleared
+	BSBW	EMIT_EVENT
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	13$
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+13$:	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
 	BRW	EA_DONE
 
 ;
@@ -596,5 +646,114 @@ RC_N:	DECL	R3
 RC_DONE:
 	MOVL	#SS$_NORMAL, R0
 	RET
+
+;
+; ===========================================================
+;  FIGHT_ROUND  --  resolve one round of 1v1 matches (reference
+;                   resolvePlannedRound, simple subset).
+;
+;  For each match i: partyStr = FS[cid]+PK[slot]+MP[cid] (front),
+;  enemyStr = FS[sid]+MP[sid]; roll a party die then an enemy die (2 rolls per
+;  match, in order); partyTotal = partyStr + pr + rollBonus + surpriseP,
+;  enemyTotal = enemyStr + er + surpriseE.  Emit combatRoll; higher total wins
+;  (kill the stranger -> strangerKilled, or the front member -> memberDied; tie
+;  = nobody).  Then compact the slain strangers out of CS and bump the round.
+; ===========================================================
+;
+	.ENTRY	FIGHT_ROUND, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	; rollBonus (R9) = (Ring?+1:0) - activeCurses.  Ring deferred; curses = 0
+	; once the Sorcerer is dead (SK), else NC.
+	CLRL	R9
+	TSTL	SCAVE_STATE_SK
+	BNEQ	1$
+	MNEGL	SCAVE_STATE_NC, R9
+1$:	CLRL	R10				; surpriseP
+	CLRL	R11				; surpriseE
+	CMPL	SCAVE_FIGHT_RD, #1		; surprise applies round 1 only
+	BNEQ	4$
+	CMPL	SCAVE_FIGHT_FS, #1
+	BNEQ	2$
+	MOVL	#1, R10
+	BRB	4$
+2$:	CMPL	SCAVE_FIGHT_FS, #-1
+	BNEQ	4$
+	MOVL	#1, R11
+4$:
+	CLRL	R2				; match index
+FR_L:	CMPL	R2, SCAVE_FIGHT_NF
+	BLSS	5$
+	BRW	FR_COMPACT
+5$:	MOVL	SCAVE_FIGHT_FA[R2], R3		; partyStr -> R6
+	MOVL	SCAVE_PARTY_PC[R3], R4
+	MOVAB	SCAVE_DATA_CR_FS, R5
+	MOVL	(R5)[R4], R6
+	ADDL2	SCAVE_PARTY_PK[R3], R6
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	ADDL2	(R5)[R4], R6
+	MOVL	SCAVE_FIGHT_FD[R2], R3		; enemyStr -> R7
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	MOVAB	SCAVE_DATA_CR_FS, R5
+	MOVL	(R5)[R4], R7
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	ADDL2	(R5)[R4], R7
+	CALLS	#0, G^ROLL_DIE			; party die (order: party then enemy)
+	ADDL2	R0, R6
+	CALLS	#0, G^ROLL_DIE			; enemy die
+	ADDL2	R0, R7
+	ADDL2	R9, R6				; + rollBonus
+	ADDL2	R10, R6				; + surpriseP
+	ADDL2	R11, R7				; + surpriseE
+	MOVL	#SCAVE$_EV_COMBATROLL, R0
+	BSBW	EMIT_EVENT
+	CMPL	R6, R7
+	BGTR	FR_WIN
+	BLSS	FR_LOSE
+	BRB	FR_NEXT				; tie -> nobody dies
+FR_WIN:	MOVL	SCAVE_FIGHT_FD[R2], R3		; party wins -> stranger slain
+	MOVL	#SCAVE$_EV_STRANGERKILLED, R0
+	BSBW	EMIT_EVENT
+	MNEGL	#1, SCAVE_CHAMBER_CS[R3]		; mark for removal
+	BRB	FR_NEXT
+FR_LOSE: MOVL	SCAVE_FIGHT_FA[R2], R3		; party loses -> front member dies
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R3]
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+FR_NEXT: INCL	R2
+	BRW	FR_L
+FR_COMPACT:					; drop slain strangers, keep order
+	CLRL	R2				; read
+	CLRL	R3				; write
+CP_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	CP_D
+	MOVL	SCAVE_CHAMBER_CS[R2], R4
+	CMPL	R4, #-1
+	BEQL	CP_N
+	MOVL	R4, SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+CP_N:	INCL	R2
+	BRB	CP_L
+CP_D:	MOVL	R3, SCAVE_CHAMBER_NS
+	INCL	SCAVE_FIGHT_RD			; round++
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  COUNT_LIVING (JSB)  --  R0 = number of party members with status < 2
+;                          (0 original / 1 ally are alive; 2 stone / 3 dead).
+; ===========================================================
+;
+COUNT_LIVING:
+	CLRL	R0
+	CLRL	R1
+CL_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	CL_D
+	CMPL	SCAVE_PARTY_PS[R1], #2
+	BGEQ	CL_N
+	INCL	R0
+CL_N:	INCL	R1
+	BRB	CL_L
+CL_D:	RSB
 
 	.END
