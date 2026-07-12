@@ -4,8 +4,8 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G5
-**Last iteration:** I018 (2026-07-12) — gang-up (§395/D28): **5/8 vectors PASS** (solo-seed7 joins). Fight system complete (1v1 / multi-match / Spectre / gang-up)
+**Current gate:** G6
+**Last iteration:** I019 (2026-07-12) — Lost-Ruby statue (SC-11/D49): **6/8 vectors PASS** (solo-seed23 joins). Remaining: seed42 hazards, seed11 crossing
 
 ## Gates
 
@@ -32,7 +32,7 @@ first vector because every vector fails at move 1 until the reducer is built.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | moves✓ | move 3 TAKE — Lost-Ruby statue (G4/D49) |
+| solo-seed23-party4-6 | 7 | **PASS** ✅ | fully conforms (I019 Lost-Ruby statue) |
 | solo-seed777-party5-6 | 7 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed101-party1-7 | 8 | **PASS** ✅ | fully conforms (I014) |
 | solo-seed11-party5-6-7 | 15 | moves✓* | move 4 crossedSpecial (G6 pool/viper crossing) |
@@ -264,6 +264,14 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I019 | 2026-07-12 | G6 | Lost-Ruby statue (SC-11/D49)** — Taking the Ruby (tid 11) now routes to
+  a new `STATUE_WRESTLE` (reference takeTreasure tid===11): the taker wrestles a strength-8 statue --
+  fighterTotal = frontStrength + d6 vs 8 + d6 (fighter die first, 2 rolls) -> `combatRoll`; on a win
+  the Ruby is taken (`rubyTaken`, spliced), on a loss the taker dies (`memberDied`,`statueAroused`,
+  Ruby stays; a wipe -> gameOver). EA_TAKE detects the Ruby at the floor slot and dispatches. Added
+  event codes/names; fixed invalid `4B$`/`4C$` locals -> named labels. *Evidence:* **solo-seed23
+  PASSES** (its Woman loses the wrestle and dies, matching) -> 6/8. No regression.
+  *Remaining 2:* seed42 on-draw hazards (G4), seed11 special crossing (G6).
 - **I018 | 2026-07-12 | G5 | gang-up (§395/D28)** — New `GANG_UP` in ENGINE (reference previewPlan):
   when the party has NO free fighter, the strongest unengaged/unassigned non-caster non-Spectre
   leftover stranger ATTACHES to each match (strongest first, into `SCAVE_FIGHT_ATTACH[i]`) and the
