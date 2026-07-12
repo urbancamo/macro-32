@@ -8,7 +8,7 @@
 ;
 ;     1. TITLE_SPLASH    -- art + "press any key"
 ;     2. PICK_PARTY      -- choose creatures totalling <= 6 sel-points
-;     3. INIT_DECKS      -- shuffle 60 large-pack + 52 small-pack
+;     3. INIT_DECKS      -- shuffle 60 large-pack + 71 small-pack
 ;     4. INIT_MAP        -- place GATEWAY as area 1, level 1
 ;
 ;   The Stage-1 party picker is number-key driven (1..8 to add,
@@ -575,7 +575,7 @@ PPR_DONE:
 ; ===========================================================
 ;  INIT_DECKS  --  build & shuffle the large pack (60 cards, the
 ;                  GATEWAY at index 21 is held aside) and the
-;                  small pack (52 cards copied from the static
+;                  small pack (71 cards copied from the static
 ;                  template, then shuffled).
 ; ===========================================================
 ;
@@ -600,16 +600,18 @@ LP_SKIP:
 
 	CLRL	SCAVE_DECK_LI
 
-	; Small pack: copy 52 longwords from the template, then shuffle.
+	; Small pack: copy SCAVE_DATA_SMALL_N (71, SC-3-13) longwords from the
+	; template, then shuffle.  Count read from the data symbol so the pack
+	; and the deck stay in lockstep.
 	CLRL	R2
 	MOVAB	SCAVE_DATA_SMALL_PACK, R3
 	MOVAB	SCAVE_DECK_SP, R4
 SP_LOOP:
 	MOVL	(R3)[R2], (R4)[R2]
-	AOBLSS	#52, R2, SP_LOOP
+	AOBLSS	SCAVE_DATA_SMALL_N, R2, SP_LOOP
 
 	PUSHAL	SCAVE_DECK_SP
-	PUSHL	#52
+	PUSHL	SCAVE_DATA_SMALL_N
 	CALLS	#2, G^SHUFFLE_LONGS
 
 	CLRL	SCAVE_DECK_SI

@@ -333,7 +333,7 @@ DRAW_LOOP:
 	BRW	DRAW_DONE
 5$:
 	MOVL	SCAVE_DECK_SI, R3
-	CMPL	R3, #52
+	CMPL	R3, SCAVE_DATA_SMALL_N		; pack size (SC-3-13, SC-7.1-4)
 	BLSS	6$
 	BRW	DRAW_DONE			; pack exhausted -- stop early
 6$:

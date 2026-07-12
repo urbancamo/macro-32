@@ -77,7 +77,7 @@
 ; -- container sizes --
 ;
 	SCAVE$_AREA_COUNT  = 61			; 61 area cards in the large pack
-	SCAVE$_SMALL_COUNT = 52			; 52 chamber cards in the small pack
+	SCAVE$_SMALL_COUNT = 71			; small-pack card count (SC-3-13); sizes SCAVE_DECK_SP
 	SCAVE$_PARTY_MAX   = 12			; max creatures in party
 	SCAVE$_TREAS_PER   = 20			; per-creature treasure backing
 						; slots.  The rules cap carrying

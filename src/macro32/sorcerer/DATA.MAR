@@ -69,7 +69,7 @@ SCAVE_DATA_AREA_CARDS::
 	.LONG	31, 27, 29, 67, 30			; 25..29
 	.LONG	14, 5, 69, 31, 23			; 30..34
 	.LONG	29, 30, 47, 46, 11			; 35..39
-	.LONG	3, 74, 31, 3, 78			; 40..44
+	.LONG	3, 42, 31, 3, 78			; 40..44  (idx41 42=EWU, SC-3-3)
 	.LONG	27, 10, 76, 15, 7			; 45..49
 	.LONG	27, 45, 23, 13, 13			; 50..54
 	.LONG	12, 78, 10, 5, 12			; 55..59
@@ -144,12 +144,14 @@ SCAVE_DATA_CR_FLAGS::
 ; otherwise friendly.  Values verified against the cave-creature
 ; reaction table in the rules.
 ;
+; A.1 reaction cells (D4, SC-8.x).  Indices 0..13; only cave-creature and
+; drawn-human cells are meaningful.  hostile_max / indiff_max per creature.
 SCAVE_DATA_CR_HOSTILE_MAX::
-	.LONG	0, 3, 4, 3, 0, 0, 0, 0
-	.LONG	1, 5, 6, 6, 3, 0
+	.LONG	3, 3, 4, 3, 1, 2, 2, 0		; Hero3 W-Hero3 Ogre4 Troll3 Priest1 Man2 Woman2 Dwarf0
+	.LONG	1, 5, 4, 6, 3, 0		; Wizard1 Spectre5 Dragon4 Sorcerer6 Giant3 Unicorn0
 SCAVE_DATA_CR_INDIFF_MAX::
-	.LONG	0, 3, 5, 4, 0, 0, 0, 0
-	.LONG	5, 6, 6, 6, 5, 0
+	.LONG	3, 3, 5, 4, 4, 4, 4, 4		; Hero3 W-Hero3 Ogre5 Troll4 Priest4 Man4 Woman4 Dwarf4
+	.LONG	5, 6, 6, 6, 5, 0		; Wizard5 Spectre6 Dragon6 Sorcerer6 Giant5 Unicorn0
 
 ;
 ; Number of each starting creature available during party selection
@@ -306,43 +308,48 @@ DSC_SP_HALL:		.ASCID	/Great Hall/
 
 ;
 ; ===========================================================
-;  Small-pack template -- 52 cards, used as the master to be copied
-;  into SCAVE_DECK_SP and shuffled.
+;  Small-pack template -- 71 cards (SC-3-13..16), the master copied
+;  into SCAVE_DECK_SP and shuffled.  Length read via SCAVE_DATA_SMALL_N.
 ;
-;     19 cave creatures: 1 W-HERO, 3 OGRE, 2 TROLL, 3 WIZARD,
-;                        3 SPECTRE, 3 DRAGON, 1 SORCERER, 2 GIANT,
-;                        1 UNICORN
-;     27 treasures:      6 SILVER, 6 GOLD, 3 GEMS, 1 each of the
-;                        12 artifacts
-;      6 hazards:        1 MUTINY, 2 TRAP, 1 QUAKE, 1 MEDUSA, 1 GHOULS
+;     37 creatures:  1 HERO, 1 W-HERO, 3 OGRE, 3 TROLL, 3 PRIEST,
+;                    6 MAN, 3 WOMAN, 3 DWARF, 3 WIZARD, 3 SPECTRE,
+;                    3 DRAGON, 1 SORCERER, 3 GIANT, 1 UNICORN
+;     27 treasures:  6 SILVER, 6 GOLD, 3 GEMS, 1 each of the 12 artifacts
+;      7 hazards:    1 MUTINY, 2 TRAP, 2 EARTHQUAKE, 1 MEDUSA, 1 GHOULS
 ;
-;   Note: the Casio implementation includes 3 extra Priest cave-creature
-;   cards bringing its pack to 55; the rules give 52 with no cave
-;   priests, which is what we use here.
+;   Unlike the rulebook's 52-card pack, the reference engine's solo pack is
+;   a single finite 71-card deck INCLUDING the "starter" humans (Hero,
+;   Priest, Man, Woman, Dwarf): the party is drawn from it (SC-5-5), so
+;   those cards can also surface later as chamber strangers.
 ; ===========================================================
 ;
 	.ALIGN	LONG
 SCAVE_DATA_SMALL_PACK::
-	; Creatures (19)
+	; Creatures (37) -- SC-3-14
+	.LONG	100					; 1x HERO
 	.LONG	101					; 1x W-HERO
 	.LONG	102, 102, 102				; 3x OGRE
-	.LONG	103, 103				; 2x TROLL
+	.LONG	103, 103, 103				; 3x TROLL
+	.LONG	104, 104, 104				; 3x PRIEST
+	.LONG	105, 105, 105, 105, 105, 105		; 6x MAN
+	.LONG	106, 106, 106				; 3x WOMAN
+	.LONG	107, 107, 107				; 3x DWARF
 	.LONG	108, 108, 108				; 3x WIZARD
 	.LONG	109, 109, 109				; 3x SPECTRE
 	.LONG	110, 110, 110				; 3x DRAGON
 	.LONG	111					; 1x SORCERER
-	.LONG	112, 112				; 2x GIANT
+	.LONG	112, 112, 112				; 3x GIANT
 	.LONG	113					; 1x UNICORN
-	; Treasures (27)
+	; Treasures (27) -- SC-3-15
 	.LONG	200, 200, 200, 200, 200, 200		; 6x SILVER
 	.LONG	201, 201, 201, 201, 201, 201		; 6x GOLD
 	.LONG	202, 202, 202				; 3x GEMS
 	.LONG	203, 204, 205, 206, 207, 208		; 6 artifacts
 	.LONG	209, 210, 211, 212, 213, 214		; 6 artifacts
-	; Hazards (6)
+	; Hazards (7) -- SC-3-16
 	.LONG	300					; 1x MUTINY
 	.LONG	301, 301				; 2x TRAP
-	.LONG	302					; 1x EARTHQUAKE
+	.LONG	302, 302				; 2x EARTHQUAKE
 	.LONG	303					; 1x MEDUSA
 	.LONG	304					; 1x GHOULS
 

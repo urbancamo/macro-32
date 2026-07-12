@@ -4,15 +4,15 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
-**Current gate:** G1
-**Last iteration:** I002 (2026-07-12) — G1 self-check harness green; RNG verified, data gaps measured
+**Current gate:** G2
+**Last iteration:** I003 (2026-07-12) — G1 data fixes green; SETUP line now matches on solo-seed23
 
 ## Gates
 
 | Gate | State | Evidence (command + date) |
 |---|---|---|
 | G0 Harness | PASS | `make vms-scave-build` links SCAVE.EXE + SCCONF.EXE clean (0 warnings); `make vms-scave-conform VEC=solo-seed23-party4-6` runs end-to-end, emits well-formed `SETUP` line, diff pinpoints first divergence at the SETUP SEED (2026-07-12, I001) |
-| G1 RNG + data | PENDING | — |
+| G1 RNG + data | PASS | `make vms-scave-selfcheck` (I003): `NEXTSEED1 1103527590`, `DECK LARGE 60 SMALL 71`, `TYPES 14/15/5`, `PACK 37/27/7 = 71`, cells Hero 3/3 Priest 1/4 Man 2/4 Woman 2/4 Dwarf 0/4 Dragon 4/6 — all match A.1 (2026-07-12) |
 | G2 Setup | PENDING | — |
 | G3 Movement | PENDING | — |
 | G4 Chambers/encounters | PENDING | — |
@@ -32,8 +32,8 @@ for the shortest vector until G2 makes the SETUP line match.
 
 | Vector | Moves | Status | First divergence |
 |---|---|---|---|
-| solo-seed23-party4-6 | 7 | FAIL | SETUP SEED: exp 446078340, got 1559363521 (pre-parity RNG order) |
-| solo-seed777-party5-6 | 7 | UNRUN | — (expected: SETUP SEED) |
+| solo-seed23-party4-6 | 7 | FAIL | **SETUP now matches** (SEED 446078340); first divergence at move 1 (ENG_APPLY stub: no move/turn/event) |
+| solo-seed777-party5-6 | 7 | UNRUN | — (SETUP likely matches too; verify in G2) |
 | solo-seed101-party1-7 | 8 | UNRUN | — |
 | solo-seed11-party5-6-7 | 15 | UNRUN | — |
 | solo-seed19-party2-7 | 18 | UNRUN | — |
@@ -64,13 +64,12 @@ States: TODO | IN-PROGRESS | DONE | BLOCKED(n strikes) | NA.
       emulator preflight + a hard 300s command cap so a wedged VAX can't stall the loop.
 
 ### G1 — RNG + static data
-- [ ] D1 71-card small pack (37 creatures incl. Priest×3 / 27 treasures / 7 hazards incl.
-      Earthquake×2) — SC-3-13..16. *Baseline (I002):* `PACK CREAT 19 TREAS 27 HAZ 6 TOTAL 52`.
-      Delta: +Hero, +1 Troll, +Priest×3, +Man×6, +Woman×3, +Dwarf×3, +1 Giant (→37); +1 Earthquake
-      (→7). Also bump `INIT_DECKS` copy/shuffle counts to `SCAVE_DATA_SMALL_N`.
-- [ ] D3 Area card index 41: 74 → 42 — SC-3-3 (`DATA.MAR`). Not self-check-visible; vectors verify.
-- [ ] D4 Reaction cells: Hero 3/3, Priest 1/4, Man 2/4, Woman 2/4, Dwarf 0/4, Dragon 4/6 — A.1.
-      *Baseline (I002):* Hero 0/0, Priest 0/0, Man 0/0, Woman 0/0, Dwarf 0/0, Dragon 6/6.
+- [x] D1 71-card small pack (I003): template rewritten to 37/27/7 = 71; grew `SCAVE_DECK_SP`
+      (`SCAVE$_SMALL_COUNT` 52→71); `INIT_DECKS` copy/shuffle + `CHAMBER` draw bound now read
+      `SCAVE_DATA_SMALL_N`. Self-check: `PACK CREAT 37 TREAS 27 HAZ 7 TOTAL 71`.
+- [x] D3 Area card index 41: 74 → 42 (I003, SC-3-3). Verified visually; vectors exercise it in G3.
+- [x] D4 Reaction cells (I003): HOSTILE/INDIFF rewritten. Self-check: Hero 3/3, Priest 1/4,
+      Man 2/4, Woman 2/4, Dwarf 0/4, Dragon 4/6 — all match A.1.
 - [ ] D5 Seed injection: `ENG_NEWGAME` takes the seed (DONE in ENGINE.MAR); SCAVE reads
       `SCAVE_SEED` logical, falls back to `$GETTIM` — SC-5-13 (UI side, verify under scenarios).
 - [x] H5 SCCONF self-check mode (`SELFCHECK` line → `make vms-scave-selfcheck`): prints
@@ -191,6 +190,13 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I003 | 2026-07-12 | G1 | D1/D3/D4 static data** — Small pack 52→71 (DATA.MAR template +
+  `SCAVE$_SMALL_COUNT`=71 + `INIT_DECKS`/`CHAMBER` counts via `SCAVE_DATA_SMALL_N`); area card 41
+  74→42; reaction cells corrected. *Evidence:* self-check `SMALL 71`, `PACK 37/27/7`, cells
+  Hero 3/3…Dragon 4/6; build clean; `conform VEC=solo-seed23` no longer crashes and its **SETUP
+  line now MATCHES the reference** (SEED 446078340) — first divergence moved to move 1 (ENG_APPLY
+  stub). *Result:* G1 PASS. Bonus: D6 consumption order was already correct (INIT_DECKS shuffles
+  large→small→store); the pack size was the only thing keeping the SETUP seed off. Head-start on G2.
 - **I002 | 2026-07-12 | G1 | H5/H6 self-check harness** — Added a `SELFCHECK` diagnostic mode to
   SCCONF (`DO_SELFCHECK`), a `SCAVE_DATA_SMALL_N` length symbol in DATA.MAR, and a
   `make vms-scave-selfcheck` target. *Evidence:* `NEXTSEED1 1103527590`, `RB0 ... AFTER 12345 VAL 0`,
