@@ -124,6 +124,24 @@ parses the action keyword (at INBUF+5) + args and translates event codes to name
 - [ ] M1 Movement event order: moved/deadEnd/blocked exactly as SC-6.1-18 emits them
 
 ### G4 — Chambers, hazards, encounters
+
+**Study notes (I007, reference reduce.ts / pickup.ts + local CHAMBER.MAR):** Action codes: TAKE=5,
+LEAVE=6, RETAKE=7, GIVE=8, DROP=9. First target = the pickup actions (unblocks solo-seed42 move 3
+LEAVE, solo-seed3 move 2 LEAVE, then solo-seed23 move 3 TAKE).
+- **SCCONF** needs a general action parser (keyword at INBUF+5 -> code + int args): extend the
+  MOVE-only parser to a keyword table. LEAVE/RETAKE/QUIT/EXITCAVE/WITHDRAW/TEST/ATTACK/OPENCHEST = 0
+  args; TAKE `<ti> <mi>` = 2; GIVE `<from> <to> <idx>` = 3; DROP `<mi> <idx>`/BORNE `<mi> <idx> <b>`.
+- **LEAVE (leaveTreasure)** = if phase!=pickup -> `blocked`; else `persistAndExplore` + phase explore,
+  no events. `persistAndExplore` parks the working set into area.contents as codes: strangers 100+cid,
+  treasures 200+tid (unless Deep Pool -> area.dropped), sleeping 400+cid, lulled 100+cid; then clears
+  CS/CT/CH. Needs a PURE persist in ENGINE writing SCAVE_AREA_AC[area*8+slot] (CHAMBER.MAR's
+  SAVE_PERSISTED is headless-ish but in the UI-linked module -- read its exact AC[] slot layout first).
+- **TAKE (takeTreasure)** = floor slot ti -> member mi (canCarry weight check); when treasures empty
+  -> persistAndExplore. **Lost-Ruby statue** (solo-seed23 move 3): taking the Ruby (tid 13) arouses
+  a statue -> combatRoll + memberDied + statueAroused (D49, SC-11-26..28) -- Ruby stays in place.
+- Then encounters (ATTACK/WITHDRAW/TEST + reaction roll, SC-8.x) and on-draw hazard resolution
+  (deferred from DRAW_CHAMBER).
+
 - [ ] D13 Ghouls rewrite: heavy-drop first, Talisman ward, Ring immunity, carried-spill — SC-7.2-5/6/7
 - [ ] D14 Medusa carried-spill (+ borne stays with body) — SC-7.2-3/13
 - [ ] D15 Trap: any living Dwarf avoids (no one-trap memory); trap-fall chains — SC-7.2-9, SC-4-14
