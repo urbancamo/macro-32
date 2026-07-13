@@ -449,8 +449,14 @@ EA_PH_STR:
 81$:	CLRL	SCAVE_STATE_IS			; SC-8.4-5: indiffStreak resets on chamber entry
 	BRW	EA_DONE
 5$:	TSTL	SCAVE_CHAMBER_NT
-	BEQL	EA_DONE				; hazards-only stays explore until G4
+	BEQL	EA_EXPL				; nothing to face/pick up -> re-park + explore
 	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+EA_EXPL:
+	; pass-through: re-park the loaded working set (a REVISIT pulled sleeping
+	; creatures / re-parked hazards into it) so they persist on the tile.
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
 
 EA_DONE:
 	MOVL	#SS$_NORMAL, R0
@@ -1711,32 +1717,48 @@ APA_RET: MOVL	(SP)+, R2
 ;  RECLAIM_DROPS  --  move any 200+tid on the tile back into the pickup set (CT).
 ; ===========================================================
 ;
-	.ENTRY	HEAVY_DROP, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+	.ENTRY	HEAVY_DROP, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10>
 	CLRL	R2				; match i
 HD_ML:	CMPL	R2, SCAVE_FIGHT_NF
 	BGEQ	HD_DONE
 	MULL3	#SCAVE$_MPM, R2, R9		; match row base
 	CLRL	R3				; front index j
 HD_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
-	BGEQ	HD_MN
-	ADDL3	R9, R3, R0
+	BLSS	HD_F1
+	BRW	HD_MN2				; front done -> next match
+HD_F1:	ADDL3	R9, R3, R0
 	MOVL	SCAVE_FIGHT_FA[R0], R8		; front party slot
 	MULL3	#SCAVE$_TREAS_PER, R8, R4	; its PT row base
 	MOVAB	SCAVE_PARTY_PT, R5
-	CLRL	R6				; PT slot
-HD_SL:	ADDL3	R4, R6, R7
+	; Drop heavy (id 0..2) to the tile, compacting the row (keep the rest in
+	; order) so the carry list stays dense like the reference m.treasure.
+	CLRL	R6				; read cursor
+	CLRL	R10				; write cursor
+HD_SL:	CMPL	R6, #SCAVE$_TREAS_PER
+	BGEQ	HD_PACK
+	ADDL3	R4, R6, R7
 	MOVL	(R5)[R7], R0			; tid or -1
-	BLSS	HD_SN				; empty
+	BLSS	HD_SN				; empty -> drop from the row
 	CMPL	R0, #SCAVE$_TR_HEAVY_MAX
-	BGTR	HD_SN				; not heavy (>2)
-	ADDL2	#200, R0			; heavy -> drop to the tile as 200+tid
+	BLEQ	HD_HEAVY
+	ADDL3	R4, R10, R1			; keep: copy read -> write
+	MOVL	(R5)[R7], (R5)[R1]
+	INCL	R10
+	BRB	HD_SN
+HD_HEAVY: ADDL2	#200, R0			; heavy -> drop to the tile as 200+tid
 	BSBW	APPEND_AC
-	MOVL	#-1, (R5)[R7]			; off the fighter for the duration
-HD_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, HD_SL
-	INCL	R3
-	BRB	HD_FL
-HD_MN:	INCL	R2
-	BRB	HD_ML
+HD_SN:	INCL	R6
+	BRB	HD_SL
+HD_PACK: CMPL	R10, #SCAVE$_TREAS_PER		; clear the freed tail slots
+	BGEQ	HD_MN
+	ADDL3	R4, R10, R1
+	MOVL	#-1, (R5)[R1]
+	INCL	R10
+	BRB	HD_PACK
+HD_MN:	INCL	R3
+	BRW	HD_FL
+HD_MN2:	INCL	R2
+	BRW	HD_ML
 HD_DONE: MOVL	#SS$_NORMAL, R0
 	RET
 
@@ -2252,6 +2274,8 @@ SW_LOSE: ; the taker is slain; the Ruby is left in place
 	BSBW	EMIT_EVENT
 	MOVL	#SCAVE$_EV_STATUEAROUSED, R0
 	BSBW	EMIT_EVENT
+	PUSHL	#0				; the slain wrestler's carried items spill to
+	CALLS	#1, SWEEP_FALLEN		; the pickup floor (itemsSpilled), before gameOver
 	BSBW	COUNT_LIVING			; party wiped -> game over
 	TSTL	R0
 	BNEQ	SW_RET
@@ -2282,14 +2306,17 @@ SW_RET:	MOVL	#SS$_NORMAL, R0
 	CLRL	SCAVE_CHAMBER_NS
 	CLRL	SCAVE_CHAMBER_NT
 	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_CHAMBER_NSL		; sleeping set rebuilt from parked 400+cid
 	MOVL	#SCAVE$_AREA_ITEMS, R3		; slots to scan
 RC_L:	TSTL	R3
-	BLEQ	RC_DONE
-	MOVL	(R8), R0			; AC[slot]
+	BGTR	RC_L1
+	BRW	RC_DONE
+RC_L1:	MOVL	(R8), R0			; AC[slot]
 	CLRL	(R8)+				; clear as we reclassify (contents=[])
 	TSTL	R0
-	BEQL	RC_N				; 0 = empty
-	DIVL3	#100, R0, R1			; R1 = type (1/2/3)
+	BNEQ	RC_L2				; 0 = empty
+	BRW	RC_N
+RC_L2:	DIVL3	#100, R0, R1			; R1 = type (1/2/3)
 	MULL3	#100, R1, R2
 	SUBL3	R2, R0, R2			; R2 = index within type
 	CMPL	R1, #1
@@ -2305,12 +2332,18 @@ RC_TR:	CMPL	R1, #2
 	INCL	SCAVE_CHAMBER_NT
 	BRB	RC_N
 RC_HZ:	CMPL	R1, #3
-	BNEQ	RC_N				; ignore 400+ (sleeping) for now
+	BNEQ	RC_SLP
 	MOVL	SCAVE_CHAMBER_NH, R4		; hazard -> CH[]
 	MOVL	R2, SCAVE_CHAMBER_CH[R4]
 	INCL	SCAVE_CHAMBER_NH
+	BRB	RC_N
+RC_SLP:	CMPL	R1, #4				; 400+cid -> Lotus-slept creature, keep in SL
+	BNEQ	RC_N				; (100+lulled dragons reload as CS strangers)
+	MOVL	SCAVE_CHAMBER_NSL, R4
+	MOVL	R2, SCAVE_CHAMBER_SL[R4]
+	INCL	SCAVE_CHAMBER_NSL
 RC_N:	DECL	R3
-	BRB	RC_L
+	BRW	RC_L
 RC_DONE:
 	MOVL	#SS$_NORMAL, R0
 	RET
