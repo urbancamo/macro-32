@@ -250,6 +250,7 @@ SCAVE_FIGHT_FB::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; backer party slots (bac
 SCAVE_FIGHT_FD::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; stranger (defender) idxs
 SCAVE_FIGHT_ATTACH::	.BLKL	SCAVE$_CHAMBER_MAX	; gang-up: stranger idx attached to match i (-1 none)
 SCAVE_FIGHT_FOLD::	.LONG	0			; gang-up: leftover-caster MP folded onto the focus
+SCAVE_FIGHT_FOCUS::	.LONG	-1			; focus match: first non-Spectre match (-1 = none)
 SCAVE_FIGHT_NF::	.LONG	0			; matches
 SCAVE_FIGHT_FS::	.LONG	0			; surprise (+1=us, -1=them, 0=neither)
 SCAVE_FIGHT_RD::	.LONG	1			; round number

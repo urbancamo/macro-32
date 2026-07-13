@@ -2670,18 +2670,27 @@ FR_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
 	BGEQ	FR_FLD
 	ADDL3	R9, R3, R0
 	MOVL	SCAVE_FIGHT_FA[R0], R0		; front party slot
-	BSBW	FRONT_STR			; R0 = fs+PK+MP
-	ADDL2	R0, R6
+	PUSHL	R0				; save the slot
+	BSBW	MATCH_HAS_SPECTRE		; a Spectre match?  (uses R2)
+	TSTL	R0
+	BEQL	FR_FL_PHYS
+	MOVL	(SP), R0			; a caster fights a Spectre with magic (casterMP)
+	BSBW	CASTER_MP
+	TSTL	R0
+	BNEQ	FR_FL_HAVE
+FR_FL_PHYS: MOVL	(SP), R0			; else physical frontStrength (sword-bearer)
+	BSBW	FRONT_STR
+FR_FL_HAVE: ADDL2	R0, R6
+	MOVL	(SP)+, R1			; discard the saved slot
 	INCL	R3
 	BRB	FR_FL
 FR_FLD:	CLRL	R3
 FR_BL:	CMPL	R3, SCAVE_FIGHT_BN[R2]
 	BGEQ	FR_BLD
 	ADDL3	R9, R3, R0
-	MOVL	SCAVE_FIGHT_FB[R0], R5		; backer party slot
-	MOVL	SCAVE_PARTY_PC[R5], R5		; cid
-	MOVAB	SCAVE_DATA_CR_MP, R0
-	ADDL2	(R0)[R5], R6			; + casterMP (base MP; staff deferred)
+	MOVL	SCAVE_FIGHT_FB[R0], R0		; backer party slot
+	BSBW	CASTER_MP			; + casterMP (base MP + Staff boost, Eye-nullified)
+	ADDL2	R0, R6
 	INCL	R3
 	BRB	FR_BL
 FR_BLD:
@@ -2699,7 +2708,7 @@ FR_SLD:	MOVL	SCAVE_FIGHT_ATTACH[R2], R0	; gang-up attached leftover foe
 	BLSS	FR_FOLD
 	BSBW	ENEMY_STR
 	ADDL2	R0, R7
-FR_FOLD: TSTL	R2				; focus match (0) carries the folded caster MP
+FR_FOLD: CMPL	R2, SCAVE_FIGHT_FOCUS		; the focus (first non-Spectre) match carries the fold
 	BNEQ	FR_ROLL
 	ADDL2	SCAVE_FIGHT_FOLD, R7
 FR_ROLL:
@@ -2880,6 +2889,71 @@ FS_NOPOT:
 	MOVL	(SP)+, R3
 	MOVL	(SP)+, R4
 	MOVL	(SP)+, R5
+	RSB
+
+;
+; ---- MATCH_HAS_SPECTRE (JSB) -- R2 = match idx; R0 = 1 if any of its strangers
+;      (FD[i*MPM+0..SN-1]) is a Spectre (cid 9).  Preserves R2-R11.
+;
+MATCH_HAS_SPECTRE:
+	PUSHL	R3
+	PUSHL	R4
+	PUSHL	R5
+	MULL3	#SCAVE$_MPM, R2, R3		; match row base
+	CLRL	R4
+MHS_L:	CMPL	R4, SCAVE_FIGHT_SN[R2]
+	BGEQ	MHS_NO
+	ADDL3	R3, R4, R5
+	MOVL	SCAVE_FIGHT_FD[R5], R0		; stranger index into CS
+	CMPL	SCAVE_CHAMBER_CS[R0], #SCAVE$_CR_SPECTRE
+	BEQL	MHS_YES
+	INCL	R4
+	BRB	MHS_L
+MHS_YES: MOVL	#1, R0
+	BRB	MHS_R
+MHS_NO:	CLRL	R0
+MHS_R:	MOVL	(SP)+, R5
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R3
+	RSB
+
+;
+; ---- CASTER_MP (JSB) -- R0 = party slot; R0 out = casterMP (base creature MP +
+;      Magic Staff boost: Priest +1 / Wizard +2), 0 while the party holds the Eye
+;      (reference casterMP).  Preserves R2-R11.
+;
+CASTER_MP:
+	PUSHL	R1
+	PUSHL	R2
+	PUSHL	R3
+	PUSHL	R4
+	MOVL	R0, R2				; slot
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS			; Eye active -> all magic powerless
+	TSTL	R0
+	BNEQ	CMP_ZERO
+	MOVL	SCAVE_PARTY_PC[R2], R3		; cid
+	MOVAB	SCAVE_DATA_CR_MP, R0
+	MOVL	(R0)[R3], R4			; R4 = base MP
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_STAFF, R1
+	BSBW	MEMBER_HOLDS			; holds the Magic Staff?
+	TSTL	R0
+	BEQL	CMP_DONE
+	CMPL	R3, #4				; Priest +1
+	BNEQ	CMP_W
+	INCL	R4
+	BRB	CMP_DONE
+CMP_W:	CMPL	R3, #8				; Wizard +2
+	BNEQ	CMP_DONE
+	ADDL2	#2, R4
+CMP_DONE: MOVL	R4, R0
+	BRB	CMP_POP
+CMP_ZERO: CLRL	R0
+CMP_POP: MOVL	(SP)+, R4
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R2
+	MOVL	(SP)+, R1
 	RSB
 
 ;
@@ -3420,6 +3494,20 @@ SK_RET:	MOVL	#SS$_NORMAL, R0
 GU_I:	MNEGL	#1, SCAVE_FIGHT_ATTACH[R2]
 	AOBLSS	#8, R2, GU_I
 
+	; -- focus match = first match whose defenders are not a Spectre (fold target) --
+	MNEGL	#1, SCAVE_FIGHT_FOCUS
+	CLRL	R2
+GU_FOC:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	GU_FOCD
+	BSBW	MATCH_HAS_SPECTRE
+	TSTL	R0
+	BNEQ	GU_FOCN
+	MOVL	R2, SCAVE_FIGHT_FOCUS
+	BRB	GU_FOCD
+GU_FOCN: INCL	R2
+	BRB	GU_FOC
+GU_FOCD:
+
 	; -- free fighter? (a living member that is not a front) --
 	CLRL	R2
 GU_FF:	CMPL	R2, SCAVE_PARTY_NP
@@ -3443,6 +3531,9 @@ GU_ML:	CMPL	R2, SCAVE_FIGHT_NF
 GU_ML1:	CMPL	SCAVE_FIGHT_FN[R2], #1		; only 1-front vs 1-stranger matches gang up (ref)
 	BNEQ	GU_MSKIP
 	CMPL	SCAVE_FIGHT_SN[R2], #1
+	BNEQ	GU_MSKIP
+	BSBW	MATCH_HAS_SPECTRE		; a Spectre match never gains an extra hand
+	TSTL	R0
 	BNEQ	GU_MSKIP
 	BRB	GU_MDO
 GU_MSKIP: BRW	GU_MN
