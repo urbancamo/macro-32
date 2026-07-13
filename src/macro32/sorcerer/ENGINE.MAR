@@ -119,6 +119,7 @@
 	SCAVE$_EV_VIPERSLULLED = 40
 	SCAVE$_EV_UNICORNDEPARTED = 41
 	SCAVE$_EV_WARDEDOFF = 42
+	SCAVE$_EV_CHESTOPENED = 43
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -132,6 +133,7 @@
 	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 	SCAVE$_TR_TALISMAN = 7			; Talisman (wards off Ghouls, SC-7.2)
+	SCAVE$_TR_CHEST = 14			; Treasure Chest (openChest, SC-12)
 	SCAVE$_TR_RING = 10			; The Ring (+1 party die in combat, SC-11-24)
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
 	SCAVE$_TR_EYE = 13			; Eye of God (annihilates Spectres on entry, SC-11-35)
@@ -275,8 +277,11 @@ RP_DONE:
 	BNEQ	61$
 	BRW	EA_EXITCAVE
 61$:	CMPL	R2, #SCAVE$_ACT_USE
-	BNEQ	7$
+	BNEQ	62$
 	BRW	EA_USE
+62$:	CMPL	R2, #SCAVE$_ACT_OPENCHEST
+	BNEQ	7$
+	BRW	EA_OPENCHEST
 7$:	BRW	EA_DONE				; other actions: not yet implemented
 
 ;
@@ -1001,6 +1006,63 @@ EL_EXPL: CALLS	#0, PERSIST_AREA
 EU_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
 	BSBW	EMIT_EVENT
 EU_DONE: BRW	EA_DONE
+
+;
+; ---- OPENCHEST (SC-12, openChest) ----
+;   Explore only; a living member must bear the Treasure Chest (id 14).  Consume
+;   it, roll a d6, emit chestOpened, then act on the roll: 1 Curse (curses++),
+;   2 Spectre attacks (fight, surprise -1), 3 Sand (nothing), 4/5/6 Silver/Gold/
+;   Gems (+20/+40/+80 bonusScore).
+;
+EA_OPENCHEST:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	OC_OK
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_OK:	MOVL	#SCAVE$_TR_CHEST, R1
+	BSBW	FIND_BEARER			; R0 = living bearer, or -1
+	BGEQ	OC_GO
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_GO:	MOVL	R0, R2				; bearer
+	PUSHL	#SCAVE$_TR_CHEST		; the chest is opened (consumed)
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
+	MOVL	R0, R3				; result
+	MOVL	#SCAVE$_EV_CHESTOPENED, R0
+	BSBW	EMIT_EVENT
+	CMPL	R3, #1				; Curse
+	BNEQ	OC_R2
+	INCL	SCAVE_STATE_NC
+	BRW	EA_DONE
+OC_R2:	CMPL	R3, #2				; a Spectre appears and attacks
+	BNEQ	OC_R4
+	MOVL	SCAVE_CHAMBER_NS, R4		; push a Spectre (cid 9) into the strangers
+	MOVL	#SCAVE$_CR_SPECTRE, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	MOVL	#-1, SCAVE_FIGHT_FS		; surprise -1
+	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_R4:	CMPL	R3, #4				; Silver +20
+	BNEQ	OC_R5
+	ADDL2	#20, SCAVE_STATE_BONUS
+	BRW	EA_DONE
+OC_R5:	CMPL	R3, #5				; Gold +40
+	BNEQ	OC_R6
+	ADDL2	#40, SCAVE_STATE_BONUS
+	BRW	EA_DONE
+OC_R6:	CMPL	R3, #6				; Gems +80
+	BNEQ	OC_DONE
+	ADDL2	#80, SCAVE_STATE_BONUS
+OC_DONE: BRW	EA_DONE				; 3 = Sand (nothing)
 
 ;
 ; ===========================================================
@@ -3277,10 +3339,12 @@ SC_MD:	TSTL	SCAVE_STATE_SK			; + Sorcerer bonus (30)
 	ADDL2	#30, R0
 SC_CURSE:					; - curse penalty (flat 30), unless SK
 	TSTL	SCAVE_STATE_SK
-	BNEQ	SC_CLAMP
+	BNEQ	SC_BONUS
 	TSTL	SCAVE_STATE_NC
-	BEQL	SC_CLAMP
+	BEQL	SC_BONUS
 	SUBL2	#30, R0
+SC_BONUS:					; + Treasure Chest bonusScore (silver/gold/gems)
+	ADDL2	SCAVE_STATE_BONUS, R0
 SC_CLAMP:
 	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD	; wiped party scores 0
 	BNEQ	SC_FLOOR
