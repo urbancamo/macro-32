@@ -2844,27 +2844,14 @@ FRONT_STR:
 	MOVL	SCAVE_PARTY_PC[R2], R3		; cid
 	MOVAB	SCAVE_DATA_CR_FS, R4
 	ADDL2	(R4)[R3], R5			; + fs
-	MOVAB	SCAVE_DATA_CR_MP, R4
-	ADDL2	(R4)[R3], R5			; + casterMP base MP
-	; Magic Staff caster boost + Magic Sword bonus, both nullified by the Eye.
+	MOVL	R2, R0				; + casterMP (base MP + Staff boost, Eye-nullified)
+	BSBW	CASTER_MP
+	ADDL2	R0, R5
+	; Magic Sword bonus, also nullified while the party holds the Eye.
 	MOVL	#SCAVE$_TR_EYE, R1
 	BSBW	PARTY_HOLDS
 	TSTL	R0
-	BNEQ	FS_DONE				; Eye active -> no artifact bonuses
-	; -- Magic Staff (SC-11): Priest(4) +1, Wizard(8) +2 casterMP --
-	MOVL	R2, R0
-	MOVL	#SCAVE$_TR_STAFF, R1
-	BSBW	MEMBER_HOLDS
-	TSTL	R0
-	BEQL	FS_SWORD
-	CMPL	R3, #4
-	BNEQ	FS_STW
-	INCL	R5
-	BRB	FS_SWORD
-FS_STW:	CMPL	R3, #8
-	BNEQ	FS_SWORD
-	ADDL2	#2, R5
-FS_SWORD:
+	BNEQ	FS_DONE				; Eye active -> no Sword bonus
 	MOVL	R2, R0
 	MOVL	#SCAVE$_TR_SWORD, R1
 	BSBW	MEMBER_HOLDS			; does this member wield the Magic Sword?
