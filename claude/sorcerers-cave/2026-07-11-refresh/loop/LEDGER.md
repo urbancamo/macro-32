@@ -361,6 +361,16 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I028 | 2026-07-13 | §9 | §387 in-fight heavy-drop + reclaim -- solo-seed225 PASSES (10/10)** —
+  The last seed225 blocker was a final-block treasure misplacement: my Hero kept Gold that the
+  reference dropped during a fight. HEAVY_DROP (called first in FIGHT_ROUND): each front fighter drops
+  its heavy treasure (ids 0..2) onto the tile as 200+tid, off the fighter for the duration.
+  RECLAIM_DROPS (FINALIZE_ROUND win, before sweepFallen): moves any 200+tid on the tile back into the
+  pickup CT. Refactored PARK_HAZARD's tile-append into a shared APPEND_AC. *Evidence:* **solo-seed225
+  PASSES end-to-end; all 10 vectors green** (base-8 + seed174 sorcerer + seed225 escape). Remaining
+  gap vectors: the 4 artifact runs (seed257/1237/2355/2678) -> §11 USE dispatch + the rest of the
+  artifacts (Potion/Lotus/Balm/Staff/Carpet/Flute), chest, Medusa/Mutiny effects, statuePowerless.
+
 - **I027 | 2026-07-13 | §8/§11 | Eye annihilation + pacified walk-through + pacified attack** —
   Three seed225 blockers. **Eye of God (id 13):** ANNIHILATE_EYE (after drewChamber) removes Spectres
   from the drawn strangers when any living member holds the Eye, emitting `annihilated` (SC-11-35);
