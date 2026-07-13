@@ -117,6 +117,7 @@
 	SCAVE$_EV_SECRETDOORREVEALED = 38
 	SCAVE$_EV_DRAGONSLULLED = 39
 	SCAVE$_EV_VIPERSLULLED = 40
+	SCAVE$_EV_UNICORNDEPARTED = 41
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -129,6 +130,7 @@
 	SCAVE$_CR_SORCERER = 11			; felling him -> sorcererSlain + curse lift
 	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
+	SCAVE$_TR_TALISMAN = 7			; Talisman (wards off Ghouls, SC-7.2)
 	SCAVE$_TR_RING = 10			; The Ring (+1 party die in combat, SC-11-24)
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
 	SCAVE$_TR_EYE = 13			; Eye of God (annihilates Spectres on entry, SC-11-35)
@@ -415,6 +417,18 @@ EA_HZ_OK:
 	BRW	EA_RESOLVE			; re-resolve the area below
 
 EA_PHASE:
+	; Charmed Flute (SC-11): a living Hero/W-Hero/Priest/Man/Woman/Wizard holding
+	; it passively lulls every Dragon -- removed from the active strangers (parked
+	; 100+id on leave, re-lulled on re-entry).  dragonsLulled emits on fresh entry.
+	CLRL	SCAVE_CHAMBER_NLULL
+	CALLS	#0, FLUTE_LULL			; R0 = dragons lulled (R3 fresh-flag preserved)
+	TSTL	R0
+	BEQL	EA_PH_PAC
+	TSTL	R3
+	BEQL	EA_PH_PAC
+	MOVL	#SCAVE$_EV_DRAGONSLULLED, R0
+	BSBW	EMIT_EVENT
+EA_PH_PAC:
 	; Permanently indifferent to this party (SC-8.4-4): walk freely through --
 	; park the guards + treasure back and stay in explore.
 	MOVL	SCAVE_MAP_PA, R2
@@ -1161,6 +1175,7 @@ EC_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
 ;   (sweepFallen loot detail + reclaim of floor drops arrive with §9.5-11.)
 ;
 	.ENTRY	FINALIZE_ROUND, ^M<R2,R3>
+	CALLS	#0, RECONCILE_UNICORNS		; a Unicorn departs if the last "Woman" fell
 	BSBW	COUNT_LIVING			; R0 = living party count
 	TSTL	R0
 	BNEQ	FZ_11
@@ -1376,11 +1391,20 @@ RH_P:	CMPL	R4, SCAVE_CHAMBER_NH
 	BRB	RH_P
 RH_FIRE:
 	CMPL	R3, #SCAVE$_HZ_MEDUSA		; Medusa ward: a living Staff-Wizard averts the gaze
-	BNEQ	RH_FIRE2
+	BNEQ	RH_FGH
 	CALLS	#0, HAS_STAFF_WIZARD
 	TSTL	R0
 	BEQL	RH_FIRE2
 	MOVL	#SCAVE$_EV_MEDUSAAVERTED, R0	; averted -> no hazardFired, no gaze
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RH_FGH:	CMPL	R3, #SCAVE$_HZ_GHOULS		; Ghouls ward: any living member's Talisman
+	BNEQ	RH_FIRE2
+	MOVL	#SCAVE$_TR_TALISMAN, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	RH_FIRE2
+	MOVL	#SCAVE$_EV_GHOULSWARDED, R0	; warded -> no hazardFired, no fight
 	BSBW	EMIT_EVENT
 	BRW	RH_L
 RH_FIRE2:
@@ -1439,18 +1463,28 @@ RT_FALL:
 
 RH_GHOULS:
 	CALLS	#0, GHOULS_FIGHT
-	MOVL	#SCAVE$_HZ_GHOULS, R0		; Ghouls lurk: re-park so they re-fire on re-entry
-	BSBW	PARK_HAZARD
 	BRW	RH_L
 
 RH_MEDUSA:
 	CALLS	#0, MEDUSA_GAZE
-	MOVL	#SCAVE$_HZ_MEDUSA, R0		; Medusa lurks: re-park so she re-fires on re-entry
-	BSBW	PARK_HAZARD
 	BRW	RH_L
 
 RH_DONE:
-	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
+	; Medusa & Ghouls lurk: re-park them (300+hz) from the working hazard set so
+	; they reload and re-fire on every re-entry (SC-7.2), whether fired or warded.
+	CLRL	R4
+RH_RP:	CMPL	R4, SCAVE_CHAMBER_NH
+	BGEQ	RH_RPD
+	MOVL	SCAVE_CHAMBER_CH[R4], R3
+	CMPL	R3, #SCAVE$_HZ_MEDUSA
+	BEQL	RH_RP1
+	CMPL	R3, #SCAVE$_HZ_GHOULS
+	BNEQ	RH_RPN
+RH_RP1:	MOVL	R3, R0
+	BSBW	PARK_HAZARD
+RH_RPN:	INCL	R4
+	BRB	RH_RP
+RH_RPD:	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
 	MOVL	#SS$_NORMAL, R0
 	RET
 
@@ -1627,8 +1661,21 @@ MF_RET:	MOVL	#SS$_NORMAL, R0
 ; ===========================================================
 ;
 PARK_HAZARD:
-	ADDL2	#300, R0			; 300+hz -> park on the tile
-	BSBW	APPEND_AC
+	ADDL2	#300, R0			; 300+hz -> park on the tile (once)
+	PUSHL	R2
+	PUSHL	R3
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R2	; AC row base (element index)
+	CLRL	R3
+PH_DL:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	PH_ADD
+	ADDL3	R2, R3, R1
+	CMPL	SCAVE_AREA_AC[R1], R0		; already parked -> no duplicate
+	BEQL	PH_RET
+	INCL	R3
+	BRB	PH_DL
+PH_ADD:	BSBW	APPEND_AC
+PH_RET:	MOVL	(SP)+, R3
+	MOVL	(SP)+, R2
 	RSB
 
 ;
@@ -1963,13 +2010,22 @@ PA_TN:	INCL	R6
 	BRB	PA_TL
 PA_SLP:	CLRL	R6				; Lotus-slept creatures -> 400+cid
 PA_SL:	CMPL	R6, SCAVE_CHAMBER_NSL
-	BGEQ	PA_PAD
+	BGEQ	PA_LLP
 	TSTL	R3
-	BLEQ	PA_PAD
+	BLEQ	PA_LLP
 	ADDL3	#400, SCAVE_CHAMBER_SL[R6], (R8)+
 	DECL	R3
 	INCL	R6
 	BRB	PA_SL
+PA_LLP:	CLRL	R6				; flute-lulled dragons -> 100+cid (park AWAKE)
+PA_LL:	CMPL	R6, SCAVE_CHAMBER_NLULL
+	BGEQ	PA_PAD
+	TSTL	R3
+	BLEQ	PA_PAD
+	ADDL3	#100, SCAVE_CHAMBER_LULL[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_LL
 PA_PAD:	TSTL	R3				; zero unused tail slots
 	BLEQ	PA_CLR
 	CLRL	(R8)+
@@ -1979,7 +2035,70 @@ PA_CLR:	CLRL	SCAVE_CHAMBER_NS		; working set now lives on the area
 	CLRL	SCAVE_CHAMBER_NT
 	CLRL	SCAVE_CHAMBER_NH
 	CLRL	SCAVE_CHAMBER_NSL
+	CLRL	SCAVE_CHAMBER_NLULL
 	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  FLUTE_LULL (CALLS)  --  SC-11 Charmed Flute passive dragon-lull.  If a living
+;    Hero(0)/W-Hero(1)/Priest(4)/Man(5)/Woman(6)/Wizard(8) holds the Flute (id
+;    12), every Dragon (cid 10) is removed from the active strangers (CS) into
+;    the lulled set (SCAVE_CHAMBER_LULL, parked 100+id on leave).  Returns
+;    R0 = number of dragons lulled (0 if no flute player or no dragon).
+; ===========================================================
+;
+	.ENTRY	FLUTE_LULL, ^M<R2,R3,R4,R5,R6>
+	CLRL	R2				; find a living flute player holding the Flute
+FL_PL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	FL_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (0/1)?
+	BGEQ	FL_PN
+	MOVL	SCAVE_PARTY_PC[R2], R3		; cid in {0,1,4,5,6,8}?
+	CMPL	R3, #0
+	BEQL	FL_HAS
+	CMPL	R3, #1
+	BEQL	FL_HAS
+	CMPL	R3, #4
+	BEQL	FL_HAS
+	CMPL	R3, #5
+	BEQL	FL_HAS
+	CMPL	R3, #6
+	BEQL	FL_HAS
+	CMPL	R3, #8
+	BNEQ	FL_PN
+FL_HAS:	MOVL	R2, R0				; does this member hold the Flute?
+	MOVL	#SCAVE$_TR_FLUTE, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	FL_LULL
+FL_PN:	INCL	R2
+	BRB	FL_PL
+FL_NO:	CLRL	R0
+	RET
+
+FL_LULL: CLRL	R6				; lulled count
+	CLRL	R2				; scan CS for Dragons (cid 10)
+FL_SL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	FL_DONE
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_DRAGON
+	BNEQ	FL_SN
+	MOVL	SCAVE_CHAMBER_NLULL, R4		; move it to the lulled set
+	MOVL	#SCAVE$_CR_DRAGON, SCAVE_CHAMBER_LULL[R4]
+	INCL	SCAVE_CHAMBER_NLULL
+	INCL	R6
+	MOVL	R2, R3				; compact CS: shift [R2+1..NS-1] down one
+FL_CMP:	ADDL3	#1, R3, R5
+	CMPL	R5, SCAVE_CHAMBER_NS
+	BGEQ	FL_CMPD
+	MOVL	SCAVE_CHAMBER_CS[R5], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+	BRB	FL_CMP
+FL_CMPD: DECL	SCAVE_CHAMBER_NS
+	BRB	FL_SL				; re-check R2 (now the shifted element)
+FL_SN:	INCL	R2
+	BRB	FL_SL
+FL_DONE: MOVL	R6, R0
 	RET
 
 ;
@@ -2730,6 +2849,61 @@ HW_N:	INCL	R1
 HW_NO:	CLRL	R0
 	RET
 HW_YES:	MOVL	#1, R0
+	RET
+
+;
+; ===========================================================
+;  RECONCILE_UNICORNS (CALLS)  --  reference reconcileUnicorns.  If no living
+;    "Woman" (BEFRIENDS_UNICORN, not the Unicorn itself) remains, every living
+;    Unicorn (cid 13) leaves the party -- emit unicornDeparted each, then compact
+;    the party (drop the PS=99 marks).  No RNG.
+; ===========================================================
+;
+	.ENTRY	RECONCILE_UNICORNS, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+	CALLS	#0, HAS_WOMAN
+	TSTL	R0
+	BEQL	RU_GO
+	BRW	RU_RET				; a "Woman" present -> Unicorns stay
+RU_GO:	CLRL	R9				; departed count
+	CLRL	R2
+RU_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	RU_MD
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (0/1)?
+	BGEQ	RU_MN
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_UNICORN
+	BNEQ	RU_MN
+	MOVL	#99, SCAVE_PARTY_PS[R2]		; mark for removal
+	MOVL	#SCAVE$_EV_UNICORNDEPARTED, R0
+	BSBW	EMIT_EVENT
+	INCL	R9
+RU_MN:	INCL	R2
+	BRB	RU_ML
+RU_MD:	TSTL	R9
+	BEQL	RU_RET
+	CLRL	R2				; compact out PS==99 (read R2 -> write R3)
+	CLRL	R3
+RU_CL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	RU_CDONE
+	CMPL	SCAVE_PARTY_PS[R2], #99
+	BEQL	RU_CSKIP
+	CMPL	R2, R3
+	BEQL	RU_CKEEP
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R3]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R3]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R3]
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; copy the PT row R2 -> R3
+	MULL3	#SCAVE$_TREAS_PER, R3, R6
+	MOVAB	SCAVE_PARTY_PT, R7
+	CLRL	R8
+RU_PTL:	ADDL3	R5, R8, R0
+	ADDL3	R6, R8, R1
+	MOVL	(R7)[R0], (R7)[R1]
+	AOBLSS	#SCAVE$_TREAS_PER, R8, RU_PTL
+RU_CKEEP: INCL	R3
+RU_CSKIP: INCL	R2
+	BRB	RU_CL
+RU_CDONE: MOVL	R3, SCAVE_PARTY_NP		; new party size
+RU_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
