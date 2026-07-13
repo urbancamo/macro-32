@@ -4,7 +4,22 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
-**Latest (I032, 2026-07-13):** **11/11 vectors green** (base-8 + seed174 sorcerer + seed225 escape +
+**Latest (I033, 2026-07-13):** **13/14 vectors green** (all but seed1237). seed257, seed2355 now
+PASS end-to-end; seed1237 is **one cosmetic line** from 14/14 (area 55 CONT ordering `405,214` vs
+`214,405` -- a parking-sequence detail; the contents multiset matches). This session took seed257
+38->PASS, seed1237 8->(FINAL, 1 line), seed2355 8->PASS. Bugs fixed along the way (all real): the
+`CT`->`CH` buffer overflow (CHAMBER_MAX 8->32), the last-area MIR/SD off-by-one (AREA_COUNT 61->62),
+the party-array overflow when recruiting >12 allies (PARTY_MAX 12->32), and `HEAVY_DROP` leaving
+PT-row gaps that reordered later takes (now compacts). Mechanics ported: Medusa, Strength Potion,
+Magic Staff (USE reanimate + FRONT_STR caster boost), Charmed-Flute dragon/viper lull (players
+{0,4,5,6,8}, NOT W-Hero), Ghouls Talisman ward, Talisman Spectre ward (wardedOff), Unicorn depart,
+statue-wrestle full frontStrength + spill, Deep-Pool DROP list, Treasure Chest (openChest) +
+bonusScore. **Next (seed1237, only remaining):** trace area 55's persist sequence to reproduce the
+reference's content ORDER (both engines reload+clear on revisit, so `[405,214]` implies the sleeping
+creature was parked in a separate earlier persist and the treasure appended later -- likely via a
+LEAVE/park path, not a single persistAndExplore). Everything else in seed1237 matches.
+
+**(archived) Latest (I032, 2026-07-13):** **11/11 vectors green** (base-8 + seed174 sorcerer + seed225 escape +
 seed2678 artifacts) held all session. Ground **seed257 (Mutiny/artifacts) from step 38 → 275** across
 6 commits: gang-up 1-front guard (38→169); Medusa hazard + Strength Potion (169→201); Flute
 dragon-lull + Ghouls Talisman ward + Unicorn depart + hazard re-park refactor (201→274); **buffer
