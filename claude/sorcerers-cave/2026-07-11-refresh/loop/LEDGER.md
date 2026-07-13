@@ -3,9 +3,20 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
-**Latest (I033, 2026-07-13):** **13/14 vectors green** (all but seed1237). seed257, seed2355 now
-PASS end-to-end; seed1237 is **one cosmetic line** from 14/14 (area 55 CONT ordering `405,214` vs
+**Status:** `DONE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
+**Latest (I034, 2026-07-13):** **ALL 14 CONFORMANCE VECTORS PASS BIT-FOR-BIT.** Engine parity
+achieved against every reference-minted vector (base-8 + seed174 sorcerer + seed225 escape +
+seed257/1237/2355/2678 artifacts). Final fix: pacified-attack must keep sleeping creatures parked
+in AC (new REVISIT_GUARDS reloads only strangers/treasures, not 400+/300+) so the leave-persist
+appends the remaining treasure AFTER the parked sleeper -- seed1237 area 55 CONT `405,214`.
+**Remaining is NOT conformance parity** (nothing the reference's own action policy generates diverges):
+Tier-2 engine gaps no vector exercises -- the `borne` model, the RETAKE/GIVE/DROP/BORNE actions
+(silent no-ops), Deep-Pool DROP reclaim + Giant recovery, Ring-invincibility, the Eye nullifying
+base casterMP, per-member stoneArea, openChest result-2 -- and the original G8 (UI rewire onto the
+headless engine) / G9 (UI playability) gates. Closing Tier-2 would need NEW vectors to verify.
+
+**(archived) Latest (I033, 2026-07-13):** **13/14 vectors green** (all but seed1237). seed257, seed2355 now
+PASS end-to-end; seed1237 was **one cosmetic line** from 14/14 (area 55 CONT ordering `405,214` vs
 `214,405` -- a parking-sequence detail; the contents multiset matches). This session took seed257
 38->PASS, seed1237 8->(FINAL, 1 line), seed2355 8->PASS. Bugs fixed along the way (all real): the
 `CT`->`CH` buffer overflow (CHAMBER_MAX 8->32), the last-area MIR/SD off-by-one (AREA_COUNT 61->62),
