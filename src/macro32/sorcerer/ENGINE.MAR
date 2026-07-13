@@ -584,7 +584,7 @@ EA_AS:	CMPL	R5, #SCAVE$_AREA_ITEMS
 EA_ASN:	INCL	R5
 	BRB	EA_AS
 EA_AS_GO:
-	CALLS	#0, REVISIT_CHAMBER		; load parked guards+treasure into CS/CT
+	CALLS	#0, REVISIT_GUARDS		; load guards+treasure into CS/CT; keep sleeping parked
 	CLRL	SCAVE_FIGHT_FS			; surprise 0
 	MOVL	#1, SCAVE_FIGHT_RD
 	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
@@ -2470,6 +2470,56 @@ RC_N:	DECL	R3
 	BRW	RC_L
 RC_DONE:
 	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  REVISIT_GUARDS  --  un-park a pacified chamber's GUARDS for an ATTACK
+;    (reference attack-from-pacified): reload only strangers (100+cid -> CS) and
+;    treasures (200+tid -> CT) into the working set; KEEP any sleeping creatures
+;    / display markers (400+/300+) parked in AC (compacted to the front, in
+;    order), so their tile position survives the fight and a later persist
+;    appends new contents AFTER them.  NSL is left untouched (still parked).
+; ===========================================================
+;
+	.ENTRY	REVISIT_GUARDS, ^M<R2,R3,R4,R5,R6,R7,R8>
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8		; R8 = &AC[PA*8]
+	ADDL2	R0, R8
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	R6				; write cursor (compact position)
+	CLRL	R3				; read cursor
+RG_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	RG_PAD
+	MOVL	(R8)[R3], R0			; AC[read]
+	BEQL	RG_N				; empty -> drop
+	DIVL3	#100, R0, R1			; type
+	CMPL	R1, #1
+	BNEQ	RG_TR
+	SUBL3	#100, R0, R2			; creature -> CS (reloaded)
+	MOVL	SCAVE_CHAMBER_NS, R4
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	RG_N
+RG_TR:	CMPL	R1, #2
+	BNEQ	RG_KEEP				; 300+/400+ -> keep parked
+	SUBL3	#200, R0, R2			; treasure -> CT (reloaded)
+	MOVL	SCAVE_CHAMBER_NT, R4
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	RG_N
+RG_KEEP: MOVL	R0, (R8)[R6]			; keep: write compacted
+	INCL	R6
+RG_N:	INCL	R3
+	BRB	RG_L
+RG_PAD:	CMPL	R6, #SCAVE$_AREA_ITEMS		; clear the freed tail
+	BGEQ	RG_DONE
+	CLRL	(R8)[R6]
+	INCL	R6
+	BRB	RG_PAD
+RG_DONE: MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
