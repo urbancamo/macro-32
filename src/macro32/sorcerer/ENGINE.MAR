@@ -120,6 +120,8 @@
 	SCAVE$_EV_UNICORNDEPARTED = 41
 	SCAVE$_EV_WARDEDOFF = 42
 	SCAVE$_EV_CHESTOPENED = 43
+	SCAVE$_EV_TREASURERECLAIMED = 44
+	SCAVE$_EV_EYEFORSAKEN = 45
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -373,6 +375,22 @@ EA_RESOLVE:
 	CMPL	R3, #SCAVE$_SPECIAL_VIPER
 	BNEQ	EA_CHAMBER
 EA_SPECIAL:
+	; Deep Pool holding dropped treasure a living Giant can lift -> reclaim to pickup
+	; (reference resolveArea: state.treasures = area.dropped; phase pickup).
+	CMPL	R3, #SCAVE$_SPECIAL_POOL
+	BNEQ	ES_ENTER
+	MOVL	SCAVE_MAP_PA, R2
+	TSTL	SCAVE_AREA_DROP_N[R2]
+	BEQL	ES_ENTER
+	CALLS	#0, GIANT_CAN_RECOVER		; R0 = 1 if a living Giant can lift >=1 dropped item
+	TSTL	R0
+	BEQL	ES_ENTER
+	CALLS	#0, RECLAIM_POOL		; move the dropped pile onto the floor (CT)
+	MOVL	#SCAVE$_EV_TREASURERECLAIMED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+ES_ENTER:
 	MOVL	#SCAVE$_EV_ENTEREDSPECIAL, R0
 	BSBW	EMIT_EVENT
 	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
@@ -1243,6 +1261,8 @@ EC_KILL: MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R5]
 	BSBW	EMIT_EVENT
 	MOVL	#SCAVE$_EV_MEMBERDIED, R0
 	BSBW	EMIT_EVENT
+	MOVL	R5, R0				; Eye forsaken if the fallen held it
+	BSBW	EYE_FORSAKEN
 	DECL	SCAVE_FIGHT_CQN			; shift the queue down one pair
 	CLRL	R2
 EC_SH:	CMPL	R2, SCAVE_FIGHT_CQN
@@ -2039,6 +2059,8 @@ VC_L:	CMPL	R2, SCAVE_PARTY_NP
 	BGTR	VC_N				; 3..6 crosses safely
 	; fatal fall: kill the member, lose their carried treasure, emit memberDied
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
+	MOVL	R2, R0				; Eye forsaken before the pit takes the treasure
+	BSBW	EYE_FORSAKEN
 	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
 	MOVAB	SCAVE_PARTY_PT, R4
 	CLRL	R5
@@ -2107,6 +2129,77 @@ DP_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, DP_SL
 DP_MN:	INCL	R2
 	BRB	DP_ML
 DP_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GIANT_CAN_RECOVER (CALLS)  --  R0 = 1 if a living Giant (cid 12) has the spare
+;    weight capacity to lift at least one treasure dropped into the party's
+;    current Deep-Pool tile (reference giantCanRecover), else 0.
+; ===========================================================
+;
+	.ENTRY	GIANT_CAN_RECOVER, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	CLRL	R2				; find a living Giant
+GCR_L:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	GCR_L1
+	BRW	GCR_NO
+GCR_L1:	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	GCR_N
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_GIANT
+	BEQL	GCR_F
+GCR_N:	INCL	R2
+	BRB	GCR_L
+GCR_F:	MULL3	#SCAVE$_TREAS_PER, R2, R3	; carried weight of the Giant -> R6
+	MOVAB	SCAVE_PARTY_PT, R4
+	MOVAB	SCAVE_DATA_TR_WT, R5
+	CLRL	R6
+	CLRL	R7
+GCR_WL:	ADDL3	R3, R7, R0
+	MOVL	(R4)[R0], R1
+	BLSS	GCR_WN				; -1 empty
+	ADDL2	(R5)[R1], R6
+GCR_WN:	AOBLSS	#SCAVE$_TREAS_PER, R7, GCR_WL
+	MOVL	SCAVE_PARTY_PC[R2], R9		; Giant capacity -> R9
+	MOVAB	SCAVE_DATA_CR_CARRY, R8
+	MOVL	(R8)[R9], R9
+	MOVL	SCAVE_MAP_PA, R10		; scan the pool's dropped pile
+	MULL3	#8, R10, R7			; DROP_PT row base
+	CLRL	R11				; j
+GCR_DL:	CMPL	R11, SCAVE_AREA_DROP_N[R10]
+	BGEQ	GCR_NO
+	ADDL3	R7, R11, R0
+	MOVL	SCAVE_AREA_DROP_PT[R0], R1	; dropped tid
+	ADDL3	R6, (R5)[R1], R0		; carried + WT[tid]
+	CMPL	R0, R9				; <= capacity?
+	BLEQ	GCR_YES
+	INCL	R11
+	BRB	GCR_DL
+GCR_YES: MOVL	#1, R0
+	RET
+GCR_NO:	CLRL	R0
+	RET
+
+;
+; ===========================================================
+;  RECLAIM_POOL (CALLS)  --  move the party's current Deep-Pool tile's dropped
+;    pile (SCAVE_AREA_DROP_*) onto the chamber floor (CT), clearing the pile.
+; ===========================================================
+;
+	.ENTRY	RECLAIM_POOL, ^M<R2,R3,R4,R5>
+	MOVL	SCAVE_MAP_PA, R2
+	MULL3	#8, R2, R3			; DROP_PT row base
+	CLRL	R4				; j
+RCP_L:	CMPL	R4, SCAVE_AREA_DROP_N[R2]
+	BGEQ	RCP_D
+	ADDL3	R3, R4, R0
+	MOVL	SCAVE_AREA_DROP_PT[R0], R1	; dropped tid
+	MOVL	SCAVE_CHAMBER_NT, R5		; append to the floor (CT)
+	MOVL	R1, SCAVE_CHAMBER_CT[R5]
+	INCL	SCAVE_CHAMBER_NT
+	INCL	R4
+	BRB	RCP_L
+RCP_D:	CLRL	SCAVE_AREA_DROP_N[R2]		; the pool's pile is now on the floor
+	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
@@ -2396,6 +2489,8 @@ SW_LOSE: ; the taker is slain; the Ruby is left in place
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R3]
 	MOVL	#SCAVE$_EV_MEMBERDIED, R0
 	BSBW	EMIT_EVENT
+	MOVL	R3, R0				; Eye forsaken if the wrestler held it
+	BSBW	EYE_FORSAKEN
 	MOVL	#SCAVE$_EV_STATUEAROUSED, R0
 	BSBW	EMIT_EVENT
 	PUSHL	#0				; the slain wrestler's carried items spill to
@@ -2676,8 +2771,11 @@ FL_HASF: CMPL	R6, #1
 	BGTR	FL_QUEUE
 	MOVL	SCAVE_FIGHT_FA[R9], R0		; exactly one front -> it dies now
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R0]
+	PUSHL	R0				; save the slot for the Eye check
 	MOVL	#SCAVE$_EV_MEMBERDIED, R0
 	BSBW	EMIT_EVENT
+	MOVL	(SP)+, R0
+	BSBW	EYE_FORSAKEN
 	BRW	FR_NEXT
 FL_QUEUE: ; SC-9.2: >1 mortal front -> queue the pair for chooseCasualty
 	MOVL	SCAVE_FIGHT_CQN, R3
@@ -2798,6 +2896,24 @@ MH_Y:	MOVL	#1, R0
 MH_R:	MOVL	(SP)+, R2
 	MOVL	(SP)+, R3
 	MOVL	(SP)+, R4
+	RSB
+
+;
+; ---- EYE_FORSAKEN (JSB) -- R0 = slot of a member that just fell.  If it holds
+;      the Eye of God (id 13), the party is cursed for losing it: curses++ and
+;      emit eyeForsaken (reference eyeForsakenByDeath).  Check BEFORE the body's
+;      treasure is spilled/cleared.  Clobbers R0; preserves R1-R11.
+;
+EYE_FORSAKEN:
+	PUSHL	R1
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	MEMBER_HOLDS			; R0 = 1 if the fallen member holds the Eye
+	TSTL	R0
+	BEQL	EF2_RET
+	INCL	SCAVE_STATE_NC			; a curse for forsaking the Eye
+	MOVL	#SCAVE$_EV_EYEFORSAKEN, R0
+	BSBW	EMIT_EVENT
+EF2_RET: MOVL	(SP)+, R1
 	RSB
 
 ENEMY_STR:
@@ -3238,6 +3354,8 @@ SK_HIT:	TSTL	R4
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R4]
 	MOVL	#SCAVE$_EV_SPECTRESLEW, R0
 	BSBW	EMIT_EVENT
+	MOVL	R4, R0				; Eye forsaken if the slain member held it
+	BSBW	EYE_FORSAKEN
 SK_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
