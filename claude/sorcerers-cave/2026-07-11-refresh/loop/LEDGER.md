@@ -3,7 +3,36 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN)
+**Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
+**Latest (I024, 2026-07-13):** VAX back; the §9 multi-front fight model BUILT + VERIFIED.
+**solo-seed174 (sorcerer) PASSES end-to-end; base-8 all still PASS = 9/9 vectors green.** The
+offline branch-hardening paid off -- only 2 more BRDESTRANGs surfaced at build (SCCONF `BNEQ DM_APPLY`
+now far past the grown plan parser; SWEEP_FALLEN `BGEQ SF_DONE`), both fixed by invert+BRW. Next gap
+vector: **seed225 (escape)** -> §7 RNG hazards (study notes below) + trap-fall relocation.
+
+**(resolved) prior BLOCKER (2026-07-13):** the VAX host `orac` was unreachable -- 100% ICMP loss + TCP timeout to
+orac:23 (host down/off-net, user away from home). `make vms-down/up` + retry did not help. Cannot
+build or verify until the VAX is back. **The §9 multi-front fight code is written but
+UNBUILT/UNVERIFIED, UNCOMMITTED in the working tree** (ENGINE.MAR / SCCONF.MAR / STATE.MAR). Last
+verified-green commit is `2ac0f08` (base-8 + seed174 8->55).
+
+**Offline hardening done while blocked (2026-07-13, still uncommitted):** desk-checked the whole §9
+diff against the reference + the vax-macro-32 branch-range rule. Fixed **1 assembly-breaking bug** --
+a dangling `BRB GU_F1` left after GANG_UP's fold-loop was replaced by an `IS_ENGAGED` call (undefined
+symbol) -- and hardened **4 out-of-range conditional branches** to invert+`BRW` (FIGHT_ROUND
+win/lose/tie dispatch `BLSS FR_LOSE` spanned the ~46-instr FR_WIN block; `FR_LOSE` FN==0 guard;
+EA_CASUALTY's three `EC_BLOCK` guards; SCCONF FIGHT-parser `BEQL FM_DONE`/`BLEQ FM_CLOSE`). Added
+`SWEEP_FALLEN` (spills a fallen member's carried treasure into the pickup, emits `itemsSpilled`
+before `fightWon`) so seed174 step 57 (`...,itemsSpilled,fightWon`) matches. A label-reference sweep
+of ENGINE.MAR is now clean. **Deferred/noted (unexercised by seed174, handle if a vector needs
+them):** §387 in-fight heavy-drop + win-reclaim; the wiped-path sweepFallen onto the tile;
+reconcileUnicorns (unicornDeparted); the Spectre-match `memberStr = casterMP` special case; the
+fold-focus assumption (always match 0 vs. "first non-Spectre match").
+
+**When the VAX returns:** `make vms-scave-build` (should assemble much closer to clean now); run
+`make vms-scave-conform VEC=solo-seed174-party1-7-sorcerer` (expect past step 57 -- watch for §387
+heavy-drop divergences in the FINAL CARRY/CONT block); confirm base-8 stays 8/8; then commit.
+
 **Current gate:** G7→engine-completion. **UNBLOCKED:** the reference side already minted 6 extra vectors (seed174 sorcerer, seed225 escape, seed257/1237/2355/2678 artifacts) that collectively exercise EVERY gap subsystem (TEST/reaction, all 8 artifacts, RNG hazards, multi-front fights, chest, unicorn, Eye). Finishing the engine port is now a **verifiable vector grind** against them. **Done so far:** §8 TEST/reaction ported (I023) -> seed174 8->55, base-8 still 8/8. **Next:** §9 multi-front fight model (seed174 step 55 `FIGHT 4+0>0`). Then §7 RNG hazards, §11 artifacts, §12 chest/scoring.
 
 **§9 study notes (reference combatPlan.ts resolvePlannedRound + previewPlan):**
@@ -58,6 +87,36 @@ first vector because every vector fails at move 1 until the reducer is built.
 | solo-seed7-party1-7 | 19 | **PASS** ✅ | fully conforms (I018 gang-up) |
 | solo-seed42-party3 | 31 | **PASS** ✅ | fully conforms (I020 Earthquake + I021 viper-pit crossing) |
 | solo-seed3-party0 | 61 | **PASS** ✅ | fully conforms (I015 EXITCAVE/D7/FU + I016 scoring) |
+
+## Study notes: §7 RNG hazards (prepared offline 2026-07-13, from reference hazards.ts applyHazards)
+
+Next grind target after seed174 is **seed225 (escape)** which needs Trap + the trap-fall relocation,
+plus reaction/unicornGuards/annihilated. `RESOLVE_HAZARDS` currently fires only Earthquake; add the
+rest **in the fixed order Earthquake, Medusa, Ghouls, Mutiny, Trap** (HAZ_ORDER already correct):
+
+- **Ward checks first (skip the effect, emit the ward event, NO hazardFired):** Ghouls + a living
+  Talisman(id 10) holder -> `ghoulsWarded`; Medusa + a living Wizard(8) holding the Magic Staff(9)
+  -> `medusaAverted`. (Both need artifact-holding checks -> may land with §11.)
+- **Earthquake** (done): collapse prev (prev!=partyArea) AF_DESTROYED + clear contents. No RNG.
+- **Medusa** (RNG: one d6 per living member): 1-2 -> stone (status 2, record stoneArea=partyArea),
+  spillCarried -> push to treasures + `itemsSpilled`; collect all rolls -> emit `medusaGaze`.
+- **Ghouls** (RNG: 2 dice per living member): first drop every member's heavy treasure to the floor
+  (treasures[]); then each living member fights Ghouls (enemy strength 2, no surprise): partyTotal =
+  frontStrength(m)+d6, enemyTotal = 2+d6, emit `combatRoll`; enemyTotal>partyTotal -> member dies
+  (unless ringInvincible -> `deathPrevented`) + eyeForsakenByDeath. After all: `sweepFallen(working)`.
+- **Mutiny** (no RNG): all allies (status 1) desert -- if there are 0 originals, all-but-one desert.
+  Each deserter -> pushed back to strangers[] (retestable) + their treasure dropped to treasures[];
+  remove from party; emit `mutinied` if any deserted.
+- **Trap** (no RNG): a living Dwarf (FLAG_GUIDES_PAST_TRAP, id 7) -> `trapAvoided`; else set fell=true.
+  `fell` -> the §6 trap-fall (SC-6-6, still a gap): park chamber behind, relocate party one level
+  DOWN (one-way, fellThroughTrap=true), emit `trapSprung`+`moved`, re-enter resolution at the lower
+  level SAME turn (may chain). This is a MOVE-handler change, not just RESOLVE_HAZARDS.
+- **After firing:** Medusa & Ghouls RE-PARK into the area contents as `300+hz` so they reload and
+  fire again on every re-entry; then clear the working hazard set. Earthquake lays a display-only scar.
+
+Event order per hazard is: [ward OR hazardFired] then its effect events. hazardFired is NOT emitted
+when a ward fires. Watch seed offsets: Medusa/Ghouls consume RNG, so a wrong petrify/fight count
+diverges the SEED on that line. §11/§12 (artifacts/chest) study still pending -- do when reached.
 
 ## New vectors requested (for the human / reference side)
 
@@ -301,6 +360,22 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 ## Iteration log
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
+
+- **I024 | 2026-07-13 | §9 | multi-front fight model + casualty queue + sweepFallen** — Generalized the
+  reduced 1-front FIGHT_ROUND to the full reference resolvePlannedRound. STATE: 2D plan (FN/BN/SN +
+  flattened FA/FB/FD[i*MPM+j], MPM=12) + casualty queue (CQN/CQ). SCCONF: full plan-grammar parser
+  (`front+front|backer>stranger+stranger`, ';'-separated) + casualtyChosen/itemsSpilled names.
+  ENGINE: FIGHT_ROUND now sums frontStrength over the front list + casterMP over backers, enemyStr
+  over strangers + gang-up attach + folded caster MP; win -> kill the STRONGEST foe (fs+MP) +
+  dragonKills (single-handed lone Dragon) + sorcererSlain; lose -> 0 deathPrevented / 1 memberDied /
+  >1 casualtyQueue. New helpers FRONT_STR/ENEMY_STR (fs+PK+MP / fs+MP) and IS_FRONT/IS_ENGAGED (2D
+  scans); GANG_UP + SPECTRE_CHECK refitted to the 2D plan. EA_CASUALTY(14): d6>=4 honours the pick,
+  else the other of the queued pair falls; queue drains -> FINALIZE_ROUND. FINALIZE_ROUND + SWEEP_FALLEN
+  (mode 0 -> pickup CT on a win, mode 1 -> tile AC 200+tid on a wipe), emitting itemsSpilled before
+  fightWon/gameOver. *Evidence:* solo-seed174 diverged step 55 -> now PASSES end-to-end (multi-front
+  `4+0>0`/`4+2>0`, CASUALTY, sorcererSlain, step-57 + step-66 itemsSpilled all bit-for-bit); **base-8
+  still 8/8 -> 9/9 vectors green.** Deferred (unexercised): §387 in-fight heavy-drop + win-reclaim,
+  reconcileUnicorns (unicornDeparted), Spectre-match memberStr=casterMP, fold-focus = first non-Spectre.
 
 - **I023 | 2026-07-12 | §8 | TEST/reaction layer ported into the engine** — Unblocked the
   engine-completion grind against the 6 existing reference vectors. Extended SCCONF to parse

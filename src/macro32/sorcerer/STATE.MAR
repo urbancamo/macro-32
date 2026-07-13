@@ -226,15 +226,25 @@ SCAVE_DECK_SI::		.LONG	0			; small-pack draw position
 ; ===========================================================
 ;
 	.ALIGN	LONG
-SCAVE_FIGHT_FA::	.BLKL	SCAVE$_CHAMBER_MAX	; party fighter slots (front)
-SCAVE_FIGHT_FD::	.BLKL	SCAVE$_CHAMBER_MAX	; defender (stranger) slots
-SCAVE_FIGHT_FB::	.BLKL	SCAVE$_CHAMBER_MAX	; background magic supporters
+	SCAVE$_MPM = 12				; max members per side of a match (front/backer/stranger)
+; Multi-front battle plan (SC-9.1).  Each of NF matches i holds three lists,
+; flattened as [i*MPM + j], with a per-match count:
+SCAVE_FIGHT_FN::	.BLKL	SCAVE$_CHAMBER_MAX	; front count per match
+SCAVE_FIGHT_BN::	.BLKL	SCAVE$_CHAMBER_MAX	; backer count per match
+SCAVE_FIGHT_SN::	.BLKL	SCAVE$_CHAMBER_MAX	; stranger count per match
+SCAVE_FIGHT_FA::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; front party slots
+SCAVE_FIGHT_FB::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; backer party slots (background magic)
+SCAVE_FIGHT_FD::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; stranger (defender) idxs
 SCAVE_FIGHT_ATTACH::	.BLKL	SCAVE$_CHAMBER_MAX	; gang-up: stranger idx attached to match i (-1 none)
 SCAVE_FIGHT_FOLD::	.LONG	0			; gang-up: leftover-caster MP folded onto the focus
 SCAVE_FIGHT_NF::	.LONG	0			; matches
 SCAVE_FIGHT_FS::	.LONG	0			; surprise (+1=us, -1=them, 0=neither)
 SCAVE_FIGHT_RD::	.LONG	1			; round number
 SCAVE_FIGHT_POTION::	.LONG	-1			; party slot using strength potion
+; Casualty queue (SC-9.2): a match lost with >1 mortal front -> the player picks
+; which of the pair falls.  CQ[k*2+0], CQ[k*2+1] = the two mortal front slots.
+SCAVE_FIGHT_CQN::	.LONG	0			; pending pairs
+SCAVE_FIGHT_CQ::	.BLKL	<SCAVE$_CHAMBER_MAX*2>
 
 ;
 ; ===========================================================

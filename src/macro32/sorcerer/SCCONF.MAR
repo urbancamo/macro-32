@@ -155,6 +155,8 @@ LIT_CAS:   .ASCII	/CASUALTY/
 LIT_USE:   .ASCII	/USE/
 LIT_CHEST: .ASCII	/OPENCHEST/
 
+	SCAVE$_MPM = 12				; max members per side of a match (match STATE.MAR)
+
 	.ALIGN	LONG
 V_ACT:	.LONG	0				; parsed action code
 V_A1:	.LONG	0				; parsed args
@@ -185,12 +187,15 @@ EV_D_REACT:   .ASCID	/reaction/
 EV_D_JOINED:  .ASCID	/strangersJoined/
 EV_D_PACIF:   .ASCID	/pacified/
 EV_D_UNIGRD:  .ASCID	/unicornGuards/
+EV_D_CASCH:   .ASCID	/casualtyChosen/
+EV_D_ITSPIL:  .ASCID	/itemsSpilled/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
 		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL, EV_D_RUBY, -
 		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP, -
-		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD
+		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD, EV_D_CASCH, -
+		EV_D_ITSPIL
 
 ;
 ; ===========================================================
@@ -548,31 +553,88 @@ DO_MOVE:
 	BRW	DM_APPLY
 	; USE (action 16) parsing is added with the artifact grind.
 66$:	CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
-	BNEQ	DM_APPLY
-	MOVL	#13, V_ACT
-	; Marshal the plan into FA[i]/FD[i] for i=0..NF-1: a ';'-separated list of
-	; 1v1 matches `<f>><s>`.  "FIGHT -" (no digits) -> NF=0 (forced-Spectre empty
-	; plan).  Multi-front '+' and backers '|' are still deferred.
+	BEQL	FM_BEGIN
+	BRW	DM_APPLY			; not FIGHT (DM_APPLY now far past the plan parser)
+FM_BEGIN: MOVL	#13, V_ACT
+	; Marshal the full plan grammar into FN/BN/SN + FA/FB/FD[i*MPM+j]:
+	;   <front>[+<front>][|<backer>[+..]]><stranger>[+<stranger>]  matches ';'-separated.
+	; "FIGHT -" (no digits) -> NF=0 (forced-Spectre empty plan).
 	MOVAB	INBUF+11, R6			; plan starts after "FIGHT "
 	MOVL	LINELEN, R7
 	SUBL2	#11, R7
-	CLRL	R8				; match index
-FM_L:	BSBW	PARSE_UINT			; front (R0), digit count R1
+	CLRL	R8				; match index i
+FM_L:	MULL3	#SCAVE$_MPM, R8, R9		; R9 = row base = i*MPM
+	; -- front list --
+	CLRL	R10
+FM_FR:	BSBW	PARSE_UINT			; front slot (R0), digits R1
 	TSTL	R1
-	BEQL	FM_DONE				; no (more) matches
-	MOVL	R0, SCAVE_FIGHT_FA[R8]		; FA[i] = front slot
-	INCL	R6				; skip the '>' separator
+	BNEQ	FM_F1
+	BRW	FM_DONE				; no digits here -> no (more) matches (far -> BRW)
+FM_F1:	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FA[R2]
+	INCL	R10
+	TSTL	R7
+	BGTR	FM_F2
+	BRW	FM_CLOSE			; front ran to end-of-line (far -> BRW)
+FM_F2:	CMPB	(R6), #^A/+/
+	BNEQ	FM_FRD
+	INCL	R6
 	DECL	R7
-	BSBW	PARSE_UINT			; stranger
-	MOVL	R0, SCAVE_FIGHT_FD[R8]		; FD[i] = stranger idx
-	INCL	R8
-	TSTL	R7				; another match after a ';'?
+	BRB	FM_FR
+FM_FRD:	MOVL	R10, SCAVE_FIGHT_FN[R8]
+	; -- optional backer list (after '|') --
+	CLRL	R10
+	TSTL	R7
+	BLEQ	FM_BND
+	CMPB	(R6), #^A/|/
+	BNEQ	FM_BND
+	INCL	R6
+	DECL	R7
+FM_BK:	BSBW	PARSE_UINT
+	TSTL	R1
+	BEQL	FM_BND
+	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FB[R2]
+	INCL	R10
+	TSTL	R7
+	BLEQ	FM_BND
+	CMPB	(R6), #^A/+/
+	BNEQ	FM_BND
+	INCL	R6
+	DECL	R7
+	BRB	FM_BK
+FM_BND:	MOVL	R10, SCAVE_FIGHT_BN[R8]
+	INCL	R6				; skip '>'
+	DECL	R7
+	; -- stranger list --
+	CLRL	R10
+FM_ST:	BSBW	PARSE_UINT
+	TSTL	R1
+	BEQL	FM_STD
+	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FD[R2]
+	INCL	R10
+	TSTL	R7
+	BLEQ	FM_STD
+	CMPB	(R6), #^A/+/
+	BNEQ	FM_STD
+	INCL	R6
+	DECL	R7
+	BRB	FM_ST
+FM_STD:	MOVL	R10, SCAVE_FIGHT_SN[R8]
+	INCL	R8				; match complete
+	TSTL	R7				; another match after ';'?
 	BLEQ	FM_DONE
 	CMPB	(R6), #^A/;/
 	BNEQ	FM_DONE
 	INCL	R6
 	DECL	R7
-	BRB	FM_L
+	BRW	FM_L
+FM_CLOSE:					; front ran to end-of-line (no '>' / strangers)
+	MOVL	R10, SCAVE_FIGHT_FN[R8]
+	CLRL	SCAVE_FIGHT_BN[R8]
+	CLRL	SCAVE_FIGHT_SN[R8]
+	INCL	R8
 FM_DONE: MOVL	R8, SCAVE_FIGHT_NF		; NF = number of matches
 	BRW	DM_APPLY
 DM_APPLY:

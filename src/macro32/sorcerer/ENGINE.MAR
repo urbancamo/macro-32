@@ -44,6 +44,8 @@
 	SCAVE$_ACT_TEST = 11
 	SCAVE$_ACT_ATTACK = 12
 	SCAVE$_ACT_FIGHT = 13
+	SCAVE$_ACT_CASUALTY = 14
+	SCAVE$_MPM = 12				; max members per side of a match (match STATE.MAR)
 
 	; creature-flag masks (file-local `=` in DATA.MAR/STATE.MAR; redeclare here)
 	SCAVE$M_CR_CHARISMA = ^X02		; +1 reaction (Hero / W-Hero)
@@ -88,8 +90,14 @@
 	SCAVE$_EV_STRANGERSJOINED = 21
 	SCAVE$_EV_PACIFIED = 22
 	SCAVE$_EV_UNICORNGUARDS = 23
+	SCAVE$_EV_CASUALTYCHOSEN = 24
+	SCAVE$_EV_ITEMSSPILLED = 25
+	SCAVE$_EV_CASUALTYCHOSEN = 24
+	SCAVE$_EV_ITEMSSPILLED = 25
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices
 	SCAVE$_CR_SPECTRE = 9			; creature indices
+	SCAVE$_CR_DRAGON = 10			; single-handed kill -> dragonKills++
+	SCAVE$_CR_SORCERER = 11			; felling him -> sorcererSlain + curse lift
 	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
@@ -194,8 +202,11 @@
 	BNEQ	5$
 	BRW	EA_ATTACK
 5$:	CMPL	R2, #SCAVE$_ACT_FIGHT
-	BNEQ	6$
+	BNEQ	51$
 	BRW	EA_FIGHT
+51$:	CMPL	R2, #SCAVE$_ACT_CASUALTY
+	BNEQ	6$
+	BRW	EA_CASUALTY
 6$:	CMPL	R2, #SCAVE$_ACT_EXITCAVE
 	BNEQ	7$
 	BRW	EA_EXITCAVE
@@ -583,26 +594,157 @@ EA_FIGHT:
 	BSBW	EMIT_EVENT
 	BRW	EA_DONE
 10$:	CALLS	#0, FIGHT_ROUND			; dice + kills + combatRoll/killed/died
+	TSTL	SCAVE_FIGHT_CQN			; a casualty is pending -> pause for CASUALTY
+	BEQL	14$
+	BRW	EA_DONE
+14$:	CALLS	#0, FINALIZE_ROUND
+	BRW	EA_DONE
+
+;
+; ---- CASUALTY (SC-4-26, chooseCasualty) ----
+;   Legal only in fight with a pending casualtyQueue; a1 = the party slot the
+;   player would sacrifice, which must be one of the queued mortal pair.  Rolls
+;   d6: 4-6 honours the pick, else the other of the pair falls.  Emits
+;   casualtyChosen + memberDied; when the queue drains, finalizes the round.
+;
+EA_CASUALTY:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT	; guards invert to keep EC_BLOCK (far) a BRW
+	BEQL	EC_G2
+	BRW	EC_BLOCK
+EC_G2:	TSTL	SCAVE_FIGHT_CQN
+	BNEQ	EC_G3
+	BRW	EC_BLOCK
+EC_G3:	MOVL	8(AP), R2			; chosen slot
+	MOVL	SCAVE_FIGHT_CQ, R3		; pair = CQ[0], CQ[1]
+	MOVL	SCAVE_FIGHT_CQ+4, R4
+	CMPL	R2, R3
+	BEQL	EC_PICK				; preferred = CQ[0], other = CQ[1]
+	CMPL	R2, R4
+	BEQL	EC_G4				; idx == CQ[1] -> valid, swap
+	BRW	EC_BLOCK			; not one of the pair
+EC_G4:	MOVL	R3, R5				; preferred = CQ[1]: swap so R3=pref, R4=other
+	MOVL	R4, R3
+	MOVL	R5, R4
+EC_PICK: CALLS	#0, G^ROLL_DIE			; d6
+	CMPL	R0, #4
+	BGEQ	EC_PREF				; 4-6 -> honour the pick
+	MOVL	R4, R5				; else the other falls
+	BRB	EC_KILL
+EC_PREF: MOVL	R3, R5
+EC_KILL: MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R5]
+	MOVL	#SCAVE$_EV_CASUALTYCHOSEN, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+	DECL	SCAVE_FIGHT_CQN			; shift the queue down one pair
+	CLRL	R2
+EC_SH:	CMPL	R2, SCAVE_FIGHT_CQN
+	BGEQ	EC_SHD
+	MULL3	#2, R2, R3
+	ADDL3	R3, #2, R4
+	MOVL	SCAVE_FIGHT_CQ[R4], SCAVE_FIGHT_CQ[R3]
+	ADDL3	R4, #1, R5
+	ADDL3	R3, #1, R6
+	MOVL	SCAVE_FIGHT_CQ[R5], SCAVE_FIGHT_CQ[R6]
+	INCL	R2
+	BRB	EC_SH
+EC_SHD:	TSTL	SCAVE_FIGHT_CQN			; queue drained -> finalize the round
+	BNEQ	EC_DONE
+	CALLS	#0, FINALIZE_ROUND
+EC_DONE: BRW	EA_DONE
+EC_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- FINALIZE_ROUND -- resolve a round's aftermath (reference finalizeRound) --
+;   party wiped -> gameOver(DEAD); all strangers cleared -> fightWon then
+;   pickup (floor treasure) or persistAndExplore; else keep fighting (PH FGT).
+;   (sweepFallen loot detail + reclaim of floor drops arrive with §9.5-11.)
+;
+	.ENTRY	FINALIZE_ROUND, ^M<R2,R3>
 	BSBW	COUNT_LIVING			; R0 = living party count
 	TSTL	R0
-	BNEQ	11$
+	BNEQ	FZ_11
+	; party wiped: the fallen spill their CARRIED items onto the tile (SC-9.5-11
+	; sweepFallen "contents"), emitted BEFORE gameOver.
+	PUSHL	#1
+	CALLS	#1, SWEEP_FALLEN
 	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS	; party wiped
 	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_GAMEOVER, R0
 	BSBW	EMIT_EVENT
-	BRW	EA_DONE
-11$:	TSTL	SCAVE_CHAMBER_NS
-	BEQL	12$
-	BRW	EA_DONE				; strangers remain -> keep fighting (PH FGT)
-12$:	MOVL	#SCAVE$_EV_FIGHTWON, R0		; all strangers cleared
+	RET
+FZ_11:	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	FZ_KEEP				; strangers remain -> keep fighting
+	; the party won: the fallen's CARRIED items spill into the post-win pickup
+	; (SC-9.5-11 sweepFallen "working"), emitted BEFORE fightWon.  (§387
+	; heavy-drop/reclaim is deferred -- unexercised so far.)
+	PUSHL	#0
+	CALLS	#1, SWEEP_FALLEN
+	MOVL	#SCAVE$_EV_FIGHTWON, R0		; all strangers cleared
 	BSBW	EMIT_EVENT
 	TSTL	SCAVE_CHAMBER_NT
-	BEQL	13$
+	BEQL	FZ_13
 	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
-	BRW	EA_DONE
-13$:	CALLS	#0, PERSIST_AREA
+	RET
+FZ_13:	CALLS	#0, PERSIST_AREA
 	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
-	BRW	EA_DONE
+	RET
+FZ_KEEP: MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ---- SWEEP_FALLEN(mode) -- spill dead members' carried items (SC-9.5-11) ----
+;   mode (4(AP)): 0 = into the post-win pickup set (CT); 1 = onto the tile as
+;   200+tid in the area contents (AC), for a wiped party.  For each status-DEAD
+;   member with carried (non-borne) treasure, move each tid to the destination,
+;   clear the PT row, and emit one itemsSpilled.  Borne tracking is deferred, so
+;   every carried item spills.
+;
+	.ENTRY	SWEEP_FALLEN, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	MOVL	4(AP), R8			; mode
+	CLRL	R2				; member slot
+SF_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	SF_GO
+	BRW	SF_DONE
+SF_GO:	CMPL	SCAVE_PARTY_PS[R2], #SCAVE$_PS_DEAD
+	BNEQ	SF_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; spilled count
+	CLRL	R6				; slot in row
+SF_SL:	ADDL3	R3, R6, R7
+	MOVL	(R4)[R7], R0			; tid or -1
+	BLSS	SF_SN				; empty slot
+	TSTL	R8
+	BNEQ	SF_TILE
+	MOVL	SCAVE_CHAMBER_NT, R1		; mode 0: append to the pickup set CT
+	MOVL	R0, SCAVE_CHAMBER_CT[R1]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	SF_INC
+SF_TILE: ADDL2	#200, R0			; mode 1: park on the tile as 200+tid
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R11	; AC row base (element index)
+	CLRL	R9				; slot j
+SF_AL:	CMPL	R9, #SCAVE$_AREA_ITEMS
+	BGEQ	SF_INC				; row full -> drop (edge, unexercised)
+	ADDL3	R11, R9, R10
+	TSTL	SCAVE_AREA_AC[R10]		; find the first empty (0) slot
+	BEQL	SF_APUT
+	INCL	R9
+	BRB	SF_AL
+SF_APUT: MOVL	R0, SCAVE_AREA_AC[R10]
+SF_INC:	MOVL	#-1, (R4)[R7]			; taken off the corpse
+	INCL	R5
+SF_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, SF_SL
+	TSTL	R5
+	BEQL	SF_MN
+	MOVL	#SCAVE$_EV_ITEMSSPILLED, R0
+	BSBW	EMIT_EVENT
+SF_MN:	INCL	R2
+	BRW	SF_ML
+SF_DONE: MOVL	#SS$_NORMAL, R0
+	RET
 
 ;
 ; ---- EMIT_EVENT (JSB) -- append event code R0 to SCAVE_EVQ ----
@@ -1112,51 +1254,68 @@ RC_DONE:
 
 	CALLS	#0, SPECTRE_CHECK		; SC-9.4: idle Spectre auto-slay (no RNG)
 	CALLS	#0, GANG_UP			; SC-9.1-10/11: leftover-foe attach + fold
+	CLRL	SCAVE_FIGHT_CQN			; fresh casualty queue this round
 
-	; rollBonus (R9) = (Ring?+1:0) - activeCurses.  Ring deferred; curses = 0
-	; once the Sorcerer is dead (SK), else NC.
-	CLRL	R9
+	; R10 = party die-add (rollBonus + surpriseP); R11 = enemy die-add (surpriseE).
+	; rollBonus = (Ring?+1:0) - activeCurses; Ring deferred, curses = 0 once the
+	; Sorcerer is dead (SK).  Surprise applies round 1 only.
+	CLRL	R10
 	TSTL	SCAVE_STATE_SK
 	BNEQ	1$
-	MNEGL	SCAVE_STATE_NC, R9
-1$:	CLRL	R10				; surpriseP
-	CLRL	R11				; surpriseE
-	CMPL	SCAVE_FIGHT_RD, #1		; surprise applies round 1 only
+	MNEGL	SCAVE_STATE_NC, R10
+1$:	CLRL	R11
+	CMPL	SCAVE_FIGHT_RD, #1
 	BNEQ	4$
 	CMPL	SCAVE_FIGHT_FS, #1
 	BNEQ	2$
-	MOVL	#1, R10
+	INCL	R10				; surpriseP
 	BRB	4$
 2$:	CMPL	SCAVE_FIGHT_FS, #-1
 	BNEQ	4$
-	MOVL	#1, R11
+	INCL	R11				; surpriseE
 4$:
 	CLRL	R2				; match index
 FR_L:	CMPL	R2, SCAVE_FIGHT_NF
-	BLSS	5$
+	BLSS	FR_M
 	BRW	FR_COMPACT
-5$:	MOVL	SCAVE_FIGHT_FA[R2], R3		; partyStr -> R6
-	MOVL	SCAVE_PARTY_PC[R3], R4
-	MOVAB	SCAVE_DATA_CR_FS, R5
-	MOVL	(R5)[R4], R6
-	ADDL2	SCAVE_PARTY_PK[R3], R6
-	MOVAB	SCAVE_DATA_CR_MP, R5
-	ADDL2	(R5)[R4], R6
-	MOVL	SCAVE_FIGHT_FD[R2], R3		; enemyStr -> R7
-	MOVL	SCAVE_CHAMBER_CS[R3], R4
-	MOVAB	SCAVE_DATA_CR_FS, R5
-	MOVL	(R5)[R4], R7
-	MOVAB	SCAVE_DATA_CR_MP, R5
-	ADDL2	(R5)[R4], R7
-	; gang-up: an attached leftover stranger adds its FS+MP to this match
-	MOVL	SCAVE_FIGHT_ATTACH[R2], R3
-	BLSS	6$
-	MOVL	SCAVE_CHAMBER_CS[R3], R4
-	MOVAB	SCAVE_DATA_CR_FS, R5
-	ADDL2	(R5)[R4], R7
-	MOVAB	SCAVE_DATA_CR_MP, R5
-	ADDL2	(R5)[R4], R7
-6$:	TSTL	R2				; the focus match (0) carries the folded magic
+FR_M:	MULL3	#SCAVE$_MPM, R2, R9		; R9 = row base = i*MPM
+
+	CLRL	R6				; partyStr = Sum frontStrength(front) + Sum casterMP(backers)
+	CLRL	R3
+FR_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
+	BGEQ	FR_FLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FA[R0], R0		; front party slot
+	BSBW	FRONT_STR			; R0 = fs+PK+MP
+	ADDL2	R0, R6
+	INCL	R3
+	BRB	FR_FL
+FR_FLD:	CLRL	R3
+FR_BL:	CMPL	R3, SCAVE_FIGHT_BN[R2]
+	BGEQ	FR_BLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FB[R0], R5		; backer party slot
+	MOVL	SCAVE_PARTY_PC[R5], R5		; cid
+	MOVAB	SCAVE_DATA_CR_MP, R0
+	ADDL2	(R0)[R5], R6			; + casterMP (base MP; staff deferred)
+	INCL	R3
+	BRB	FR_BL
+FR_BLD:
+	CLRL	R7				; enemyStr = Sum (fs+MP)(strangers) + attach + fold
+	CLRL	R3
+FR_SL:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	FR_SLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FD[R0], R0		; stranger idx
+	BSBW	ENEMY_STR			; R0 = fs+MP of CS[idx]
+	ADDL2	R0, R7
+	INCL	R3
+	BRB	FR_SL
+FR_SLD:	MOVL	SCAVE_FIGHT_ATTACH[R2], R0	; gang-up attached leftover foe
+	BLSS	FR_FOLD
+	BSBW	ENEMY_STR
+	ADDL2	R0, R7
+FR_FOLD: TSTL	R2				; focus match (0) carries the folded caster MP
 	BNEQ	FR_ROLL
 	ADDL2	SCAVE_FIGHT_FOLD, R7
 FR_ROLL:
@@ -1164,24 +1323,85 @@ FR_ROLL:
 	ADDL2	R0, R6
 	CALLS	#0, G^ROLL_DIE			; enemy die
 	ADDL2	R0, R7
-	ADDL2	R9, R6				; + rollBonus
-	ADDL2	R10, R6				; + surpriseP
-	ADDL2	R11, R7				; + surpriseE
+	ADDL2	R10, R6				; + party die-add
+	ADDL2	R11, R7				; + enemy die-add
 	MOVL	#SCAVE$_EV_COMBATROLL, R0
 	BSBW	EMIT_EVENT
 	CMPL	R6, R7
-	BGTR	FR_WIN
-	BLSS	FR_LOSE
-	BRB	FR_NEXT				; tie -> nobody dies
-FR_WIN:	MOVL	SCAVE_FIGHT_FD[R2], R3		; party wins -> stranger slain
-	MOVL	#SCAVE$_EV_STRANGERKILLED, R0
+	BGTR	FR_WIN				; party total higher -> win (near)
+	BEQL	FR_TIE				; equal -> nobody dies (near)
+	BRW	FR_LOSE				; party lower -> lose (far -> BRW)
+FR_TIE:	BRW	FR_NEXT
+
+FR_WIN:	; SC-9.5: the strongest foe in the match (by fs+MP) is slain.
+	MNEGL	#1, R4				; best stranger idx
+	MNEGL	#1, R5				; best weight
+	CLRL	R3
+FW_L:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	FW_ATT
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FD[R0], R6		; stranger idx (R6 free after the roll)
+	MOVL	R6, R0
+	BSBW	ENEMY_STR			; R0 = weight
+	CMPL	R0, R5
+	BLEQ	FW_N
+	MOVL	R0, R5
+	MOVL	R6, R4
+FW_N:	INCL	R3
+	BRB	FW_L
+FW_ATT:	MOVL	SCAVE_FIGHT_ATTACH[R2], R6	; the attached foe can be the strongest
+	BLSS	FW_KILL
+	MOVL	R6, R0
+	BSBW	ENEMY_STR
+	CMPL	R0, R5
+	BLEQ	FW_KILL
+	MOVL	R6, R4
+FW_KILL: MOVL	SCAVE_CHAMBER_CS[R4], R5		; sid = victim creature id
+	; dragonKills: a single-handed lone-Dragon match (SC-9.5-*)
+	CMPL	R5, #SCAVE$_CR_DRAGON
+	BNEQ	FW_NOD
+	CMPL	SCAVE_FIGHT_FN[R2], #1
+	BNEQ	FW_NOD
+	TSTL	SCAVE_FIGHT_BN[R2]
+	BNEQ	FW_NOD
+	CMPL	SCAVE_FIGHT_SN[R2], #1
+	BNEQ	FW_NOD
+	TSTL	SCAVE_FIGHT_ATTACH[R2]
+	BGEQ	FW_NOD				; attach present -> not single-handed
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; the lone front slot
+	INCL	SCAVE_PARTY_PK[R0]		; dragonKills++
+FW_NOD:	MOVL	#SCAVE$_EV_STRANGERKILLED, R0
 	BSBW	EMIT_EVENT
-	MNEGL	#1, SCAVE_CHAMBER_CS[R3]		; mark for removal
-	BRB	FR_NEXT
-FR_LOSE: MOVL	SCAVE_FIGHT_FA[R2], R3		; party loses -> front member dies
-	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R3]
+	CMPL	R5, #SCAVE$_CR_SORCERER		; felling the Sorcerer (SC-9.5, §12)
+	BNEQ	FW_NOS
+	MOVL	#1, SCAVE_STATE_SK
+	MOVL	#SCAVE$_EV_SORCERERSLAIN, R0
+	BSBW	EMIT_EVENT
+FW_NOS:	MNEGL	#1, SCAVE_CHAMBER_CS[R4]		; mark the slain foe for removal
+	BRW	FR_NEXT
+
+FR_LOSE: MOVL	SCAVE_FIGHT_FN[R2], R6		; mortal fronts (Ring deferred -> all mortal)
+	BGTR	FL_HASF				; FN>0 -> proceed
+	BRW	FR_NEXT				; no front (shouldn't) -> nobody (far -> BRW)
+FL_HASF: CMPL	R6, #1
+	BGTR	FL_QUEUE
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; exactly one front -> it dies now
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R0]
 	MOVL	#SCAVE$_EV_MEMBERDIED, R0
 	BSBW	EMIT_EVENT
+	BRW	FR_NEXT
+FL_QUEUE: ; SC-9.2: >1 mortal front -> queue the pair for chooseCasualty
+	MOVL	SCAVE_FIGHT_CQN, R3
+	MULL3	#2, R3, R4			; CQ write offset = k*2
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; first front
+	MOVL	R0, SCAVE_FIGHT_CQ[R4]
+	ADDL3	R9, #1, R0
+	MOVL	SCAVE_FIGHT_FA[R0], R0		; second front
+	ADDL3	R4, #1, R5
+	MOVL	R0, SCAVE_FIGHT_CQ[R5]
+	INCL	SCAVE_FIGHT_CQN
+	BRW	FR_NEXT
+
 FR_NEXT: INCL	R2
 	BRW	FR_L
 FR_COMPACT:					; drop slain strangers, keep order
@@ -1200,6 +1420,106 @@ CP_D:	MOVL	R3, SCAVE_CHAMBER_NS
 	INCL	SCAVE_FIGHT_RD			; round++
 	MOVL	#SS$_NORMAL, R0
 	RET
+
+;
+; ===========================================================
+;  FRONT_STR (JSB)  --  R0 in = party slot; R0 out = frontStrength = fs + dragonKills
+;    + casterMP (base MP; Sword/Potion bonuses come with the artifact grind).
+;  ENEMY_STR (JSB)  --  R0 in = stranger idx (into CS); R0 out = fs + MP of CS[idx].
+;    Both clobber only R0/R1 (they preserve R4/R5 across a push/pop).
+; ===========================================================
+;
+FRONT_STR:
+	PUSHL	R5
+	PUSHL	R4
+	MOVL	SCAVE_PARTY_PK[R0], R5		; dragonKills
+	MOVL	SCAVE_PARTY_PC[R0], R1		; cid
+	MOVAB	SCAVE_DATA_CR_FS, R4
+	ADDL2	(R4)[R1], R5			; + fs
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	ADDL2	(R4)[R1], R5			; + casterMP
+	MOVL	R5, R0
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+ENEMY_STR:
+	PUSHL	R5
+	PUSHL	R4
+	MOVL	SCAVE_CHAMBER_CS[R0], R1		; cid
+	MOVAB	SCAVE_DATA_CR_FS, R4
+	MOVL	(R4)[R1], R5
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	ADDL2	(R4)[R1], R5
+	MOVL	R5, R0
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  IS_FRONT (JSB)   -- R0 in = party slot;    R0 out = 1 if a front in any match.
+;  IS_ENGAGED (JSB) -- R0 in = stranger idx;  R0 out = 1 if a defender in any match.
+;    Both scan the 2D plan (FN/SN + FA/FD[i*MPM+j]); clobber R0/R1, preserve R2-R5.
+; ===========================================================
+;
+IS_FRONT:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R5				; target slot
+	CLRL	R2
+IF_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	IF_NO
+	MULL3	#SCAVE$_MPM, R2, R4
+	CLRL	R3
+IF_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
+	BGEQ	IF_MN
+	ADDL3	R4, R3, R0
+	CMPL	SCAVE_FIGHT_FA[R0], R5
+	BEQL	IF_YES
+	INCL	R3
+	BRB	IF_FL
+IF_MN:	INCL	R2
+	BRB	IF_ML
+IF_YES:	MOVL	#1, R0
+	BRB	IF_RET
+IF_NO:	CLRL	R0
+IF_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+IS_ENGAGED:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R5				; target stranger idx
+	CLRL	R2
+IE_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	IE_NO
+	MULL3	#SCAVE$_MPM, R2, R4
+	CLRL	R3
+IE_SL:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	IE_MN
+	ADDL3	R4, R3, R0
+	CMPL	SCAVE_FIGHT_FD[R0], R5
+	BEQL	IE_YES
+	INCL	R3
+	BRB	IE_SL
+IE_MN:	INCL	R2
+	BRB	IE_ML
+IE_YES:	MOVL	#1, R0
+	BRB	IE_RET
+IE_NO:	CLRL	R0
+IE_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
 
 ;
 ; ===========================================================
@@ -1350,13 +1670,11 @@ SK_F:	CMPL	R2, SCAVE_CHAMBER_NS
 	BRW	SK_RET				; no idle Spectre
 SK_F1:	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
 	BNEQ	SK_FN
-	CLRL	R3				; is CS[R2] engaged by a match?
-SK_E:	CMPL	R3, SCAVE_FIGHT_NF
-	BGEQ	SK_ENGAGE			; scanned all matches -> idle
-	CMPL	SCAVE_FIGHT_FD[R3], R2
-	BEQL	SK_FN				; engaged -> not idle
-	INCL	R3
-	BRB	SK_E
+	MOVL	R2, R0				; is this Spectre a defender in any match?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	SK_FN				; engaged -> not idle
+	BRB	SK_ENGAGE			; idle Spectre found
 SK_FN:	INCL	R2
 	BRB	SK_F
 
@@ -1441,14 +1759,11 @@ GU_FF:	CMPL	R2, SCAVE_PARTY_NP
 	BGEQ	GU_GANG				; none free -> gang up
 	CMPL	SCAVE_PARTY_PS[R2], #2
 	BGEQ	GU_FFN
-	CLRL	R3
-GU_FA:	CMPL	R3, SCAVE_FIGHT_NF
-	BLSS	GU_FA1
-	BRW	GU_RET				; R2 is not a front -> free fighter -> no gang-up
-GU_FA1:	CMPL	SCAVE_FIGHT_FA[R3], R2
-	BEQL	GU_FFN
-	INCL	R3
-	BRB	GU_FA
+	MOVL	R2, R0
+	BSBW	IS_FRONT			; is this living member a front?
+	TSTL	R0
+	BNEQ	GU_FFN
+	BRW	GU_RET				; a living non-front member -> free fighter, no gang-up
 GU_FFN:	INCL	R2
 	BRW	GU_FF
 
@@ -1469,13 +1784,10 @@ GU_SL:	CMPL	R3, SCAVE_CHAMBER_NS
 	MOVAB	SCAVE_DATA_CR_MP, R5
 	TSTL	(R5)[R4]
 	BNEQ	GU_SN				; caster -> folds, not an extra hand
-	CLRL	R10				; engaged in a match (FD)?
-GU_S1:	CMPL	R10, SCAVE_FIGHT_NF
-	BGEQ	GU_S2
-	CMPL	SCAVE_FIGHT_FD[R10], R3
-	BEQL	GU_SN
-	INCL	R10
-	BRB	GU_S1
+	MOVL	R3, R0				; engaged as a defender in a match?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	GU_SN
 GU_S2:	CLRL	R10				; already attached elsewhere?
 GU_S3:	CMPL	R10, SCAVE_FIGHT_NF
 	BGEQ	GU_S4
@@ -1509,14 +1821,11 @@ GU_FL:	CMPL	R3, SCAVE_CHAMBER_NS
 	MOVAB	SCAVE_DATA_CR_MP, R5
 	MOVL	(R5)[R4], R6
 	BLEQ	GU_FLN				; MP<=0 -> non-caster
-	CLRL	R10				; engaged?
-GU_F1:	CMPL	R10, SCAVE_FIGHT_NF
-	BGEQ	GU_F2
-	CMPL	SCAVE_FIGHT_FD[R10], R3
-	BEQL	GU_FLN
-	INCL	R10
-	BRB	GU_F1
-GU_F2:	ADDL2	R6, R7				; (attached casters can't happen -- only non-casters attach)
+	MOVL	R3, R0				; engaged as a defender?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	GU_FLN				; engaged -> not a background caster
+GU_F2:	ADDL2	R6, R7				; unengaged caster -> fold its MP onto the focus
 GU_FLN:	INCL	R3
 	BRB	GU_FL
 GU_FDONE: MOVL	R7, SCAVE_FIGHT_FOLD
