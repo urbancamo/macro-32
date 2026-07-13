@@ -772,8 +772,11 @@ EUD3:	CMPL	R6, #SCAVE$_TR_BALM
 	BNEQ	EUD4
 	BRW	EU_BALM
 EUD4:	CMPL	R6, #SCAVE$_TR_POTION
-	BNEQ	EU_BLK				; other artifacts wired next
+	BNEQ	EUD5
 	BRW	EU_POTION
+EUD5:	CMPL	R6, #SCAVE$_TR_STAFF
+	BNEQ	EU_BLK				; other artifacts wired next
+	BRW	EU_STAFF
 EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
 
 ;
@@ -829,6 +832,28 @@ EU_POK:	MOVL	R7, SCAVE_FIGHT_POTION		; this member drinks the potion (+2)
 	PUSHL	R6
 	PUSHL	R2
 	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Magic Staff (9): at rest or while looting, reanimate a stoned (status 2)
+;    member back to life (SC-11).  NOT consumed.  (Its combat +MP for a Priest/
+;    Wizard backer is possession-based, handled in the fight.)
+;
+EU_BLKS: BRW	EU_BLOCK			; trampoline for the Staff block
+EU_STAFF:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	ES_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BNEQ	EU_BLKS
+ES_OK:	TSTL	R7				; target required
+	BLSS	EU_BLKS
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKS
+	CMPL	SCAVE_PARTY_PS[R7], #2		; must be a stoned member (status 2)
+	BNEQ	EU_BLKS
+	CLRL	SCAVE_PARTY_PS[R7]		; reanimate to status ORIG (0); Staff not consumed
 	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
 	BSBW	EMIT_EVENT
 	BRW	EU_DONE
@@ -1864,6 +1889,44 @@ HSW_NO:	CLRL	R0
 
 ;
 ; ===========================================================
+;  HAS_FLUTE_PLAYER (CALLS)  --  R0 = 1 if a living Hero(0)/W-Hero(1)/Priest(4)/
+;    Man(5)/Woman(6)/Wizard(8) holds the Charmed Flute (id 12), else 0.
+;    (reference fluteLulls -- lulls Dragons and Vipers).
+; ===========================================================
+;
+	.ENTRY	HAS_FLUTE_PLAYER, ^M<R2>
+	CLRL	R2
+HFP_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	HFP_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	HFP_N
+	MOVL	SCAVE_PARTY_PC[R2], R0		; cid in {0,1,4,5,6,8}?
+	CMPL	R0, #0
+	BEQL	HFP_H
+	CMPL	R0, #1
+	BEQL	HFP_H
+	CMPL	R0, #4
+	BEQL	HFP_H
+	CMPL	R0, #5
+	BEQL	HFP_H
+	CMPL	R0, #6
+	BEQL	HFP_H
+	CMPL	R0, #8
+	BNEQ	HFP_N
+HFP_H:	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_FLUTE, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	HFP_YES
+HFP_N:	INCL	R2
+	BRB	HFP_L
+HFP_YES: MOVL	#1, R0
+	RET
+HFP_NO:	CLRL	R0
+	RET
+
+;
+; ===========================================================
 ;  PETRIFIED_CHECK  --  if EVERY party member is stone (status 2), emit
 ;    petrifiedOut (SC-4-13).  Called when no member is left able to act.
 ; ===========================================================
@@ -1894,9 +1957,8 @@ PC2_NO:	MOVL	#SS$_NORMAL, R0
 ; ===========================================================
 ;
 	.ENTRY	VIPER_CROSSING, ^M<R2,R3,R4,R5>
-	MOVL	#SCAVE$_TR_FLUTE, R1		; SC-11-31: the Charmed Flute lulls the vipers --
-	BSBW	PARTY_HOLDS			; the whole party crosses safely, no rolls
-	TSTL	R0
+	CALLS	#0, HAS_FLUTE_PLAYER		; SC-11-31: a living Flute PLAYER lulls the vipers --
+	TSTL	R0				; the whole party crosses safely, no rolls
 	BEQL	VC_ROLL
 	MOVL	#SCAVE$_EV_VIPERSLULLED, R0
 	BSBW	EMIT_EVENT
@@ -2220,12 +2282,9 @@ TT_NO:	RET
 	BSBW	PARTY_HOLDS			; take the Ruby with no fight, no RNG
 	TSTL	R0
 	BNEQ	SW_EYE
-	MOVL	SCAVE_PARTY_PC[R3], R4		; frontStrength = FS + PK + MP
-	MOVAB	SCAVE_DATA_CR_FS, R5
-	MOVL	(R5)[R4], R6
-	ADDL2	SCAVE_PARTY_PK[R3], R6
-	MOVAB	SCAVE_DATA_CR_MP, R5
-	ADDL2	(R5)[R4], R6
+	MOVL	R3, R0				; frontStrength(fighter): FS+PK+MP + Staff/Sword/Potion
+	BSBW	FRONT_STR			; (Eye-stills-statue handled above, so bonuses apply)
+	MOVL	R0, R6
 	CALLS	#0, G^ROLL_DIE			; fighter die (first)
 	ADDL2	R0, R6				; R6 = fighterTotal
 	CALLS	#0, G^ROLL_DIE			; statue die
@@ -2555,12 +2614,26 @@ FRONT_STR:
 	MOVAB	SCAVE_DATA_CR_FS, R4
 	ADDL2	(R4)[R3], R5			; + fs
 	MOVAB	SCAVE_DATA_CR_MP, R4
-	ADDL2	(R4)[R3], R5			; + casterMP (base MP; Staff boost deferred)
-	; Magic Sword bonus (SC-11-1), nullified while the party holds the Eye.
+	ADDL2	(R4)[R3], R5			; + casterMP base MP
+	; Magic Staff caster boost + Magic Sword bonus, both nullified by the Eye.
 	MOVL	#SCAVE$_TR_EYE, R1
 	BSBW	PARTY_HOLDS
 	TSTL	R0
-	BNEQ	FS_DONE				; Eye active -> no Sword bonus
+	BNEQ	FS_DONE				; Eye active -> no artifact bonuses
+	; -- Magic Staff (SC-11): Priest(4) +1, Wizard(8) +2 casterMP --
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_STAFF, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BEQL	FS_SWORD
+	CMPL	R3, #4
+	BNEQ	FS_STW
+	INCL	R5
+	BRB	FS_SWORD
+FS_STW:	CMPL	R3, #8
+	BNEQ	FS_SWORD
+	ADDL2	#2, R5
+FS_SWORD:
 	MOVL	R2, R0
 	MOVL	#SCAVE$_TR_SWORD, R1
 	BSBW	MEMBER_HOLDS			; does this member wield the Magic Sword?
