@@ -2064,7 +2064,7 @@ VC_D:	BSBW	COUNT_LIVING			; R0 = survivors
 ;  loop is a verified no-op here, but it is wired for correctness.
 ; ===========================================================
 ;
-	.ENTRY	DEEPPOOL_CROSSING, ^M<R2,R3,R4,R5,R6>
+	.ENTRY	DEEPPOOL_CROSSING, ^M<R2,R3,R4,R5,R6,R7,R8>
 	CLRL	R2				; look for a living Giant
 DP_GL:	CMPL	R2, SCAVE_PARTY_NP
 	BGEQ	DP_DROP
@@ -2092,6 +2092,11 @@ DP_SL:	ADDL3	R3, R6, R0
 	BLSS	DP_SN				; -1 empty
 	CMPL	R1, #SCAVE$_TR_HEAVY_MAX
 	BGTR	DP_SN				; light treasure stays with the member
+	MOVL	SCAVE_MAP_PP, R7		; record the id on the pool tile (area.dropped)
+	MULL3	#8, R7, R8			; pool DROP_PT row base = pool*8
+	ADDL2	SCAVE_AREA_DROP_N[R7], R8	; + current count -> next slot
+	MOVL	R1, SCAVE_AREA_DROP_PT[R8]
+	INCL	SCAVE_AREA_DROP_N[R7]
 	MOVL	#-1, (R4)[R0]			; heavy -> left in the pool
 	INCL	R5
 DP_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, DP_SL

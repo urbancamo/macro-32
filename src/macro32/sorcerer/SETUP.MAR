@@ -640,6 +640,7 @@ SP_LOOP:
 	CLRL	SCAVE_AREA_FU[R2]		; face-down until placed/entered
 	CLRL	SCAVE_AREA_MIR[R2]		; D8: no mirrored stairs yet
 	MNEGL	#1, SCAVE_AREA_SD[R2]		; D8: secret-door ordinal = none (-1)
+	CLRL	SCAVE_AREA_DROP_N[R2]		; no Deep-Pool drops yet
 	AOBLSS	#62, R2, 1$
 	CLRL	SCAVE_MAP_SDN			; D8: next secret-door ordinal
 	MOVL	#1, SCAVE_AREA_FU+4		; the Gateway (slot 1) is face up
