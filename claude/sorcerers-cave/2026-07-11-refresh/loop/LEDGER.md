@@ -361,6 +361,21 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I030 | 2026-07-13 | §7/§11 | Ghouls silent-death + heavy-drop + Magic Carpet** — Two seed2678
+  blockers. **Ghouls (§7):** a lost ghoul fight now kills the member SILENTLY (removed the spurious
+  memberDied -- the reference surfaces ghoul deaths only via sweepFallen -> itemsSpilled), and the
+  fight first drops every living member's heavy treasure (ids 0..2) to the pickup floor (compacting
+  the PT rows). Root cause found by dumping the reference step-48 combatRolls (5 members fight, 2 die
+  silently, 1 itemsSpilled). **Magic Carpet (4, SC-11-5..7):** EA_USE carpet path -- explore only,
+  dir N/E/S/W/DOWN or UP-above-level-1; CONSUME_ARTIFACT, emit artifactUsed+carpetUsed, CARPET_MOVE
+  teleports one step ignoring doors (reuse an existing tile face-up or draw+place with a mirrored
+  return stair), then re-resolve the landing via EA_RESOLVE. *Evidence:* solo-seed2678 step 48 ->
+  **step 75**; 10/10 prior vectors still PASS. *Next divergence (step 75):* a MOVE 6 (down) from area
+  13 -- the reference dead-ends (existing below-tile doesn't connect back, no draw) but my TRY_MOVE
+  connects/draws. Area 13's card is identical to the reference (76, has a stairDown), so it's a
+  down-move reverse-connection nuance to a pre-existing below-tile -- needs TRY_MOVE analysis, likely
+  interacting with the carpet-adjacent geometry. Then Flute(12, step 80) + Balm(6, step 85) remain.
+
 - **I029 | 2026-07-13 | §11 | Eye-stills-statue + USE dispatch + Lotus Dust** — Started the artifact
   grind against seed2678 (shortest artifact vector). **statuePowerless (SC-11-28):** taking the Lost
   Ruby while any living member holds the Eye stills the statue -- rubyTaken + statuePowerless, no

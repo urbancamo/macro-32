@@ -735,26 +735,62 @@ EA_USE:
 
 	CMPL	R6, #SCAVE$_TR_LOTUS
 	BEQL	EU_LOTUS
+	CMPL	R6, #SCAVE$_TR_CARPET
+	BEQL	EU_CARPET
 	BRW	EU_BLOCK			; other artifacts wired next
 EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
+
+;
+; -- Magic Carpet (4): explore only; teleport one step in a1's direction
+;    ignoring doors, draw + face-up the landing tile, then resolve it.  Valid
+;    dirs: N/E/S/W, DOWN, and UP only above level 1 (never out of the cave).
+;
+EU_CARPET:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EU_BLK
+	TSTL	R8				; a direction is required
+	BLEQ	EU_BLK
+	CMPL	R8, #4				; 1..4 always valid
+	BLEQ	EC_OK
+	CMPL	R8, #6				; DOWN valid
+	BEQL	EC_OK
+	CMPL	R8, #5				; UP only above level 1
+	BNEQ	EU_BLK
+	CMPL	SCAVE_MAP_PL, #1
+	BLEQ	EU_BLK
+EC_OK:	MOVL	R9, R2				; consume the Carpet from the bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_CARPETUSED, R0
+	BSBW	EMIT_EVENT
+	PUSHL	R8				; teleport
+	CALLS	#1, CARPET_MOVE
+	CLRL	SCAVE_STATE_FT			; carpet links both ways
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_RESOLVE			; resolve the landing tile (may draw a chamber)
 
 ;
 ; -- Lotus Dust (5): encounter/fight, target a stranger -> sleep it (no effect
 ;    on a Spectre; only weakens the Sorcerer).  When none remain awake, the
 ;    party may pass: fight cleared, pickup if treasure else explore.
 ;
+EU_BLK2: BRW	EU_BLOCK			; trampoline for the Lotus block
 EU_LOTUS:
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
 	BEQL	EL_OK
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
-	BNEQ	EU_BLK
+	BNEQ	EU_BLK2
 EL_OK:	TSTL	R7				; need a target
-	BLSS	EU_BLK
+	BLSS	EU_BLK2
 	CMPL	R7, SCAVE_CHAMBER_NS		; target in range?
-	BGEQU	EU_BLK
+	BGEQU	EU_BLK2
 	MOVL	SCAVE_CHAMBER_CS[R7], R2	; sid
 	CMPL	R2, #SCAVE$_CR_SPECTRE
-	BEQL	EU_BLK				; no effect on a Spectre
+	BEQL	EU_BLK2				; no effect on a Spectre
 	CMPL	R2, #SCAVE$_CR_SORCERER
 	BNEQ	EL_SLEEP
 	; Sorcerer: not slept, only weakened -- set lotusOnSorcerer, consume, done
@@ -852,6 +888,65 @@ CA_SH:	ADDL3	R4, R6, R0			; write element index
 	BRB	CA_SH
 CA_LAST: MOVL	#-1, (R5)[R0]			; last slot emptied
 CA_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  CARPET_MOVE(dir)  --  teleport the party one step in `dir`, ignoring doors
+;    (reference carpetMove).  Reuses an existing tile at the target coords (turned
+;    face up) or draws + places a new large-pack card there, mirroring a return
+;    stair (DOWN -> stair-up, UP -> stair-down).  Sets prev/PA/level; the caller
+;    resolves the landing tile.
+; ===========================================================
+;
+	.ALIGN	LONG
+CARPET_DELTA: .LONG 0, -100, 1, 100, -1, -10000, 10000	; coord delta indexed by dir 1..6
+
+	.ENTRY	CARPET_MOVE, ^M<R2,R3,R4,R5,R7,R9,R10>
+	MOVL	4(AP), R2			; dir
+	MOVL	SCAVE_MAP_PA, R7		; area we leave
+	MOVAB	CARPET_DELTA, R0
+	ADDL3	SCAVE_MAP_ML[R7], (R0)[R2], R10	; target coord = current + delta[dir]
+	DIVL3	#10000, R10, R9			; target level
+	MOVL	#1, R3				; find an existing area at those coords
+CM_F:	CMPL	R3, SCAVE_MAP_NM
+	BGTR	CM_DRAW
+	CMPL	SCAVE_MAP_ML[R3], R10
+	BEQL	CM_USE
+	INCL	R3
+	BRB	CM_F
+CM_DRAW:
+	MOVL	SCAVE_DECK_LI, R4		; draw a large card (fallback 31 if exhausted)
+	CMPL	R4, #60
+	BLSS	CM_PL
+	MOVL	#31, R5
+	BRB	CM_MIR
+CM_PL:	MOVL	SCAVE_DECK_LP[R4], R5
+	INCL	SCAVE_DECK_LI
+	MOVL	SCAVE_DATA_AREA_CARDS[R5], R5	; packed card value
+CM_MIR:	CLRL	R0				; mirrored-stair bit for the return link
+	CMPL	R2, #6				; DOWN -> landing gets a stair-UP (^X20)
+	BNEQ	CM_MU
+	MOVL	#^X20, R0
+	BRB	CM_MSET
+CM_MU:	CMPL	R2, #5				; UP -> landing gets a stair-DOWN (^X40)
+	BNEQ	CM_MSET
+	MOVL	#^X40, R0
+CM_MSET: BISL2	R0, R5				; mirror the return stair into the card
+	INCL	SCAVE_MAP_NM
+	MOVL	SCAVE_MAP_NM, R3
+	MOVL	R5, SCAVE_MAP_MP[R3]
+	MOVL	R10, SCAVE_MAP_ML[R3]
+	MOVL	R0, SCAVE_AREA_MIR[R3]		; record the mirrored (secret) stair bits
+	MOVL	#1, SCAVE_AREA_FU[R3]		; landed face up
+	BRB	CM_MOVE
+CM_USE:	MOVL	#1, SCAVE_AREA_FU[R3]		; existing tile turned face up
+CM_MOVE:
+	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2
+	MOVL	R7, SCAVE_MAP_PP
+	MOVL	R3, SCAVE_MAP_PA
+	MOVL	R9, SCAVE_MAP_PL
+	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
@@ -1215,7 +1310,46 @@ RH_DONE:
 ;    carried items into the pickup (sweepFallen).  (Heavy-drop-to-floor deferred.)
 ; ===========================================================
 ;
-	.ENTRY	GHOULS_FIGHT, ^M<R2,R3,R4>
+	.ENTRY	GHOULS_FIGHT, ^M<R2,R3,R4,R5,R6,R7>
+	; The attack forces everyone to drop heavy treasure (ids 0..2) to fight; it
+	; lands on the chamber floor (the pickup set CT), reclaimable at turn end.
+	CLRL	R2
+GHD_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GHD_D
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living/ally only
+	BGEQ	GHD_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; read slot
+	CLRL	R6				; write slot (compacting)
+GHD_SL:	CMPL	R5, #SCAVE$_TREAS_PER
+	BGEQ	GHD_PAD
+	ADDL3	R3, R5, R0
+	MOVL	(R4)[R0], R1			; tid or -1
+	BLSS	GHD_SN				; empty
+	CMPL	R1, #SCAVE$_TR_HEAVY_MAX
+	BGTR	GHD_KEEP			; not heavy -> keep
+	MOVL	SCAVE_CHAMBER_NT, R7		; heavy -> to the pickup floor CT
+	MOVL	R1, SCAVE_CHAMBER_CT[R7]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	GHD_SN
+GHD_KEEP: ADDL3	R3, R6, R0			; keep at the compact position
+	MOVL	R1, (R4)[R0]
+	INCL	R6
+GHD_SN:	INCL	R5
+	BRB	GHD_SL
+GHD_PAD: CMPL	R6, #SCAVE$_TREAS_PER		; pad the tail with -1
+	BGEQ	GHD_MN
+	ADDL3	R3, R6, R0
+	MOVL	#-1, (R4)[R0]
+	INCL	R6
+	BRB	GHD_PAD
+GHD_MN:	INCL	R2
+	BRB	GHD_ML
+GHD_D:
+	; each living member fights the Ghouls (strength 2, no surprise).  A loss
+	; kills the member SILENTLY (no memberDied -- deaths surface via sweepFallen
+	; -> itemsSpilled).  Ring-invincibility (deathPrevented) is deferred.
 	CLRL	R2
 GF_L:	CMPL	R2, SCAVE_PARTY_NP
 	BGEQ	GF_SWEEP
@@ -1233,13 +1367,11 @@ GF_L:	CMPL	R2, SCAVE_PARTY_NP
 	BSBW	EMIT_EVENT
 	CMPL	R4, R3
 	BLEQ	GF_N				; enemy <= party -> survives (ties survive)
-	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
-	MOVL	#SCAVE$_EV_MEMBERDIED, R0
-	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]	; ghoul-slain (silent)
 GF_N:	INCL	R2
 	BRB	GF_L
 GF_SWEEP:
-	PUSHL	#0				; ghoul-slain spill carried items into the pickup
+	PUSHL	#0				; the slain spill carried items into the pickup
 	CALLS	#1, SWEEP_FALLEN
 	MOVL	#SS$_NORMAL, R0
 	RET
