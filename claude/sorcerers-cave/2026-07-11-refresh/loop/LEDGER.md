@@ -3,8 +3,20 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `DONE`  (parity) -- Tier-2 gap-closing continues
-**Latest (I035, 2026-07-13):** Post-parity Tier-2 gap-closing via a seed sweep that minted 5 new
+**Status:** `DONE`  -- parity + all swept gap vectors green (19/19)
+**Latest (I036, 2026-07-13):** **ALL 19 VECTORS PASS BIT-FOR-BIT** (14 parity + 5 Tier-2 gap:
+chest2, ring, reclaim, medusaavert, petrified). Cleared the last two combat-strength cases: seed330
+(Wizard vs Spectre -- a caster fights a Spectre with casterMP not frontStrength; gang-up skips
+Spectre matches for attach and folds only into the first non-Spectre match) and seed148 (a Wizard
+front under the Eye -- FRONT_STR's MP now routes through the Eye-gated CASTER_MP, so magic is
+powerless under the Eye). New helpers MATCH_HAS_SPECTRE / CASTER_MP; new SCAVE_FIGHT_FOCUS. This
+closed, WITH verifying vectors, every Tier-2 gap I'd listed except the four player actions
+(RETAKE/GIVE/DROP/BORNE, still no-ops) and the borne model -- those need a policy that emits them
+(the sweep policy never does). **Reference-side note:** the 5 gap vectors + the RUNS addition are
+UNCOMMITTED in the reference repo (/Users/msw/code/retro/sorcerers-cave, main) -- on disk, read by
+the Makefile, but not committed there.
+
+**(archived) Latest (I035, 2026-07-13):** Post-parity Tier-2 gap-closing via a seed sweep that minted 5 new
 reference vectors (uncommitted in the reference repo, on disk under docs/specs/conformance/): chest2,
 ring, reclaim, medusaavert, petrified. **17/19 now pass** (14 parity + petrifiedOut + chest2 + ring).
 Closed this pass: **Deep-Pool Giant reclaim** (GIANT_CAN_RECOVER weight check + RECLAIM_POOL ->
