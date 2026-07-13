@@ -361,6 +361,18 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I027 | 2026-07-13 | §8/§11 | Eye annihilation + pacified walk-through + pacified attack** —
+  Three seed225 blockers. **Eye of God (id 13):** ANNIHILATE_EYE (after drewChamber) removes Spectres
+  from the drawn strangers when any living member holds the Eye, emitting `annihilated` (SC-11-35);
+  generalized HAS_RING -> PARTY_HOLDS(tid). **Pacified re-entry (SC-8.4-4):** EA_PHASE now checks
+  AF_PERMINDIFF first -> park guards+treasure and stay explore (walk through), so a guarded area
+  reads EXP not ENC on revisit. **Pacified attack (SC-4-22 / D22):** EA_ATTACK from explore on a
+  pacified area with a parked stranger un-parks guards+treasure (REVISIT) and starts a fight,
+  surprise 0. *Evidence:* solo-seed225 step 96 -> **all 150 move-lines now PASS**; only the FINAL
+  block diverges (one Gold on the Hero vs the Troll -- a pickup floor-order / TAKE bookkeeping bug).
+  9/9 prior vectors still PASS. (Also renamed the `9$` attack local label -> EA_ATT_ENC after
+  inserting named labels split its scope.)
+
 - **I026 | 2026-07-13 | §5 | D2: splice party picks out of the small pack (SC-5-5)** — Closed the
   long-deferred D2 gap. ENG_NEWGAME, after INIT_DECKS, removes the first `100+id` for each pick from
   the shuffled `SCAVE_DECK_SP` (compacting, tracking the live size `SCAVE_DECK_SN`); DRAW_CHAMBER's

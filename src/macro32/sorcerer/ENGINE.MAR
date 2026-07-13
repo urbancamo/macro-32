@@ -100,6 +100,7 @@
 	SCAVE$_EV_MEDUSAAVERTED = 31
 	SCAVE$_EV_PETRIFIEDOUT = 32
 	SCAVE$_EV_DEATHPREVENTED = 33
+	SCAVE$_EV_ANNIHILATED = 34
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -114,6 +115,7 @@
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
 	SCAVE$_TR_RING = 10			; The Ring (+1 party die in combat, SC-11-24)
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
+	SCAVE$_TR_EYE = 13			; Eye of God (annihilates Spectres on entry, SC-11-35)
 	SCAVE$_TR_HEAVY_MAX = 2			; heavy treasure ids 0..2 (Silver, Gold, Gems)
 
 	; Area special types (card bits 7-9); the "stop at edge" specials.
@@ -364,6 +366,7 @@ EA_CH1:	TSTL	SCAVE_MAP_MV[R2]
 	MOVL	#1, R3				; fresh = 1
 8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
+	CALLS	#0, ANNIHILATE_EYE		; SC-11-35: the Eye destroys Spectres on sight
 	CALLS	#0, RESOLVE_HAZARDS		; on-draw hazards (SC-7.2)
 
 	; A hazard (Medusa / Ghouls) may leave no one able to act -> the run ends.
@@ -393,6 +396,15 @@ EA_HZ_OK:
 	BRW	EA_RESOLVE			; re-resolve the area below
 
 EA_PHASE:
+	; Permanently indifferent to this party (SC-8.4-4): walk freely through --
+	; park the guards + treasure back and stay in explore.
+	MOVL	SCAVE_MAP_PA, R2
+	BITL	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	BEQL	EA_PH_STR
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+EA_PH_STR:
 	; phase: strangers -> encounter; else treasure -> pickup; else explore
 	TSTL	SCAVE_CHAMBER_NS
 	BEQL	5$
@@ -502,11 +514,41 @@ EA_WITHDRAW:
 ;
 EA_ATTACK:
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
-	BEQL	9$
+	BEQL	EA_ATT_ENC
+	; SC-4-22: attacking the parked guards of a pacified chamber from explore --
+	; un-park guards+treasure and fight, no surprise (the chamber was visited).
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EA_ATT_BLK
+	MOVL	SCAVE_MAP_PA, R2
+	BITL	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	BEQL	EA_ATT_BLK
+	MULL3	#SCAVE$_AREA_ITEMS, R2, R3	; scan AC for a parked stranger (100..199)
+	MOVAB	SCAVE_AREA_AC, R4
+	CLRL	R5
+EA_AS:	CMPL	R5, #SCAVE$_AREA_ITEMS
+	BGEQ	EA_ATT_BLK			; no guard parked -> blocked
+	ADDL3	R3, R5, R0
+	MOVL	(R4)[R0], R1
+	CMPL	R1, #100
+	BLSS	EA_ASN
+	CMPL	R1, #200
+	BLSS	EA_AS_GO			; 100..199 -> a stranger is parked
+EA_ASN:	INCL	R5
+	BRB	EA_AS
+EA_AS_GO:
+	CALLS	#0, REVISIT_CHAMBER		; load parked guards+treasure into CS/CT
+	CLRL	SCAVE_FIGHT_FS			; surprise 0
+	MOVL	#1, SCAVE_FIGHT_RD
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_ATT_BLK:
 	MOVL	#SCAVE$_EV_BLOCKED, R0
 	BSBW	EMIT_EVENT
 	BRW	EA_DONE
-9$:	MOVL	SCAVE_STATE_SR, SCAVE_FIGHT_FS	; surprise (+1 fresh, else 0)
+EA_ATT_ENC: MOVL SCAVE_STATE_SR, SCAVE_FIGHT_FS	; surprise (+1 fresh, else 0)
 	MOVL	#1, SCAVE_FIGHT_RD		; round 1
 	CLRL	SCAVE_STATE_SR			; surprise now baked into the fight
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
@@ -1460,7 +1502,8 @@ RC_DONE:
 	TSTL	SCAVE_STATE_SK
 	BNEQ	1$
 	MNEGL	SCAVE_STATE_NC, R10
-1$:	BSBW	HAS_RING			; SC-11-24: The Ring adds +1 to the party die
+1$:	MOVL	#SCAVE$_TR_RING, R1		; SC-11-24: The Ring adds +1 to the party die
+	BSBW	PARTY_HOLDS
 	ADDL2	R0, R10
 	CLRL	R11
 	CMPL	SCAVE_FIGHT_RD, #1
@@ -1657,38 +1700,67 @@ ENEMY_STR:
 
 ;
 ; ===========================================================
-;  HAS_RING (JSB)  --  R0 = 1 if any living member holds The Ring (id 10),
-;    else 0.  (Eye-of-God nullification is deferred.)  Clobbers R0/R1, preserves
-;    R2-R5 across a push/pop.
+;  PARTY_HOLDS (JSB)  --  R1 = treasure id; R0 = 1 if any living member holds
+;    it, else 0.  Clobbers R0, preserves R1-R5.  (eyeActive = PARTY_HOLDS(13);
+;    Ring = PARTY_HOLDS(10).)
 ; ===========================================================
 ;
-HAS_RING:
+PARTY_HOLDS:
 	PUSHL	R5
 	PUSHL	R4
 	PUSHL	R3
 	PUSHL	R2
 	CLRL	R2				; member slot
-HR_ML:	CMPL	R2, SCAVE_PARTY_NP
-	BGEQ	HR_NO
+PTH_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	PTH_NO
 	CMPL	SCAVE_PARTY_PS[R2], #2		; alive (0/1) only
-	BGEQ	HR_MN
+	BGEQ	PTH_MN
 	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
 	MOVAB	SCAVE_PARTY_PT, R4
 	CLRL	R5
-HR_SL:	ADDL3	R3, R5, R0
-	CMPL	(R4)[R0], #SCAVE$_TR_RING
-	BEQL	HR_YES
-	AOBLSS	#SCAVE$_TREAS_PER, R5, HR_SL
-HR_MN:	INCL	R2
-	BRB	HR_ML
-HR_NO:	CLRL	R0
-	BRB	HR_RET
-HR_YES:	MOVL	#1, R0
-HR_RET:	MOVL	(SP)+, R2
+PTH_SL:	ADDL3	R3, R5, R0
+	CMPL	(R4)[R0], R1
+	BEQL	PTH_YES
+	AOBLSS	#SCAVE$_TREAS_PER, R5, PTH_SL
+PTH_MN:	INCL	R2
+	BRB	PTH_ML
+PTH_NO:	CLRL	R0
+	BRB	PTH_RET
+PTH_YES: MOVL	#1, R0
+PTH_RET: MOVL	(SP)+, R2
 	MOVL	(SP)+, R3
 	MOVL	(SP)+, R4
 	MOVL	(SP)+, R5
 	RSB
+
+;
+; ===========================================================
+;  ANNIHILATE_EYE  --  SC-11-35: while the party holds the Eye of God (id 13),
+;    every Spectre (id 9) is destroyed on sight.  Removes Spectres from the
+;    drawn stranger set (CS), emitting annihilated per Spectre.
+; ===========================================================
+;
+	.ENTRY	ANNIHILATE_EYE, ^M<R2,R3>
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	AE_RET				; no Eye -> nothing
+	CLRL	R2				; read index
+	CLRL	R3				; write index
+AE_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	AE_D
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	AE_KEEP
+	MOVL	#SCAVE$_EV_ANNIHILATED, R0	; drop the Spectre, emit annihilated
+	BSBW	EMIT_EVENT
+	BRB	AE_N
+AE_KEEP: MOVL	SCAVE_CHAMBER_CS[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+AE_N:	INCL	R2
+	BRB	AE_L
+AE_D:	MOVL	R3, SCAVE_CHAMBER_NS		; compacted count
+AE_RET:	MOVL	#SS$_NORMAL, R0
+	RET
 
 ;
 ; ===========================================================
