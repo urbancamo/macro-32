@@ -76,7 +76,7 @@
 ;
 ; -- container sizes --
 ;
-	SCAVE$_AREA_COUNT  = 61			; 61 area cards in the large pack
+	SCAVE$_AREA_COUNT  = 62			; 61 area cards, indexed 1-based (1..61) -> need 62 slots
 	SCAVE$_SMALL_COUNT = 71			; small-pack card count (SC-3-13); sizes SCAVE_DECK_SP
 	SCAVE$_PARTY_MAX   = 12			; max creatures in party
 	SCAVE$_TREAS_PER   = 20			; per-creature treasure backing

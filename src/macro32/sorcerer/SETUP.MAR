@@ -628,7 +628,7 @@ SP_LOOP:
 ;
 	.ENTRY	INIT_MAP, ^M<R2,R3>
 
-	; Zero MP, ML, MS, MV, AF, AI (61 longwords each).
+	; Zero MP, ML, MS, MV, AF, AI (62 longwords each: 1-based areas 1..61).
 	CLRL	R2
 1$:
 	CLRL	SCAVE_MAP_MP[R2]
@@ -640,7 +640,7 @@ SP_LOOP:
 	CLRL	SCAVE_AREA_FU[R2]		; face-down until placed/entered
 	CLRL	SCAVE_AREA_MIR[R2]		; D8: no mirrored stairs yet
 	MNEGL	#1, SCAVE_AREA_SD[R2]		; D8: secret-door ordinal = none (-1)
-	AOBLSS	#61, R2, 1$
+	AOBLSS	#62, R2, 1$
 	CLRL	SCAVE_MAP_SDN			; D8: next secret-door ordinal
 	MOVL	#1, SCAVE_AREA_FU+4		; the Gateway (slot 1) is face up
 
