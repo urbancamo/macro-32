@@ -94,7 +94,9 @@
 						; each module redeclares it to 20.
 	SCAVE$_AREA_ITEMS  = 8			; max persistent items per area
 						; (creatures + leftover treasure)
-	SCAVE$_CHAMBER_MAX = 8			; max strangers / treasure per chamber
+	SCAVE$_CHAMBER_MAX = 32			; buffer headroom for the floor set (reference is unbounded);
+						; the drawn small pack is still capped at 8 (DRAW_CHAMBER),
+						; but spills/drops/parked treasure can accumulate past 8
 	SCAVE$_HAZARD_MAX  = 4			; max hazards per chamber draw
 
 
