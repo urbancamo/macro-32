@@ -3304,6 +3304,10 @@ SK_FN:	INCL	R2
 
 	; -- idle Spectre present: can any living member engage it? --
 SK_ENGAGE:
+	MOVL	#SCAVE$_TR_EYE, R1		; the Eye nullifies ALL magic + the Sword ->
+	BSBW	PARTY_HOLDS			; no one can engage the Spectre -> it slays
+	TSTL	R0
+	BNEQ	SK_SLAY
 	CLRL	R2
 SK_CE:	CMPL	R2, SCAVE_PARTY_NP
 	BGEQ	SK_SLAY				; nobody can engage -> slay
@@ -3314,8 +3318,15 @@ SK_CE:	CMPL	R2, SCAVE_PARTY_NP
 	TSTL	(R4)[R3]
 	BEQL	SK_SWCHK
 	BRW	SK_RET				; a caster engages -> no slay
-SK_SWCHK:
-	MULL3	#SCAVE$_TREAS_PER, R2, R5	; else look for a Magic Sword
+SK_SWCHK:					; the Sword engages a Spectre only for
+	MOVL	SCAVE_PARTY_PC[R2], R3		; Hero(0)/W-Hero(1)/Man(5)/Woman(6)
+	CMPL	R3, #1
+	BLEQ	SK_SW0
+	CMPL	R3, #5
+	BLSS	SK_CEN
+	CMPL	R3, #6
+	BGTR	SK_CEN
+SK_SW0:	MULL3	#SCAVE$_TREAS_PER, R2, R5	; look for a Magic Sword on this member
 	MOVAB	SCAVE_PARTY_PT, R6
 	CLRL	R3
 SK_SW:	CMPL	R3, #SCAVE$_TREAS_PER
