@@ -1,0 +1,904 @@
+	.TITLE	HELP	Interactive manual / help browser for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; HELP.MAR
+;
+;   An in-game interactive manual, reachable from the title screen and
+;   from the [?] key during play.  It presents a reverse-highlighted
+;   topic index (Up/Down arrows + single-letter shortcuts); selecting a
+;   topic either pages through prose loaded from a text file, or renders
+;   a live data screen built from the game's own tables.
+;
+;   Topics:
+;     [H] How to Play         -- prose, from the help file
+;     [C] Character Chart     -- LIVE, from CR_LETTER/TR_LETTER + names
+;     [T] Creature Attributes -- LIVE, from the DATA.MAR stat tables
+;     [A] Artifact Glossary   -- prose, from the help file
+;     [M] Complete Manual     -- prose (full rules), from the help file
+;
+;   The prose file SCAVEHLP.TXT is generated at build time by
+;   tools/gen_help.py from markdown under help/.  It is a flat, ASCII,
+;   pre-wrapped text file with a trivial grammar: a line beginning
+;   "*TOPIC|<title>|<key>" starts a topic; every other line is body text
+;   for the current topic.  We load it once into memory, recording the
+;   body-line range of each topic, and page from memory thereafter.  If
+;   the file is missing the live topics still work; only the prose
+;   topics report themselves unavailable.
+;
+;   The file topics are emitted by gen_help.py in this fixed order:
+;     0 = How to Play, 1 = Artifact Glossary, 2 = Complete Manual.
+;   The index table below references those positions (IDX_FTOPIC); keep
+;   the two in step if gen_help.py's TOPICS list is reordered.
+;--
+
+	$SMGDEF
+	$SSDEF
+	$DSCDEF
+	$FABDEF
+	$RABDEF
+	$RMSDEF
+
+;
+; UI helpers (UI.MAR) and SMG.
+;
+	.EXTRN	INIT_DISPLAY
+	.EXTRN	ERASE_MAIN
+	.EXTRN	READ_KEY
+	.EXTRN	PAINT_CENTERED
+	.EXTRN	BEGIN_BATCH
+	.EXTRN	END_BATCH
+	.EXTRN	SMG$PUT_CHARS
+	.EXTRN	SYS$FAO
+
+;
+; Shared state (STATE.MAR).
+;
+	.EXTRN	SCAVE_UI_DSP_MAP
+
+;
+; Static game data (DATA.MAR) and the mnemonic tables (VIEW.MAR).
+;
+	.EXTRN	SCAVE_DATA_CR_FS
+	.EXTRN	SCAVE_DATA_CR_MP
+	.EXTRN	SCAVE_DATA_CR_CARRY
+	.EXTRN	SCAVE_DATA_CR_SEL
+	.EXTRN	SCAVE_DATA_CR_PTS
+	.EXTRN	SCAVE_DATA_CR_NAME_PTR
+	.EXTRN	SCAVE_DATA_TR_NAME_PTR
+	.EXTRN	CR_LETTER
+	.EXTRN	TR_LETTER
+
+;
+; -- sizing constants --
+;
+	HELP$_MAXLINES = 1400			; max body lines held in memory
+	HELP$_MAXTOP   = 16			; max topics in the file
+	HELP$_BUFSIZE  = 65536			; text backing store
+	HELP$_NIDX     = 5			; index entries (file + live)
+	HELP$_CRE_COUNT = 14			; creatures in the attribute table
+	HELP$_TRE_COUNT = 15			; treasures in the chart
+
+;
+; -- screen geometry (1-based rows inside the main display) --
+;
+	HELP$_BODY_TOP   = 4			; first body row of the pager
+	HELP$_PAGE_ROWS  = 16			; body rows visible at once
+	HELP$_FOOT_ROW   = 21			; footer row
+	HELP$_ENTRY_TOP  = 6			; first index-entry row
+
+
+	.PSECT	SCAVE_HELP_DATA, NOEXE, WRT, LONG
+
+;
+; ===========================================================
+;  RMS control blocks for reading SCAVEHLP.TXT.  Must be
+;  longword-aligned (the assembler warns otherwise).
+; ===========================================================
+;
+	.ALIGN	LONG
+HELP_FAB:	$FAB	FNM=<SCAVEHLP.TXT>, -
+			FAC=GET, -
+			SHR=<GET>
+
+	.ALIGN	LONG
+HELP_RAB:	$RAB	FAB=HELP_FAB, -
+			RAC=SEQ, -
+			UBF=GET_BUF, -
+			USZ=512
+
+	.ALIGN	LONG
+GET_BUF:	.BLKB	512			; one record read by $GET
+
+;
+; ===========================================================
+;  In-memory help text + line / topic index.
+; ===========================================================
+;
+	.ALIGN	LONG
+TEXT_BUF:	.BLKB	HELP$_BUFSIZE		; all body-line bytes, packed
+	.ALIGN	LONG
+LINE_OFF:	.BLKL	HELP$_MAXLINES		; byte offset of each line in TEXT_BUF
+LINE_LEN:	.BLKL	HELP$_MAXLINES		; length of each line
+	.ALIGN	LONG
+TOP_FIRST:	.BLKL	HELP$_MAXTOP		; first body-line index per topic
+TOP_COUNT:	.BLKL	HELP$_MAXTOP		; body-line count per topic
+
+	.ALIGN	LONG
+HELP_LOADED:	.LONG	0			; 0 = not tried, 1 = load attempted
+HELP_NLINES:	.LONG	0
+HELP_NTOPICS:	.LONG	0
+HELP_WPTR:	.LONG	0			; write cursor into TEXT_BUF
+HELP_SEL:	.LONG	0			; highlighted index entry
+
+;
+; -- pager working state --
+;
+	.ALIGN	LONG
+PG_TOPIC:	.LONG	0
+PG_TITLE:	.LONG	0			; descriptor address for the header
+PG_FIRST:	.LONG	0
+PG_COUNT:	.LONG	0
+PG_TOP:		.LONG	0			; first visible topic-relative line
+
+;
+; -- "*TOPIC|" tag we match each record against --
+;
+TOPIC_TAG:	.ASCII	/*TOPIC|/		; 7 bytes
+
+;
+; ===========================================================
+;  Static topic index.  Parallel arrays, HELP$_NIDX entries.
+;    IDX_TYPE  0 = prose (file), 1 = live render
+;    IDX_FTOPIC file-topic index for prose entries, -1 for live
+;    IDX_RENDER render routine for live entries, 0 for prose
+; ===========================================================
+;
+	.ALIGN	LONG
+IDX_TITLE:	.ADDRESS DSC_IDX0, DSC_IDX1, DSC_IDX2, DSC_IDX3, DSC_IDX4
+IDX_KEY:	.LONG	^A/H/, ^A/C/, ^A/T/, ^A/A/, ^A/M/
+IDX_TYPE:	.LONG	0, 1, 1, 0, 0
+IDX_FTOPIC:	.LONG	0, -1, -1, 1, 2
+IDX_RENDER:	.ADDRESS 0, RENDER_CHART, RENDER_CREATURES, 0, 0
+
+DSC_IDX0:	.ASCID	/[H] How to Play/
+DSC_IDX1:	.ASCID	/[C] Character Chart/
+DSC_IDX2:	.ASCID	/[T] Creature Attributes/
+DSC_IDX3:	.ASCID	/[A] Artifact Glossary/
+DSC_IDX4:	.ASCID	/[M] Original Manual/
+
+;
+; -- screen strings --
+;
+DSC_HELP_HDR:	.ASCID	/THE SORCERER'S CAVE  --  HELP/
+DSC_HELP_SUB:	.ASCID	/Choose a topic, then press Enter:/
+DSC_IDX_FOOT:	.ASCID	\Up/Down: move   Enter: open   letter: jump   Q: exit\
+DSC_PG_FOOT:	.ASCID	\Up/Down: scroll   F/B: page   T/E: top/end   Q: back\
+DSC_UNAVAIL:	.ASCID	/This topic needs the help file, which was not found./
+DSC_ANYKEY:	.ASCID	/Press any key to return./
+DSC_CHART_HDR:	.ASCID	/CHARACTER CHART/
+DSC_CHART_CRE:	.ASCID	/Creatures/
+DSC_CHART_TRE:	.ASCID	/Treasure/
+DSC_CRE_HDR:	.ASCID	/CREATURE ATTRIBUTES/
+DSC_CRE_COLS:	.ASCID	/Name         FS  MP  Carry  Cost  Pts/
+DSC_CRE_KEY1:	.ASCID	/Key:  FS = Fighting Strength     MP = Magical Power/
+DSC_CRE_KEY2:	.ASCID	/      Carry = capacity (kg)   Cost = party-pick points/
+DSC_CRE_KEY3:	.ASCID	/      Pts = point value if brought out of the cave/
+
+;
+; -- FAO control strings --
+;
+DSC_PG_STAT_FAO: .ASCID	/Lines !UL to !UL of !UL/
+DSC_CRE_FAO:	.ASCID	/!12AS!3UL !3UL  !5UL !5UL !4UL/
+
+;
+; -- FAO output + paint scratch --
+;
+	.ALIGN	LONG
+FAO_OUTLEN:	.BLKW	1
+	.ALIGN	LONG
+WORK_BUF:	.BLKB	120
+WORK_DSC:	.WORD	120
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS WORK_BUF
+
+	.ALIGN	LONG
+ROW_BUF:	.BLKB	120			; for hand-built rows (chart)
+
+	.ALIGN	LONG
+HLINE_DSC:	.WORD	0			; generic line descriptor (set per paint)
+		.BYTE	DSC$K_DTYPE_T
+		.BYTE	DSC$K_CLASS_S
+		.ADDRESS 0
+
+	.ALIGN	LONG
+HROW:		.BLKL	1
+HCOL:		.BLKL	1
+TROW:		.BLKL	1			; scratch row for centered paints
+REND_REV:	.LONG	SMG$M_REVERSE
+REND_BOLD:	.LONG	SMG$M_BOLD
+FLAGS0:		.LONG	0
+HEAD_TAG:	.ASCII	/*H|/			; heading-line marker (3 bytes)
+
+;
+; -- FAO parameter cells for the pager status line --
+;
+	.ALIGN	LONG
+STAT_FROM:	.BLKL	1
+STAT_TO:	.BLKL	1
+
+
+	.PSECT	SCAVE_HELP_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  HELP_BROWSER  --  top-level entry.  Loads the help file on first
+;                    use, then drives the topic index until the user
+;                    exits with Q / Left.  Caller repaints afterwards.
+; ===========================================================
+;
+	.ENTRY	HELP_BROWSER, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	TSTL	HELP_LOADED
+	BNEQ	1$
+	BSBW	LOAD_HELP_FILE
+	MOVL	#1, HELP_LOADED
+1$:
+	CLRL	HELP_SEL
+HB_LOOP:
+	BSBW	PAINT_INDEX
+	CALLS	#0, G^READ_KEY			; R0 = key / terminator
+
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	DECL	HELP_SEL
+	BGEQ	HB_LOOP
+	MOVL	#<HELP$_NIDX-1>, HELP_SEL
+	BRW	HB_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	INCL	HELP_SEL
+	CMPL	HELP_SEL, #HELP$_NIDX
+	BLSS	HB_LOOP
+	CLRL	HELP_SEL
+	BRW	HB_LOOP
+20$:	CMPL	R0, #SMG$K_TRM_CR		; Enter opens highlighted
+	BEQL	25$
+	CMPL	R0, #^A/ /			; Space opens too
+	BNEQ	30$
+25$:	MOVL	HELP_SEL, R1
+	BSBW	OPEN_ENTRY
+	BRW	HB_LOOP
+30$:	CMPL	R0, #^A/Q/			; Q / Left exit
+	BEQL	HB_EXIT
+	CMPL	R0, #^A/q/
+	BEQL	HB_EXIT
+	CMPL	R0, #SMG$K_TRM_LEFT
+	BEQL	HB_EXIT
+	; letter shortcut -> jump straight to that topic
+	BSBW	MATCH_SHORTCUT			; R1 = entry or -1
+	CMPL	R1, #-1
+	BNEQ	35$				; matched -> open it
+	BRW	HB_LOOP				; no match -> re-loop (out of BEQL range)
+35$:	MOVL	R1, HELP_SEL
+	BSBW	OPEN_ENTRY
+	BRW	HB_LOOP
+HB_EXIT:
+	RET
+
+
+;
+; -----------------------------------------------------------
+;  MATCH_SHORTCUT  --  R0 = key.  Returns in R1 the index entry whose
+;                      IDX_KEY matches (case-folded), or -1.
+; -----------------------------------------------------------
+;
+MATCH_SHORTCUT:
+	MOVL	R0, R2				; fold lowercase -> uppercase
+	CMPL	R2, #^A/a/
+	BLSS	1$
+	CMPL	R2, #^A/z/
+	BGTR	1$
+	SUBL2	#32, R2
+1$:	CLRL	R3				; entry index
+2$:	CMPL	R3, #HELP$_NIDX
+	BGEQ	3$
+	CMPL	R2, IDX_KEY[R3]
+	BNEQ	4$
+	MOVL	R3, R1
+	RSB
+4$:	INCL	R3
+	BRB	2$
+3$:	MNEGL	#1, R1				; no match
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  OPEN_ENTRY  --  R1 = index entry.  Dispatches to the live render
+;                  routine or the prose pager.
+; -----------------------------------------------------------
+;
+OPEN_ENTRY:
+	MOVL	IDX_TYPE[R1], R0
+	BNEQ	OE_LIVE
+	; prose: resolve file topic, guard against a missing file
+	MOVL	IDX_FTOPIC[R1], R2
+	BLSS	OE_UNAVAIL
+	CMPL	R2, HELP_NTOPICS
+	BGEQ	OE_UNAVAIL
+	MOVL	IDX_TITLE[R1], R3		; header descriptor
+	BSBW	PAGE_TOPIC
+	RSB
+OE_LIVE:
+	MOVL	IDX_RENDER[R1], R0
+	JSB	(R0)
+	RSB
+OE_UNAVAIL:
+	BSBW	SHOW_UNAVAIL
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_INDEX  --  draw the topic index, highlighting HELP_SEL.
+; -----------------------------------------------------------
+;
+PAINT_INDEX:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#2, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_HELP_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	MOVL	#4, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_HELP_SUB
+	CALLS	#2, G^PAINT_CENTERED
+
+	CLRL	R6				; entry index
+PI_LOOP:
+	CMPL	R6, #HELP$_NIDX
+	BGEQ	PI_DONE
+	MOVL	IDX_TITLE[R6], R2		; descriptor address
+	ADDL3	#HELP$_ENTRY_TOP, R6, R4	; row
+	CMPL	R6, HELP_SEL			; highlight?
+	BNEQ	1$
+	MOVL	#1, R5
+	BRB	2$
+1$:	CLRL	R5
+2$:	BSBW	PAINT_ENTRY
+	INCL	R6
+	BRB	PI_LOOP
+PI_DONE:
+	MOVL	#HELP$_FOOT_ROW, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_IDX_FOOT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_ENTRY  --  R2 = title descriptor addr, R4 = row,
+;                   R5 = reverse flag (0/1).  Paints at column 15.
+; -----------------------------------------------------------
+;
+PAINT_ENTRY:
+	MOVL	R4, HROW
+	MOVL	#15, HCOL
+	TSTL	R5
+	BNEQ	1$
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHL	R2
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+1$:	PUSHAL	REND_REV
+	PUSHAL	FLAGS0
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHL	R2
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAGE_TOPIC  --  R2 = file-topic index, R3 = header descriptor addr.
+;                  Scrollable pager over that topic's body lines.
+; -----------------------------------------------------------
+;
+PAGE_TOPIC:
+	MOVL	R2, PG_TOPIC
+	MOVL	R3, PG_TITLE
+	MOVL	TOP_FIRST[R2], R0
+	MOVL	R0, PG_FIRST
+	MOVL	TOP_COUNT[R2], R0
+	MOVL	R0, PG_COUNT
+	CLRL	PG_TOP
+PG_LOOP:
+	BSBW	PAINT_PAGE
+	CALLS	#0, G^READ_KEY			; R0 = key
+
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	TSTL	PG_TOP
+	BLEQ	PG_LOOP
+	DECL	PG_TOP
+	BRW	PG_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	BSBW	PAGE_MAXTOP			; R1 = max top
+	CMPL	PG_TOP, R1
+	BGEQ	PG_LOOP
+	INCL	PG_TOP
+	BRW	PG_LOOP
+20$:	CMPL	R0, #^A/F/			; forward one page
+	BEQL	22$
+	CMPL	R0, #^A/f/
+	BNEQ	30$
+22$:	ADDL2	#HELP$_PAGE_ROWS, PG_TOP
+	BSBW	CLAMP_TOP
+	BRW	PG_LOOP
+30$:	CMPL	R0, #^A/B/			; back one page
+	BEQL	32$
+	CMPL	R0, #^A/b/
+	BNEQ	40$
+32$:	SUBL2	#HELP$_PAGE_ROWS, PG_TOP
+	BSBW	CLAMP_TOP
+	BRW	PG_LOOP
+40$:	CMPL	R0, #^A/T/			; jump to top
+	BEQL	42$
+	CMPL	R0, #^A/t/
+	BNEQ	50$
+42$:	CLRL	PG_TOP
+	BRW	PG_LOOP
+50$:	CMPL	R0, #^A/E/			; jump to end
+	BEQL	52$
+	CMPL	R0, #^A/e/
+	BNEQ	60$
+52$:	BSBW	PAGE_MAXTOP
+	MOVL	R1, PG_TOP
+	BRW	PG_LOOP
+60$:	CMPL	R0, #^A/Q/			; back to index
+	BEQL	PG_BACK
+	CMPL	R0, #^A/q/
+	BEQL	PG_BACK
+	CMPL	R0, #SMG$K_TRM_LEFT
+	BEQL	PG_BACK
+	BRW	PG_LOOP
+PG_BACK:
+	RSB
+
+
+;
+; PAGE_MAXTOP  --  R1 = max(0, PG_COUNT - PAGE_ROWS).
+;
+PAGE_MAXTOP:
+	MOVL	PG_COUNT, R1
+	SUBL2	#HELP$_PAGE_ROWS, R1
+	BGEQ	1$
+	CLRL	R1
+1$:	RSB
+
+;
+; CLAMP_TOP  --  clamp PG_TOP to [0, PAGE_MAXTOP].
+;
+CLAMP_TOP:
+	BSBW	PAGE_MAXTOP			; R1 = max
+	CMPL	PG_TOP, R1
+	BLEQ	1$
+	MOVL	R1, PG_TOP
+1$:	TSTL	PG_TOP
+	BGEQ	2$
+	CLRL	PG_TOP
+2$:	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_PAGE  --  render the current page of PG_TOPIC.
+; -----------------------------------------------------------
+;
+PAINT_PAGE:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	; header: topic title (row 1) + status (row 2)
+	MOVL	#1, TROW
+	PUSHAL	TROW
+	PUSHL	PG_TITLE
+	CALLS	#2, G^PAINT_CENTERED
+
+	; status "Lines a to b of n"
+	ADDL3	#1, PG_TOP, STAT_FROM		; a = top + 1
+	ADDL3	#HELP$_PAGE_ROWS, PG_TOP, R0	; tentative b
+	CMPL	R0, PG_COUNT
+	BLEQ	1$
+	MOVL	PG_COUNT, R0
+1$:	MOVL	R0, STAT_TO			; b = min(top+rows, count)
+	; guard the empty-topic case so "from" reads 0
+	TSTL	PG_COUNT
+	BNEQ	2$
+	CLRL	STAT_FROM
+2$:	MOVW	#120, WORK_DSC
+	$FAO_S	ctrstr=DSC_PG_STAT_FAO, outlen=FAO_OUTLEN, outbuf=WORK_DSC, -
+		p1=STAT_FROM, p2=STAT_TO, p3=PG_COUNT
+	MOVW	FAO_OUTLEN, WORK_DSC
+	MOVL	#2, TROW
+	PUSHAL	TROW
+	PUSHAL	WORK_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; body lines
+	CLRL	R6				; visible row counter 0..PAGE_ROWS-1
+PP_LOOP:
+	CMPL	R6, #HELP$_PAGE_ROWS
+	BGEQ	PP_DONE
+	ADDL3	PG_TOP, R6, R7			; topic-relative line
+	CMPL	R7, PG_COUNT
+	BGEQ	PP_DONE
+	ADDL2	PG_FIRST, R7			; absolute line index
+	MOVAB	TEXT_BUF, R2
+	ADDL2	LINE_OFF[R7], R2		; R2 = text pointer
+	MOVL	LINE_LEN[R7], R3		; R3 = length
+	ADDL3	#HELP$_BODY_TOP, R6, R4		; R4 = row
+	MOVL	#3, R5				; R5 = column
+	; Heading?  A "*H|"-prefixed line is painted bold, marker stripped.
+	; (CMPB-only test -- avoids the R0-R3 clobber CMPC3 would cause.)
+	CMPL	R3, #3
+	BLSS	1$
+	CMPB	(R2), #^A/*/
+	BNEQ	1$
+	CMPB	1(R2), #^A/H/
+	BNEQ	1$
+	CMPB	2(R2), #^A/|/
+	BNEQ	1$
+	ADDL2	#3, R2				; skip the marker
+	SUBL2	#3, R3
+	BSBW	PAINT_BOLD_AT
+	BRB	2$
+1$:	BSBW	PAINT_AT
+2$:	INCL	R6
+	BRW	PP_LOOP
+PP_DONE:
+	MOVL	#HELP$_FOOT_ROW, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_PG_FOOT
+	CALLS	#2, G^PAINT_CENTERED
+
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_AT  --  R2 = byte pointer, R3 = length, R4 = row, R5 = col.
+;                Paints a raw counted string into the main display.
+;                Clobbers R0/R1 only (SMG$PUT_CHARS preserves R2-R11).
+; -----------------------------------------------------------
+;
+PAINT_AT:
+	MOVW	R3, HLINE_DSC			; length word
+	MOVL	R2, HLINE_DSC+4			; pointer
+	MOVL	R4, HROW
+	MOVL	R5, HCOL
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHAL	HLINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_BOLD_AT  --  like PAINT_AT, but renders the text in bold
+;                     (used for heading lines in the prose pager).
+; -----------------------------------------------------------
+;
+PAINT_BOLD_AT:
+	MOVW	R3, HLINE_DSC			; length word
+	MOVL	R2, HLINE_DSC+4			; pointer
+	MOVL	R4, HROW
+	MOVL	R5, HCOL
+	PUSHAL	REND_BOLD
+	PUSHAL	FLAGS0
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHAL	HLINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  PAINT_DSC  --  R2 = descriptor addr, R4 = row, R5 = col.
+; -----------------------------------------------------------
+;
+PAINT_DSC:
+	MOVL	R4, HROW
+	MOVL	R5, HCOL
+	PUSHAL	HCOL
+	PUSHAL	HROW
+	PUSHL	R2
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  SHOW_UNAVAIL  --  message + wait for a key (prose file missing).
+; -----------------------------------------------------------
+;
+SHOW_UNAVAIL:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#10, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_UNAVAIL
+	CALLS	#2, G^PAINT_CENTERED
+	BSBW	PAINT_FOOT_ANYKEY
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; PAINT_FOOT_ANYKEY  --  "Press any key to return." at the footer row.
+;
+PAINT_FOOT_ANYKEY:
+	MOVL	#HELP$_FOOT_ROW, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_ANYKEY
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+
+;
+; ===========================================================
+;  RENDER_CHART  --  LIVE: ASCII symbols for creatures + treasure,
+;                    built from CR_LETTER/TR_LETTER and the name tables.
+; ===========================================================
+;
+RENDER_CHART:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#1, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_CHART_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; column captions
+	MOVAB	DSC_CHART_CRE, R2
+	MOVL	#3, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	MOVAB	DSC_CHART_TRE, R2
+	MOVL	#3, R4
+	MOVL	#42, R5
+	BSBW	PAINT_DSC
+
+	; left column: creatures
+	CLRL	R6
+RC_CRE:
+	CMPL	R6, #HELP$_CRE_COUNT
+	BGEQ	RC_CRE_DONE
+	MOVAB	CR_LETTER, R7			; letter table
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R8	; name-pointer table
+	BSBW	BUILD_LETTER_ROW		; -> R2 = row ptr, R3 = len
+	ADDL3	#4, R6, R4			; row = 4 + i
+	MOVL	#6, R5
+	BSBW	PAINT_AT
+	INCL	R6
+	BRW	RC_CRE
+RC_CRE_DONE:
+
+	; right column: treasure
+	CLRL	R6
+RC_TRE:
+	CMPL	R6, #HELP$_TRE_COUNT
+	BGEQ	RC_TRE_DONE
+	MOVAB	TR_LETTER, R7
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R8
+	BSBW	BUILD_LETTER_ROW
+	ADDL3	#4, R6, R4
+	MOVL	#42, R5
+	BSBW	PAINT_AT
+	INCL	R6
+	BRW	RC_TRE
+RC_TRE_DONE:
+
+	BSBW	PAINT_FOOT_ANYKEY
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; -----------------------------------------------------------
+;  BUILD_LETTER_ROW  --  build "X = Name" into ROW_BUF.
+;     In:  R6 = index, R7 = letter-table base, R8 = name-pointer table
+;     Out: R2 = ROW_BUF addr, R3 = length.  Preserves R6/R7/R8.
+;     Note: MOVC3 clobbers R0-R5, so R2/R3 are set after the copy.
+; -----------------------------------------------------------
+;
+BUILD_LETTER_ROW:
+	MOVB	(R7)[R6], ROW_BUF		; mnemonic letter
+	MOVB	#^A/ /, ROW_BUF+1
+	MOVB	#^A/=/, ROW_BUF+2
+	MOVB	#^A/ /, ROW_BUF+3
+	MOVL	(R8)[R6], R9			; R9 = name descriptor address
+	MOVZWL	(R9), R10			; R10 = name length
+	MOVL	4(R9), R11			; R11 = name char pointer
+	MOVC3	R10, (R11), ROW_BUF+4		; append the name
+	; total length = 4 + name length (R10 survives MOVC3)
+	ADDL3	#4, R10, R3
+	MOVAB	ROW_BUF, R2
+	RSB
+
+
+;
+; ===========================================================
+;  RENDER_CREATURES  --  LIVE: creature attribute table from DATA.MAR.
+; ===========================================================
+;
+RENDER_CREATURES:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#1, TROW
+	PUSHAL	TROW
+	PUSHAL	DSC_CRE_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; column header
+	MOVAB	DSC_CRE_COLS, R2
+	MOVL	#3, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+
+	CLRL	R6				; creature index
+RCR_LOOP:
+	CMPL	R6, #HELP$_CRE_COUNT
+	BGEQ	RCR_DONE
+	MOVL	SCAVE_DATA_CR_NAME_PTR[R6], R5	; name descriptor addr
+	MOVL	SCAVE_DATA_CR_FS[R6], R7
+	MOVL	SCAVE_DATA_CR_MP[R6], R8
+	MOVL	SCAVE_DATA_CR_CARRY[R6], R9
+	MOVL	SCAVE_DATA_CR_SEL[R6], R10
+	MOVL	SCAVE_DATA_CR_PTS[R6], R11
+	MOVW	#120, WORK_DSC
+	$FAO_S	ctrstr=DSC_CRE_FAO, outlen=FAO_OUTLEN, outbuf=WORK_DSC, -
+		p1=R5, p2=R7, p3=R8, p4=R9, p5=R10, p6=R11
+	MOVW	FAO_OUTLEN, WORK_DSC
+	MOVAB	WORK_DSC, R2
+	ADDL3	#HELP$_BODY_TOP, R6, R4		; row = 4 + i
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	INCL	R6
+	BRW	RCR_LOOP
+RCR_DONE:
+	; Column key, in the rows between the table and the footer.
+	MOVAB	DSC_CRE_KEY1, R2
+	MOVL	#18, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	MOVAB	DSC_CRE_KEY2, R2
+	MOVL	#19, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	MOVAB	DSC_CRE_KEY3, R2
+	MOVL	#20, R4
+	MOVL	#6, R5
+	BSBW	PAINT_DSC
+	BSBW	PAINT_FOOT_ANYKEY
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+
+;
+; ===========================================================
+;  LOAD_HELP_FILE  --  read SCAVEHLP.TXT into TEXT_BUF, building the
+;                      line and topic indexes.  On any failure the
+;                      tables are left at 0 (prose topics then report
+;                      themselves unavailable; live topics still work).
+;                      Uses R0-R11; called within HELP_BROWSER's frame.
+; ===========================================================
+;
+LOAD_HELP_FILE:
+	CLRL	HELP_NLINES
+	CLRL	HELP_NTOPICS
+	CLRL	HELP_WPTR
+
+	; NOTE: the RMS macros ($OPEN/$CONNECT/$GET) expand to many bytes,
+	; so every branch to the far cleanup/loop labels uses invert + BRW
+	; to stay clear of the conditional-branch +/-127-byte range.
+	$OPEN	FAB=HELP_FAB
+	BLBS	R0, 1$
+	BRW	LHF_FAIL
+1$:	$CONNECT RAB=HELP_RAB
+	BLBS	R0, 2$
+	BRW	LHF_CLOSE
+2$:
+	MOVAB	HELP_RAB, R7			; R7 = RAB base (safe across CMPC3/MOVC3)
+LHF_READ:
+	$GET	RAB=HELP_RAB
+	CMPL	R0, #RMS$_EOF
+	BNEQ	3$
+	BRW	LHF_EOF
+3$:	BLBS	R0, 4$
+	BRW	LHF_CLOSE
+4$:
+	MOVZWL	RAB$W_RSZ(R7), R8		; R8 = record size
+	MOVL	RAB$L_RBF(R7), R6		; R6 = record buffer addr
+
+	; topic header?  (record begins "*TOPIC|")
+	CMPL	R8, #7
+	BLSS	LHF_BODY
+	CMPC3	#7, (R6), TOPIC_TAG		; Z set if equal (clobbers R0-R3)
+	BNEQ	LHF_BODY
+
+	; --- start a new topic ---
+	MOVL	HELP_NTOPICS, R0
+	CMPL	R0, #HELP$_MAXTOP
+	BLSS	5$
+	BRW	LHF_READ			; ignore overflow topics
+5$:	MOVL	HELP_NLINES, R1
+	MOVL	R1, TOP_FIRST[R0]
+	CLRL	TOP_COUNT[R0]
+	INCL	HELP_NTOPICS
+	BRW	LHF_READ
+
+LHF_BODY:
+	; --- store a body line ---
+	MOVL	HELP_NLINES, R0
+	CMPL	R0, #HELP$_MAXLINES
+	BLSS	6$
+	BRW	LHF_READ			; out of line slots
+6$:	MOVL	HELP_WPTR, R1
+	ADDL3	R1, R8, R2			; R2 = end offset after this line
+	CMPL	R2, #HELP$_BUFSIZE
+	BLEQ	7$
+	BRW	LHF_READ			; out of text space
+7$:	MOVL	R1, LINE_OFF[R0]
+	MOVL	R8, LINE_LEN[R0]
+	TSTL	R8
+	BEQL	LHF_NOCOPY
+	MOVAB	TEXT_BUF, R3
+	ADDL2	R1, R3				; R3 = dest = TEXT_BUF + WPTR
+	MOVC3	R8, (R6), (R3)			; copy the line (clobbers R0-R5)
+LHF_NOCOPY:
+	ADDL2	R8, HELP_WPTR
+	INCL	HELP_NLINES
+	; bump current topic's line count, if a topic is open
+	MOVL	HELP_NTOPICS, R0
+	BNEQ	8$
+	BRW	LHF_READ
+8$:	DECL	R0
+	INCL	TOP_COUNT[R0]
+	BRW	LHF_READ
+
+LHF_EOF:
+	$CLOSE	FAB=HELP_FAB
+	RSB
+
+LHF_CLOSE:
+	$CLOSE	FAB=HELP_FAB
+LHF_FAIL:
+	CLRL	HELP_NTOPICS			; disable prose topics
+	RSB
+
+	.END

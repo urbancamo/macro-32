@@ -74,6 +74,14 @@ def working_dir_spec(wd: str) -> str:
     return wd if wd.startswith("[") else f"[.{wd}]"
 
 
+# Hard cap (seconds) on any single ftp invocation. A stalled FTP data
+# connection would otherwise hang the whole build/loop indefinitely (the VAX
+# shows no activity because the transfer never completes). On timeout we kill
+# ftp and report failure so the caller (Makefile / loop) can retry instead of
+# blocking forever -- the vmsftp analogue of vmsdrive's MAX_TIMEOUT.
+FTP_TIMEOUT = 120
+
+
 def run_ftp(env: dict[str, str], body: str) -> tuple[int, str]:
     host = env.get("VMS_HOST")
     user = env.get("VMS_USER")
@@ -83,10 +91,18 @@ def run_ftp(env: dict[str, str], body: str) -> tuple[int, str]:
         sys.exit("ERROR: VMS_HOST / VMS_USER / VMS_PASSWORD must be set in .env")
     cd_line = f"cd {working_dir_spec(wd)}\n" if wd else ""
     script = f"user {user} {pw}\n{cd_line}{body}\nquit\n"
-    proc = subprocess.run(
-        ["ftp", "-nv", "-4", host],
-        input=script, text=True, capture_output=True,
-    )
+    try:
+        proc = subprocess.run(
+            ["ftp", "-nv", "-4", host],
+            input=script, text=True, capture_output=True,
+            timeout=FTP_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as e:
+        out = (e.stdout or "") + (e.stderr or "")
+        return 1, out + (
+            f"\nvmsftp: ftp timed out after {FTP_TIMEOUT}s "
+            "(data connection stalled) -- killed; retry\n"
+        )
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 

@@ -54,6 +54,7 @@
 
 	$SSDEF
 	$DSCDEF
+	$SMGDEF
 
 	.EXTRN	SMG$PUT_CHARS
 	.EXTRN	SYS$FAO
@@ -157,6 +158,29 @@ SLAIN_NAME_PTR:	.BLKL	1			; descriptor address for spectre kill
 	; read it.
 PAIR_OUT_DSC:	.BLKL	1
 
+	; -- focus-fire match model --
+	;   The player picks ONE focus stranger to gang up on; all living
+	;   priests/wizards support it with magic power, and surplus front
+	;   fighters pile onto it while the rest cover the other strangers.
+	;   Each round every "primary" stranger (one with a front fighter)
+	;   is a match: combined party strength vs the strangers folded into
+	;   it.  One casualty per match per round.
+	.ALIGN	LONG
+F_TGT:		.BLKL	12			; per party slot: target stranger, -1
+F_ROLE:		.BLKL	12			; 0 = front, 1 = support (caster MP)
+F_MERGE:	.BLKL	8			; per stranger: the primary it folds into
+F_FOCUS:	.LONG	0			; chosen focus stranger
+F_PRIM:		.LONG	0			; primary stranger of the current match
+MATCH_ROW:	.LONG	0			; next match-result paint row
+MATCH_NF:	.LONG	0			; front fighters in the current match
+MATCH_WEAK:	.LONG	0			; weakest front slot (auto casualty)
+MATCH_WSTR:	.LONG	0			; that fighter's strength
+MATCH_KILL:	.LONG	0			; stranger slot killed this match, -1
+MATCH_LNAME:	.LONG	0			; leader stranger's name descriptor
+PSTR_VAL:	.LONG	0			; party-side total (FAO !UL)
+SSTR_VAL:	.LONG	0			; stranger-side total (FAO !UL)
+FOCUS_STR_VAL:	.LONG	0			; focus strength (FAO !UL)
+
 
 	.ALIGN	LONG
 DSC_HDR_FAO:		.ASCID	/-- COMBAT, ROUND !UL --/
@@ -173,6 +197,14 @@ DSC_PROMPT_FR:		.ASCID	/[F]ight on    [R]etreat/
 DSC_VICTORY:		.ASCID	/Victory!  The chamber is yours./
 DSC_DEFEAT:		.ASCID	/DEFEAT.  Your party is no more./
 DSC_RETREAT:		.ASCID	/You retreat to the previous area./
+
+; -- focus picker + match-result strings --
+DSC_FOCUS_HDR:		.ASCID	/-- CHOOSE YOUR FOCUS TARGET --/
+DSC_FOCUS_SUB:		.ASCID	/Your party gangs up on this foe; casters lend their magic./
+DSC_FOCUS_FAO:		.ASCID	/Focus:  !AS   (strength !UL)/
+DSC_FOCUS_FOOT:		.ASCID	\Left/Right: choose foe    Enter: fight\
+DSC_FOE_FAO:		.ASCID	/Foe: !AS  (strength !UL)/
+DSC_MATCH_FAO:		.ASCID	/!10AS str !2UL   vs   your side !2UL    !AS/
 
 
 	.PSECT	SCAVE_FIGHT_CODE, EXE, NOWRT, LONG
@@ -191,10 +223,11 @@ R_LOOP:
 	; future treasure-drop rules can shift these mid-fight.
 	BSBW	REFRESH_ARTIFACT_FLAGS
 
-	; Pair up.  Leaves NF set; FA[0..NF-1] = living party slots in
-	; slot order; FD[0..NF-1] = CS[0..NF-1]; FB[] = unmatched
-	; living slots.
-	BSBW	PAIR_UP
+	; Let the player choose a focus target to gang up on, then build
+	; the matches: casters support the focus, surplus fighters pile on
+	; it, the rest cover the other strangers.
+	BSBW	FOCUS_PICK
+	BSBW	ASSIGN_MATCHES
 
 	BSBW	PAINT_ROUND_HEADER
 
@@ -202,17 +235,28 @@ R_LOOP:
 	; aura while the spectre stands).
 	BSBW	APPLY_SPECTRE_RULE
 
-	; Per-pair rolls.
-	CLRL	R6				; pair index
-RP_LOOP:
-	CMPL	R6, SCAVE_FIGHT_NF
-	BLSS	RP_BODY
-	BRW	RP_DONE
-RP_BODY:
-	BSBW	RESOLVE_PAIR
+	; Resolve every primary match (a stranger that has a front fighter;
+	; folded strangers are counted into their primary's match).
+	MOVL	#6, MATCH_ROW
+	CLRL	R6				; stranger index
+RM_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BLSS	RM_BODY
+	BRW	RM_DONE
+RM_BODY:
+	MOVL	SCAVE_CHAMBER_CS[R6], R0
+	CMPL	R0, #-1
+	BEQL	RM_NEXT				; dead stranger
+	CMPL	F_MERGE[R6], R6
+	BNEQ	RM_NEXT				; folded into another match
+	MOVL	R6, F_PRIM
+	PUSHL	R6				; RESOLVE_MATCH clobbers freely
+	BSBW	RESOLVE_MATCH
+	MOVL	(SP)+, R6
+RM_NEXT:
 	INCL	R6
-	BRW	RP_LOOP
-RP_DONE:
+	BRW	RM_LOOP
+RM_DONE:
 
 	BSBW	CULL_STRANGERS
 
@@ -480,8 +524,10 @@ APPLY_SPECTRE_RULE:
 2$:	TSTL	HAS_SWORD
 	BEQL	3$
 	RSB					; sword overrides spectre
-3$:	; Conditions met.  Kill FA[0] (if any) and paint a status line.
-	MOVL	SCAVE_FIGHT_FA, R2
+3$:	; Conditions met.  The strongest living party member is matched
+	; against the spectre and automatically slain.
+	BSBW	STRONGEST_LIVING_PARTY		; R0 = slot, -1 if none
+	MOVL	R0, R2
 	CMPL	R2, #-1
 	BNEQ	4$
 	RSB
@@ -864,6 +910,541 @@ PFR_FIGHT:
 	RSB
 PFR_RETREAT:
 	MOVL	#1, R0
+	RSB
+
+
+;
+; ===========================================================
+;  Focus-fire match model helpers.
+; ===========================================================
+;
+
+; IS_CASTER -- R0 = creature index in, R0 = 1 if priest/wizard else 0.
+IS_CASTER:
+	CMPL	R0, #SCAVE$_CR_PRIEST
+	BEQL	1$
+	CMPL	R0, #SCAVE$_CR_WIZARD
+	BEQL	1$
+	CLRL	R0
+	RSB
+1$:	MOVL	#1, R0
+	RSB
+
+; STRONGEST_STRANGER -- R0 = index of the living stranger with the
+;   greatest FS+MP, or -1.  Clobbers R0-R5.
+STRONGEST_STRANGER:
+	MNEGL	#1, R1				; best index
+	MNEGL	#1, R2				; best strength
+	CLRL	R3
+1$:	CMPL	R3, SCAVE_CHAMBER_NS
+	BGEQ	4$
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	CMPL	R4, #-1
+	BEQL	3$
+	MOVAB	SCAVE_DATA_CR_FS, R5
+	MOVL	(R5)[R4], R0
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	ADDL2	(R5)[R4], R0
+	CMPL	R0, R2
+	BLEQ	3$
+	MOVL	R0, R2
+	MOVL	R3, R1
+3$:	INCL	R3
+	BRB	1$
+4$:	MOVL	R1, R0
+	RSB
+
+; STRONGEST_LIVING_PARTY -- R0 = slot of the living party member with the
+;   greatest FS+MP, or -1.  Clobbers R0-R5.
+STRONGEST_LIVING_PARTY:
+	MNEGL	#1, R1
+	MNEGL	#1, R2
+	CLRL	R3
+1$:	CMPL	R3, SCAVE_PARTY_NP
+	BGEQ	4$
+	CMPL	SCAVE_PARTY_PS[R3], #2
+	BGEQ	3$				; not living
+	MOVL	SCAVE_PARTY_PC[R3], R4
+	MOVAB	SCAVE_DATA_CR_FS, R5
+	MOVL	(R5)[R4], R0
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	ADDL2	(R5)[R4], R0
+	CMPL	R0, R2
+	BLEQ	3$
+	MOVL	R0, R2
+	MOVL	R3, R1
+3$:	INCL	R3
+	BRB	1$
+4$:	MOVL	R1, R0
+	RSB
+
+; FOCUS_NEXT_LIVING / FOCUS_PREV_LIVING -- step F_FOCUS to the next/prev
+;   living stranger (wrapping).  Clobber R0-R3.
+FOCUS_NEXT_LIVING:
+	MOVL	F_FOCUS, R1
+	MOVL	SCAVE_CHAMBER_NS, R2
+	CLRL	R3
+1$:	INCL	R1
+	CMPL	R1, R2
+	BLSS	2$
+	CLRL	R1
+2$:	CMPL	SCAVE_CHAMBER_CS[R1], #-1
+	BNEQ	3$
+	INCL	R3
+	CMPL	R3, R2
+	BLSS	1$
+	RSB					; none living -- leave unchanged
+3$:	MOVL	R1, F_FOCUS
+	RSB
+
+FOCUS_PREV_LIVING:
+	MOVL	F_FOCUS, R1
+	MOVL	SCAVE_CHAMBER_NS, R2
+	CLRL	R3
+1$:	DECL	R1
+	BGEQ	2$
+	MOVL	R2, R1
+	DECL	R1
+2$:	CMPL	SCAVE_CHAMBER_CS[R1], #-1
+	BNEQ	3$
+	INCL	R3
+	CMPL	R3, R2
+	BLSS	1$
+	RSB
+3$:	MOVL	R1, F_FOCUS
+	RSB
+
+; PAINT_FOCUS_PICK -- the focus-target picker screen.
+PAINT_FOCUS_PICK:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FOCUS_HDR
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FOCUS_SUB
+	CALLS	#2, G^PAINT_CENTERED
+
+	; "Focus: <name> (strength N)"
+	MOVL	F_FOCUS, R0
+	MOVL	SCAVE_CHAMBER_CS[R0], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], SLAIN_NAME_PTR
+	MOVAB	SCAVE_DATA_CR_FS, R2
+	MOVL	(R2)[R1], R3
+	MOVAB	SCAVE_DATA_CR_MP, R2
+	ADDL2	(R2)[R1], R3
+	MOVL	R3, FOCUS_STR_VAL
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_FOCUS_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SLAIN_NAME_PTR, p2=FOCUS_STR_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#7, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; List the strangers (context).
+	MOVL	#9, R6
+	CLRL	R7
+PFP_L:	CMPL	R7, SCAVE_CHAMBER_NS
+	BLSS	PFP_LB
+	BRW	PFP_LD
+PFP_LB:	MOVL	SCAVE_CHAMBER_CS[R7], R8
+	CMPL	R8, #-1
+	BNEQ	PFP_LC
+	BRW	PFP_LN
+PFP_LC:	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R8], SLAIN_NAME_PTR
+	MOVAB	SCAVE_DATA_CR_FS, R2
+	MOVL	(R2)[R8], R9
+	MOVAB	SCAVE_DATA_CR_MP, R2
+	ADDL2	(R2)[R8], R9
+	MOVL	R9, FOCUS_STR_VAL
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_FOE_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=SLAIN_NAME_PTR, p2=FOCUS_STR_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	R6, ROW_TMP
+	PUSHAL	COL_EIGHT
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R6
+PFP_LN:	INCL	R7
+	BRW	PFP_L
+PFP_LD:
+	MOVL	#17, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_FOCUS_FOOT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	RSB
+
+; FOCUS_PICK -- pick the focus stranger.  Default = strongest.
+FOCUS_PICK:
+	BSBW	STRONGEST_STRANGER
+	CMPL	R0, #-1
+	BNEQ	1$
+	CLRL	R0
+1$:	MOVL	R0, F_FOCUS
+FP_LOOP:
+	BSBW	PAINT_FOCUS_PICK
+	CALLS	#0, G^READ_KEY
+	CMPL	R0, #SMG$K_TRM_CR
+	BEQL	FP_DONE
+	CMPL	R0, #^A/ /
+	BEQL	FP_DONE
+	CMPL	R0, #SMG$K_TRM_RIGHT
+	BNEQ	10$
+	BSBW	FOCUS_NEXT_LIVING
+	BRB	FP_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_LEFT
+	BNEQ	FP_LOOP
+	BSBW	FOCUS_PREV_LIVING
+	BRB	FP_LOOP
+FP_DONE:
+	RSB
+
+; NEXT_COVER_STRANGER -- in R8 = cursor; out R0 = next living non-focus
+;   stranger (cursor advanced past it), or -1 if none.  Clobbers R0.
+NEXT_COVER_STRANGER:
+1$:	CMPL	R8, SCAVE_CHAMBER_NS
+	BLSS	2$
+	MNEGL	#1, R0
+	RSB
+2$:	CMPL	R8, F_FOCUS
+	BEQL	3$
+	CMPL	SCAVE_CHAMBER_CS[R8], #-1
+	BEQL	3$
+	MOVL	R8, R0
+	INCL	R8
+	RSB
+3$:	INCL	R8
+	BRB	1$
+
+; STRANGER_HAS_FRONT -- in R0 = stranger index; out R1 = 1 if a living
+;   front fighter targets it.  Clobbers R1,R2,R3.
+STRANGER_HAS_FRONT:
+	MOVL	R0, R3
+	CLRL	R1
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	3$
+	TSTL	F_ROLE[R2]
+	BNEQ	2$				; support, not front
+	CMPL	F_TGT[R2], R3
+	BNEQ	2$
+	MOVL	#1, R1
+	RSB
+2$:	INCL	R2
+	BRB	1$
+3$:	RSB
+
+; ASSIGN_MATCHES -- build F_TGT / F_ROLE / F_MERGE from F_FOCUS.
+ASSIGN_MATCHES:
+	MOVL	#12, R3
+	MOVAB	F_TGT, R4
+	MOVAB	F_ROLE, R5
+1$:	MNEGL	#1, (R4)+
+	CLRL	(R5)+
+	SOBGTR	R3, 1$
+
+	; Pass 1: living casters -> support the focus.
+	CLRL	R2
+AM_CAST:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	AM_CAST_DONE
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	AM_CAST_NEXT
+	MOVL	SCAVE_PARTY_PC[R2], R0
+	BSBW	IS_CASTER
+	TSTL	R0
+	BEQL	AM_CAST_NEXT
+	MOVL	#1, F_ROLE[R2]
+	MOVL	F_FOCUS, F_TGT[R2]
+AM_CAST_NEXT:
+	INCL	R2
+	BRB	AM_CAST
+AM_CAST_DONE:
+
+	; Pass 2: front fighters (living non-casters).
+	CLRL	R6				; placed-anchor flag
+	CLRL	R8				; coverage cursor
+	CLRL	R2				; party slot
+AM_FRONT:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	AM_FRONT_DONE
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	AM_FRONT_NEXT
+	MOVL	SCAVE_PARTY_PC[R2], R0
+	BSBW	IS_CASTER
+	TSTL	R0
+	BNEQ	AM_FRONT_NEXT			; caster handled in pass 1
+	TSTL	R6
+	BNEQ	AM_FRONT_COVER
+	MOVL	#1, R6				; first front -> focus anchor
+	MOVL	F_FOCUS, F_TGT[R2]
+	BRB	AM_FRONT_NEXT
+AM_FRONT_COVER:
+	BSBW	NEXT_COVER_STRANGER		; R0 = stranger to cover, or -1
+	CMPL	R0, #-1
+	BNEQ	AM_FRONT_ASSIGN
+	MOVL	F_FOCUS, F_TGT[R2]		; nothing left to cover -> pile on focus
+	BRB	AM_FRONT_NEXT
+AM_FRONT_ASSIGN:
+	MOVL	R0, F_TGT[R2]
+AM_FRONT_NEXT:
+	INCL	R2
+	BRB	AM_FRONT
+AM_FRONT_DONE:
+
+	; No front fighter at all (party is all casters) -> force the
+	; strongest living member to the front line on the focus.
+	TSTL	R6
+	BNEQ	AM_HAVEFRONT
+	BSBW	STRONGEST_LIVING_PARTY
+	CMPL	R0, #-1
+	BEQL	AM_HAVEFRONT
+	CLRL	F_ROLE[R0]
+	MOVL	F_FOCUS, F_TGT[R0]
+AM_HAVEFRONT:
+
+	; F_MERGE: a stranger with a front fighter is a primary (itself);
+	; the rest fold into the focus match.
+	CLRL	R6
+AM_MERGE:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	AM_MERGE_DONE
+	MOVL	SCAVE_CHAMBER_CS[R6], R0
+	CMPL	R0, #-1
+	BEQL	AM_MERGE_NEXT
+	MOVL	R6, R0
+	BSBW	STRANGER_HAS_FRONT		; R1 = 1 if engaged
+	TSTL	R1
+	BEQL	AM_MERGE_FOLD
+	MOVL	R6, F_MERGE[R6]
+	BRB	AM_MERGE_NEXT
+AM_MERGE_FOLD:
+	MOVL	F_FOCUS, F_MERGE[R6]
+AM_MERGE_NEXT:
+	INCL	R6
+	BRB	AM_MERGE
+AM_MERGE_DONE:
+	RSB
+
+; PARTY_WIDE_MOD -- R0 = round-1 surprise + ring - curses (applied once
+;   per match).  Clobbers R0.
+PARTY_WIDE_MOD:
+	CLRL	R0
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	10$
+	CMPL	SCAVE_FIGHT_FS, #1
+	BNEQ	10$
+	INCL	R0
+10$:	TSTL	HAS_RING
+	BEQL	20$
+	INCL	R0
+20$:	SUBL2	SCAVE_STATE_NC, R0
+	RSB
+
+; PER_CREATURE_STR -- in R0 = slot; out R0 = FS+MP + sword/staff/potion/
+;   dragon-slayer (NO party-wide mods).  Clobbers R0,R3,R10,R11.
+PER_CREATURE_STR:
+	MOVL	R0, R10
+	MOVL	SCAVE_PARTY_PC[R10], R11
+	MOVAB	SCAVE_DATA_CR_FS, R3
+	MOVL	(R3)[R11], R0
+	MOVAB	SCAVE_DATA_CR_MP, R3
+	ADDL2	(R3)[R11], R0
+	TSTL	HAS_SWORD
+	BEQL	30$
+	CMPL	R11, #SCAVE$_CR_HERO
+	BEQL	25$
+	CMPL	R11, #SCAVE$_CR_WHERO
+	BEQL	25$
+	CMPL	R11, #SCAVE$_CR_MAN
+	BEQL	26$
+	CMPL	R11, #SCAVE$_CR_WOMAN
+	BEQL	26$
+	BRB	30$
+25$:	ADDL2	#2, R0
+	BRB	30$
+26$:	INCL	R0
+30$:	TSTL	HAS_STAFF
+	BEQL	40$
+	CMPL	R11, #SCAVE$_CR_PRIEST
+	BEQL	35$
+	CMPL	R11, #SCAVE$_CR_WIZARD
+	BEQL	36$
+	BRB	40$
+35$:	INCL	R0
+	BRB	40$
+36$:	ADDL2	#2, R0
+40$:	CMPL	R10, SCAVE_FIGHT_POTION
+	BNEQ	50$
+	ADDL2	#2, R0
+50$:	ADDL2	SCAVE_PARTY_PK[R10], R0
+	RSB
+
+; KILL_STRONGEST_IN_GROUP -- kill one stranger (the strongest) in the
+;   current match's stranger group (F_MERGE == F_PRIM).  Credits the
+;   dragon-slayer bonus to a lone front fighter.  Clobbers R0-R5.
+KILL_STRONGEST_IN_GROUP:
+	MNEGL	#1, R3				; best stranger index
+	MNEGL	#1, R4				; best strength
+	CLRL	R5
+1$:	CMPL	R5, SCAVE_CHAMBER_NS
+	BGEQ	2$
+	MOVL	SCAVE_CHAMBER_CS[R5], R0
+	CMPL	R0, #-1
+	BEQL	3$
+	CMPL	F_MERGE[R5], F_PRIM
+	BNEQ	3$
+	MOVAB	SCAVE_DATA_CR_FS, R1
+	MOVL	(R1)[R0], R2
+	MOVAB	SCAVE_DATA_CR_MP, R1
+	ADDL2	(R1)[R0], R2
+	CMPL	R2, R4
+	BLEQ	3$
+	MOVL	R2, R4
+	MOVL	R5, R3
+3$:	INCL	R5
+	BRB	1$
+2$:	CMPL	R3, #-1
+	BEQL	4$
+	MOVL	SCAVE_CHAMBER_CS[R3], R0	; doomed creature index
+	MNEGL	#1, SCAVE_CHAMBER_CS[R3]	; kill it
+	CMPL	R0, #SCAVE$_CR_DRAGON
+	BNEQ	4$
+	CMPL	MATCH_NF, #1
+	BNEQ	4$
+	MOVL	MATCH_WEAK, R1
+	CMPL	R1, #-1
+	BEQL	4$
+	INCL	SCAVE_PARTY_PK[R1]
+4$:	RSB
+
+; PAINT_MATCH_LINE -- one result row per match at MATCH_ROW.
+PAINT_MATCH_LINE:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_MATCH_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=MATCH_LNAME, p2=SSTR_VAL, p3=PSTR_VAL, p4=PAIR_OUT_DSC
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	MATCH_ROW, ROW_TMP
+	PUSHAL	COL_EIGHT
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	MATCH_ROW
+	RSB
+
+; RESOLVE_MATCH -- F_PRIM = primary stranger.  Sums the combined party
+;   strength (front FS+MP + per-fighter bonuses + supporting caster MP +
+;   one party-wide mod) against the strangers folded into this match,
+;   rolls, and applies one casualty.  Paints a result line.
+RESOLVE_MATCH:
+	; Capture the leader's name before anyone is killed.
+	MOVL	F_PRIM, R0
+	MOVL	SCAVE_CHAMBER_CS[R0], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], MATCH_LNAME
+
+	; --- party side ---
+	BSBW	PARTY_WIDE_MOD
+	MOVL	R0, PSTR_VAL
+	CLRL	MATCH_NF
+	MNEGL	#1, MATCH_WEAK
+	MOVL	#9999, MATCH_WSTR
+	CLRL	R6
+RM_PARTY:
+	CMPL	R6, SCAVE_PARTY_NP
+	BGEQ	RM_PARTY_DONE
+	CMPL	SCAVE_PARTY_PS[R6], #2
+	BGEQ	RM_PARTY_NEXT
+	CMPL	F_TGT[R6], F_PRIM
+	BNEQ	RM_PARTY_NEXT
+	TSTL	F_ROLE[R6]
+	BNEQ	RM_SUPPORT
+	; front fighter
+	MOVL	R6, R0
+	BSBW	PER_CREATURE_STR		; R0 = strength
+	ADDL2	R0, PSTR_VAL
+	INCL	MATCH_NF
+	CMPL	R0, MATCH_WSTR
+	BGEQ	RM_PARTY_NEXT
+	MOVL	R0, MATCH_WSTR
+	MOVL	R6, MATCH_WEAK
+	BRB	RM_PARTY_NEXT
+RM_SUPPORT:
+	MOVL	SCAVE_PARTY_PC[R6], R0
+	MOVAB	SCAVE_DATA_CR_MP, R1
+	ADDL2	(R1)[R0], PSTR_VAL
+RM_PARTY_NEXT:
+	INCL	R6
+	BRW	RM_PARTY
+RM_PARTY_DONE:
+
+	; --- stranger side ---
+	CLRL	SSTR_VAL
+	CLRL	R6
+RM_STR:
+	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	RM_STR_DONE
+	MOVL	SCAVE_CHAMBER_CS[R6], R0
+	CMPL	R0, #-1
+	BEQL	RM_STR_NEXT
+	CMPL	F_MERGE[R6], F_PRIM
+	BNEQ	RM_STR_NEXT
+	MOVAB	SCAVE_DATA_CR_FS, R1
+	MOVL	(R1)[R0], R2
+	MOVAB	SCAVE_DATA_CR_MP, R1
+	ADDL2	(R1)[R0], R2
+	ADDL2	R2, SSTR_VAL
+RM_STR_NEXT:
+	INCL	R6
+	BRB	RM_STR
+RM_STR_DONE:
+	; Stranger round-1 surprise (once).
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	RM_NOSURP
+	CMPL	SCAVE_FIGHT_FS, #-1
+	BNEQ	RM_NOSURP
+	INCL	SSTR_VAL
+RM_NOSURP:
+
+	; --- dice ---
+	CALLS	#0, G^ROLL_DIE
+	ADDL3	PSTR_VAL, R0, PARTY_TOT
+	CALLS	#0, G^ROLL_DIE
+	ADDL3	SSTR_VAL, R0, STRANGER_TOT
+	MOVL	PARTY_TOT, PSTR_VAL		; show totals on the line
+	MOVL	STRANGER_TOT, SSTR_VAL
+
+	; --- compare ---
+	CMPL	PARTY_TOT, STRANGER_TOT
+	BEQL	RM_TIE
+	BGTR	RM_WIN
+	BRB	RM_LOSE
+RM_WIN:
+	MOVAB	DSC_OUT_WIN, PAIR_OUT_DSC
+	BSBW	KILL_STRONGEST_IN_GROUP
+	BRB	RM_SHOW
+RM_LOSE:
+	MOVAB	DSC_OUT_LOSE, PAIR_OUT_DSC
+	MOVL	MATCH_WEAK, R0
+	CMPL	R0, #-1
+	BEQL	RM_SHOW
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R0]
+	BRB	RM_SHOW
+RM_TIE:
+	MOVAB	DSC_OUT_TIE, PAIR_OUT_DSC
+RM_SHOW:
+	BSBW	PAINT_MATCH_LINE
 	RSB
 
 	.END

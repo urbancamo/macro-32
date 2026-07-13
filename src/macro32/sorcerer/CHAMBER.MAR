@@ -50,6 +50,7 @@
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_PP2
 	.EXTRN	SCAVE_MAP_MV
 	.EXTRN	SCAVE_MAP_MP
 	.EXTRN	SCAVE_MAP_FELL
@@ -60,6 +61,7 @@
 	.EXTRN	SCAVE_PARTY_NP
 	.EXTRN	SCAVE_PARTY_PC
 	.EXTRN	SCAVE_PARTY_PS
+	.EXTRN	SCAVE_PARTY_PK
 	.EXTRN	SCAVE_PARTY_PT
 	.EXTRN	SCAVE_STATE_NC
 	.EXTRN	SCAVE_STATE_GS
@@ -67,6 +69,9 @@
 	; Carry-capacity model for manual treasure pickup.
 	.EXTRN	SCAVE_DATA_CR_CARRY
 	.EXTRN	SCAVE_DATA_TR_WT
+	.EXTRN	SCAVE_DATA_TR_PTS	; point values (shown when swapping loot)
+	; Fighting strength (ghouls now match each member at its real FS).
+	.EXTRN	SCAVE_DATA_CR_FS
 
 	; Per-chamber working set lives in STATE.MAR's SCAVE_CHAMBER_*
 	; globals so STRANGER.MAR can read SCAVE_CHAMBER_CS / SCAVE_CHAMBER_NS / etc.
@@ -89,6 +94,20 @@
 	; sizing constant we share with STATE.MAR's storage layout.  If
 	; you change this here, change it there too (and vice versa).
 	SCAVE$_AREA_ITEMS = 8
+
+	; Max strangers / treasure per chamber (mirror of STATE.MAR's
+	; SCAVE$_CHAMBER_MAX) -- the cap for dropping treasure into CT.
+	SCAVE$_CHAMBER_MAX = 8
+
+	; Creature index of the Wizard (Magic Staff wards Medusa) and the
+	; treasure index of the Magic Staff itself.
+	SCAVE$_CR_WIZARD = 8
+	SCAVE$_TR_STAFF  = 9
+
+	; Party-status sentinel used while mutiny rebuilds the party: a
+	; member tagged GONE has deserted to the strangers and is dropped
+	; by COMPACT_PARTY.  (PS_ORIG=0, ALLY=1, STONE=2, DEAD=3.)
+	SCAVE$_PS_GONE = 4
 
 	; Per-creature treasure backing slots -- MUST match STATE.MAR's
 	; SCAVE$_TREAS_PER (file-local `=` constants don't cross modules).
@@ -114,8 +133,7 @@ CHAMBER_AREA:	.LONG	0
 ;
 	.ALIGN	LONG
 DSC_HDR_CHAMBER:	.ASCID	/-- ENTERING CHAMBER --/
-DSC_HDR_REENTRY:	.ASCID	/-- RE-ENTERING CHAMBER --/
-DSC_REENTRY_FAO:	.ASCID	/!UL item(s) remain from your last visit./
+DSC_HDR_STRANGERS:	.ASCID	/-- STRANGERS IN THE CHAMBER --/
 DSC_HDR_DRAWING:	.ASCID	/Drawing chamber cards.../
 DSC_PROMPT_CONT:	.ASCID	/(press any key to continue)/
 DSC_PROMPT_GATHER:	.ASCID	/(press any key to gather treasure)/
@@ -126,12 +144,19 @@ DSC_PFX_HAZARD:		.ASCID	/Hazard:/
 DSC_HZ_TRAP_MSG:	.ASCID	/!! TRAP -- party falls one level/
 DSC_HZ_TRAP_DWARF:	.ASCID	/!! TRAP -- the dwarf steps the party around it/
 DSC_HZ_QUAKE_MSG:	.ASCID	/!! EARTHQUAKE -- the way back collapses/
+DSC_HZ_QUAKE2_MSG:	.ASCID	/!! EARTHQUAKE -- the last two areas collapse/
 DSC_HZ_MEDUSA_MSG:	.ASCID	/!! MEDUSA -- her glance turns flesh to stone/
-DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack with strength 2/
-DSC_HZ_MUTINY_MSG:	.ASCID	/!! MUTINY -- allies turn against you/
-DSC_TURNED_TO_STONE:	.ASCID	/  ... !AS turned to STONE!/
+DSC_HZ_GHOULS_MSG:	.ASCID	/!! GHOULS attack -- each member fights/
+DSC_HZ_MUTINY_MSG:	.ASCID	/!! MUTINY -- your allies turn against you/
+DSC_TURNED_TO_STONE:	.ASCID	/  ... !AS is turned to STONE!/
+DSC_MEDUSA_WARD:	.ASCID	/  ... !AS's staff wards off her glance./
+DSC_MEDUSA_NONE:	.ASCID	/  ... the party meets her glance and survives./
 DSC_GHOUL_KILL:		.ASCID	/  ... !AS slain by ghouls!/
 DSC_GHOUL_OK:		.ASCID	/  ... !AS holds them off./
+DSC_GHOUL_DROP:		.ASCID	/  Heavy treasure is dropped, then recovered after./
+DSC_MUTINY_DESERT:	.ASCID	/  ... !AS deserts to the strangers!/
+DSC_MUTINY_LOYAL:	.ASCID	/  ... !AS stays loyal to you./
+DSC_DROPPED_TREASURE:	.ASCID	/  ... !AS's treasure is left in the chamber./
 DSC_TREASURE_GAINED:	.ASCID	/  Picked up: !AS/
 DSC_DRAW_FAO:		.ASCID	/  !AS  !AS/
 DSC_DRAW_COUNT_FAO:	.ASCID	/Drew !UL chamber card(s) from the small pack./
@@ -152,8 +177,12 @@ ROW_TMP:	.BLKL	1
 COL_TWO:	.LONG	2
 COL_FOUR:	.LONG	4
 COL_SIX:	.LONG	6
-REENTRY_CNT:	.BLKL	1			; NS+NT for the re-entry FAO !UL
 GHOUL_NAME_PTR:	.BLKL	1			; member name descriptor for the FAO !AS
+MUT_KEEP:	.BLKL	1			; mutiny: must keep one ally loyal?
+MUT_KEPT:	.BLKL	1			; mutiny: have we kept one yet?
+DWARF_TRAP:	.BLKL	1			; this visit a dwarf stepped past a trap
+						; (if the dwarf then dies in a fight the
+						; party falls on leaving)
 
 	.ALIGN	LONG
 FAO_OUTLEN:	.BLKW	1
@@ -165,10 +194,19 @@ FAO_OUTLEN:	.BLKW	1
 	.ALIGN	LONG
 DSC_PICK_HDR:		.ASCID	/-- PICK UP TREASURE --/
 DSC_PICK_ITEM_FAO:	.ASCID	|Item !UL/!UL:  !AS  (!UL kg)|
-DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !2UL/!3UL kg  !UL held|
+DSC_PICK_MEMBER_FAO:	.ASCID	|!AS!10AS  !3UL/!3UL kg  !UL held|
 DSC_PICK_PROMPT:	.ASCID	|[Up/Dn] move    [Enter] give    [L] leave|
 DSC_ERR_SLOTS:		.ASCID	/No free pack slots for that member./
 DSC_ERR_WEIGHT:		.ASCID	/Too heavy for that member to carry./
+
+; -- "drop to make room" sub-screen --
+DSC_DROP_HDR:		.ASCID	/-- DROP TREASURE TO MAKE ROOM --/
+DSC_DROP_WANT_FAO:	.ASCID	/!AS wants !AS (!UL kg, !UL pts) but is full./
+DSC_DROP_ITEM_FAO:	.ASCID	/!AS!10AS  !3UL kg  !3UL pts/
+DSC_DROP_NONE:		.ASCID	/(this member is carrying nothing to drop)/
+DSC_DROP_PROMPT:	.ASCID	\[Up/Dn] choose   [D] drop   [Enter] take it   [L] cancel\
+DSC_DROP_STILL:		.ASCID	/Still too heavy -- drop more, or cancel./
+DSC_CHEST_WARN:		.ASCID	/  (No one in the party is strong enough to carry the Chest.)/
 MARK_SEL:		.ASCID	/> /
 MARK_NONE:		.ASCID	/  /
 
@@ -191,6 +229,14 @@ PICK_HELD_VAL:	.BLKL	1
 PICK_NAME_PTR:	.BLKL	1
 PICK_MNAME_PTR:	.BLKL	1
 PICK_MARK_PTR:	.BLKL	1
+PICK_PTS_VAL:	.BLKL	1			; treasure point value (FAO !UL)
+
+	; "drop to make room" sub-screen state.
+	.ALIGN	LONG
+DROP_MSLOT:	.BLKL	1			; the member we are dropping from
+DROP_SEL:	.BLKL	1			; cursor over that member's carried items
+DROP_N:		.BLKL	1			; count of carried items
+DROP_LIST:	.BLKL	SCAVE$_TREAS_PER	; absolute PT indices of carried items
 
 
 	.PSECT	SCAVE_CHAMBER_CODE, EXE, NOWRT, LONG
@@ -224,16 +270,29 @@ PICK_MARK_PTR:	.BLKL	1
 	BRW	C_FRESH
 
 C_REENTRY:
-	; Restore SCAVE_CHAMBER_* from the area's saved AC slots and
-	; re-paint the (possibly diminished) contents.  Hazards are
-	; not persisted; NH stays at 0.  Use a re-entry-specific header
-	; so the player doesn't see a stale "Drew N chamber cards"
-	; line referring to the original draw, especially on a chamber
-	; that has been cleared (where the lists below it would be
-	; empty).
+	; Restore SCAVE_CHAMBER_* -- strangers, treasure AND the persisted
+	; re-firing hazards (Trap/Medusa/Ghouls) -- from the saved AC slots.
 	BSBW	LOAD_PERSISTED
-	BSBW	PAINT_CHAMBER_REENTRY
+	; A truly empty chamber (no strangers, treasure or hazards) has
+	; nothing to show or do: return to the turn loop without painting a
+	; blank screen or pausing for a keystroke.
+	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, R0
+	ADDL2	SCAVE_CHAMBER_NH, R0
+	BNEQ	1$
+	MOVL	#SS$_NORMAL, R0
+	RET
+1$:	BSBW	PAINT_CHAMBER_REENTRY
+	; Re-fire the persisted hazards: Medusa re-rolls and Ghouls re-fight
+	; each time the chamber is entered; earthquake and mutiny are
+	; one-shot and were never persisted.  Then the trap, which
+	; "continues in effect", is re-checked below.
+	BSBW	APPLY_HAZARDS
+	BSBW	RESOLVE_TRAPS			; R0 = 1 if the party fell
+	TSTL	R0
+	BNEQ	2$
 	BRW	C_PROCESS
+2$:	MOVL	#SS$_NORMAL, R0			; fell: RESOLVE_TRAPS set FELL + saved
+	RET
 
 C_FRESH:
 	MOVL	#1, SCAVE_MAP_MV[R7]		; mark visited
@@ -274,7 +333,7 @@ DRAW_LOOP:
 	BRW	DRAW_DONE
 5$:
 	MOVL	SCAVE_DECK_SI, R3
-	CMPL	R3, #52
+	CMPL	R3, SCAVE_DATA_SMALL_N		; pack size (SC-3-13, SC-7.1-4)
 	BLSS	6$
 	BRW	DRAW_DONE			; pack exhausted -- stop early
 6$:
@@ -318,38 +377,15 @@ DRAW_DONE:
 
 	BSBW	PAINT_CHAMBER_INTRO
 
-	; Resolve hazards in priority order (first-visit only -- they
-	; are not persisted, so re-entry skips this).
+	; Resolve hazards in priority order, then the trap.  An uncountered
+	; trap drops the party a level (RESOLVE_TRAPS persists this chamber
+	; untouched and sets FELL); otherwise play continues in C_PROCESS.
 	BSBW	APPLY_HAZARDS
-
-	; Trap resolution (after the other hazards).  Count the traps drawn
-	; here; a single living dwarf lets the party step around one (the
-	; rules: "may ignore a trap, but not two drawn in the same
-	; chamber").  Any uncountered trap drops the whole party to the
-	; area directly below WITHOUT touching this chamber's strangers or
-	; treasure -- they remain here for a later visit.
-	BSBW	COUNT_TRAPS			; R0 = number of TRAP cards
+	BSBW	RESOLVE_TRAPS			; R0 = 1 if the party fell
 	TSTL	R0
-	BNEQ	1$
-	BRW	C_PROCESS			; no trap -- ordinary chamber
-1$:	MOVL	R0, R6				; R6 = trap count
-	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
-	TSTL	R0
-	BEQL	CT_FALL				; no dwarf -> the party falls
-	CMPL	R6, #1
-	BGTR	CT_FALL				; two+ traps -> a dwarf can't cope
-	; Single trap, dwarf present: stepped around, chamber plays normally.
-	MOVAB	DSC_HZ_TRAP_DWARF, R5
-	BSBW	PAINT_TRAP_LINE
+	BNEQ	30$
 	BRW	C_PROCESS
-CT_FALL:
-	; The party falls.  Persist this chamber's untouched contents, flag
-	; the fall for MAIN to relocate + re-dispatch, and skip C_PROCESS.
-	MOVAB	DSC_HZ_TRAP_MSG, R5
-	BSBW	PAINT_TRAP_LINE
-	BSBW	SAVE_PERSISTED
-	MOVL	#1, SCAVE_MAP_FELL
-	MOVL	#SS$_NORMAL, R0
+30$:	MOVL	#SS$_NORMAL, R0
 	RET
 
 C_PROCESS:
@@ -369,6 +405,10 @@ C_PROCESS:
 	BSBW	PICKUP_TREASURE
 	BRB	10$
 9$:
+	; Re-show the strangers first: a hazard fired on entry may have
+	; erased the chamber-contents screen, and the encounter only paints
+	; its prompt.
+	BSBW	PAINT_ENCOUNTER_SCREEN
 	CALLS	#0, G^STRANGER_ENCOUNTER
 	; Treasure is assigned only when every stranger in the chamber is
 	; either defeated or has joined the party -- both leave NS = 0.
@@ -378,6 +418,20 @@ C_PROCESS:
 	; if the party died or the game ended (GS != PLAYING).
 	TSTL	SCAVE_STATE_GS
 	BNEQ	10$
+	; If a dwarf stepped the party past a trap this visit but was then
+	; slain in the fight, the party falls down the trap on leaving.
+	TSTL	DWARF_TRAP
+	BEQL	35$
+	BSBW	HAS_DWARF
+	TSTL	R0
+	BNEQ	35$				; a dwarf still lives -> no late fall
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#SS$_NORMAL, R0
+	RET
+35$:
 	TSTL	SCAVE_CHAMBER_NS
 	BNEQ	10$
 	BSBW	PICKUP_TREASURE
@@ -431,6 +485,7 @@ PAINT_CHAMBER_INTRO:
 	BSBW	PAINT_HAZARD_LIST
 	BSBW	PAINT_STRANGER_LIST
 	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING		; if a Chest no one can carry
 
 	CALLS	#0, G^END_BATCH
 	RSB
@@ -438,43 +493,52 @@ PAINT_CHAMBER_INTRO:
 
 ;
 ; ===========================================================
-;  PAINT_CHAMBER_REENTRY  --  header + "N items remain" (or
-;                              "Nothing remains") + persisted
-;                              contents.  Hazards are not
-;                              persisted, so NH=0 here.
+;  PAINT_ENCOUNTER_SCREEN  --  redraw the strangers (and treasure) just
+;                              before the W/A/T encounter.  A hazard that
+;                              fired on entry (earthquake, medusa, ...)
+;                              erases the chamber-contents screen, so
+;                              without this the player would be choosing
+;                              Withdraw/Attack/Test without seeing the
+;                              creatures.  STRANGER_ENCOUNTER paints only
+;                              its prompt on row 17 over this.
+; ===========================================================
+;
+PAINT_ENCOUNTER_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_HDR_STRANGERS
+	CALLS	#2, G^PAINT_CENTERED
+	MOVL	#7, R7				; match the chamber-intro layout
+	BSBW	PAINT_STRANGER_LIST
+	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  PAINT_CHAMBER_REENTRY  --  re-paint whatever the chamber still holds
+;                              so the pickup / encounter screens have
+;                              context.  No "re-entering" banner: the
+;                              player just sees the remaining contents.
+;                              Hazards are not persisted, so NH = 0 here.
 ; ===========================================================
 ;
 PAINT_CHAMBER_REENTRY:
 	CALLS	#0, G^BEGIN_BATCH
 	CALLS	#0, G^ERASE_MAIN
 
-	MOVL	#3, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_HDR_REENTRY
-	CALLS	#2, G^PAINT_CENTERED
-
-	; Sub-header reflecting what's actually left.  If both NS and
-	; NT are zero, show no sub-header at all; otherwise show the count.
-	ADDL3	SCAVE_CHAMBER_NS, SCAVE_CHAMBER_NT, REENTRY_CNT
-	MOVL	#5, ROW_TMP
-	TSTL	REENTRY_CNT
-	BEQL	2$
-	MOVW	#120, LINE_DSC
-	$FAO_S	ctrstr=DSC_REENTRY_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
-		p1=REENTRY_CNT
-	MOVW	FAO_OUTLEN, LINE_DSC
-	PUSHAL	ROW_TMP
-	PUSHAL	LINE_DSC
-	CALLS	#2, G^PAINT_CENTERED
-2$:
-
 	; List remaining items.  NH is always zero on re-entry but
 	; calling PAINT_HAZARD_LIST is harmless and keeps the order
 	; identical to the fresh-visit screen.
-	MOVL	#7, R7
+	MOVL	#4, R7
 	BSBW	PAINT_HAZARD_LIST
 	BSBW	PAINT_STRANGER_LIST
 	BSBW	PAINT_TREASURE_LIST
+	BSBW	PAINT_CHEST_WARNING		; if a Chest no one can carry
 
 	CALLS	#0, G^END_BATCH
 	RSB
@@ -575,6 +639,65 @@ PAINT_PFX_NAME_TREASURE:
 
 
 ;
+; PAINT_CHEST_WARNING  --  R7 = next paint row (in/out).  If the chamber
+;   holds a Treasure Chest that no living party member is strong enough to
+;   carry, paint a warning so the player knows it must be left behind.
+;
+PAINT_CHEST_WARNING:
+	BSBW	CHEST_TOO_HEAVY			; R0 = 1 if present and uncarriable
+	BLBC	R0, PCW_DONE
+	MOVL	R7, ROW_TMP
+	PUSHAL	COL_FOUR
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_CHEST_WARN
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+	INCL	R7
+PCW_DONE:
+	RSB
+
+
+;
+; CHEST_TOO_HEAVY  --  R0 = 1 if the chamber holds a Treasure Chest (CT
+;   index 14) that no living party member can carry (capacity, by
+;   SCAVE_DATA_CR_CARRY, < the chest's weight); else R0 = 0.
+;   Clobbers R0,R2,R3,R4 (preserves R7).
+;
+CHEST_TOO_HEAVY:
+	CLRL	R2				; chamber treasure slot
+CTH_FIND:
+	CMPL	R2, SCAVE_CHAMBER_NT
+	BGEQ	CTH_NONE
+	CMPL	SCAVE_CHAMBER_CT[R2], #14	; 14 = Treasure Chest
+	BEQL	CTH_CHEST
+	INCL	R2
+	BRB	CTH_FIND
+CTH_CHEST:
+	MOVL	#14, R4
+	MOVAB	SCAVE_DATA_TR_WT, R0
+	MOVL	(R0)[R4], R3			; R3 = chest weight
+	CLRL	R2				; party slot
+CTH_MEM:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	CTH_WARN
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (PS < STONE)?
+	BGEQ	CTH_MNEXT
+	MOVL	SCAVE_PARTY_PC[R2], R4
+	MOVAB	SCAVE_DATA_CR_CARRY, R0
+	CMPL	(R0)[R4], R3			; capacity >= chest weight?
+	BGEQ	CTH_NONE			; a member can carry it -> no warning
+CTH_MNEXT:
+	INCL	R2
+	BRB	CTH_MEM
+CTH_WARN:
+	MOVL	#1, R0
+	RSB
+CTH_NONE:
+	CLRL	R0
+	RSB
+
+
+;
 ; ===========================================================
 ;  APPLY_HAZARDS  --  walk SCAVE_CHAMBER_CH and dispatch to per-hazard
 ;                     handlers.  Order: earthquake (2), medusa
@@ -583,11 +706,11 @@ PAINT_PFX_NAME_TREASURE:
 ; ===========================================================
 ;
 APPLY_HAZARDS:
-	; For each priority, iterate SCAVE_CHAMBER_CH looking for that hazard
-	; and run the handler.  Idempotent for repeats (e.g. two
-	; traps run the trap handler twice).
-	MOVL	#2, R0				; earthquake
-	BSBW	APPLY_ONE_HAZARD
+	; Earthquake is handled by its own routine so it fires once even if
+	; (in a variant pack) two quake cards are drawn together.
+	BSBW	APPLY_QUAKE
+	; The rest dispatch per matching card via the CASE table.  Only one
+	; of each exists in the stock pack, so each runs once.
 	MOVL	#3, R0				; medusa
 	BSBW	APPLY_ONE_HAZARD
 	MOVL	#4, R0				; ghouls
@@ -633,110 +756,172 @@ AOH_NEXT:
 ;
 
 HAZ_QUAKE:
-	; Earthquake: zero MP[PP] (collapse the previous area entirely).
-	MOVL	SCAVE_MAP_PP, R0
-	BEQL	1$				; no PP yet (first move)
-	CLRL	SCAVE_MAP_MP[R0]
-1$:
+	; Earthquake is processed once by APPLY_QUAKE (not per-card), so the
+	; CASE target for index 2 is inert -- like HAZ_TRAP below.
 	BRW	AOH_NEXT
 
 HAZ_MEDUSA:
-	; Medusa: roll a die per party member; on 1 or 2 set PS = STONE.
-	CLRL	R5
+	; Medusa: roll a die per living member; 1 or 2 turns that creature to
+	; stone.  A wizard bearing the Magic Staff is immune.  A petrified
+	; member's treasure drops into the chamber, recoverable later.  Every
+	; outcome is reported on its own line.
+	MOVAB	DSC_HZ_MEDUSA_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, R9				; next result row
+	CLRL	R5				; party slot
 HM_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HM_BODY
-	BRW	AOH_NEXT
+	BRW	HM_END
 HM_BODY:
+	CMPL	SCAVE_PARTY_PS[R5], #2		; skip stone/dead
+	BLSS	HM_ALIVE
+	BRW	HM_NEXT
+HM_ALIVE:
+	; Magic Staff wards a wizard from her glance.
+	CMPL	SCAVE_PARTY_PC[R5], #SCAVE$_CR_WIZARD
+	BNEQ	HM_ROLL
+	MOVL	#SCAVE$_TR_STAFF, R0
+	BSBW	MEMBER_HAS_TREASURE		; R1 = 1 if this member holds it
+	BLBC	R1, HM_ROLL
+	MOVAB	DSC_MEDUSA_WARD, R3
+	BSBW	NAME_LINE			; render "<name>'s staff wards..."
+	BSBW	SHOW_RESULT_LINE
+	BRW	HM_NEXT
+HM_ROLL:
 	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
 	CMPL	R0, #2
-	BGTR	HM_NEXT				; safe
-	; Stone this creature.
-	MOVL	#2, SCAVE_PARTY_PS[R5]
+	BGTR	HM_NEXT				; 3-6 -> safe, no line
+	MOVL	#2, SCAVE_PARTY_PS[R5]		; STONE
+	MOVAB	DSC_TURNED_TO_STONE, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	; Drop the petrified member's treasure into the chamber.
+	BSBW	DROP_MEMBER_TREASURE		; R0 = items moved
+	TSTL	R0
+	BEQL	HM_NEXT
+	MOVAB	DSC_DROPPED_TREASURE, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
 HM_NEXT:
 	INCL	R5
-	BRB	HM_LOOP
+	BRW	HM_LOOP
+HM_END:
+	CMPL	R9, #5				; nothing reported -> all survived
+	BNEQ	HM_FIN
+	MOVL	#6, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_MEDUSA_NONE
+	CALLS	#2, G^PAINT_CENTERED
+HM_FIN:
+	BSBW	HZ_END
+	BRW	AOH_NEXT
 
 HAZ_GHOULS:
-	; Ghouls: each living party member fights ghouls of strength 2 for
-	; one round.  Paint the per-member outcome and pause, so the player
-	; sees who fell rather than just noticing the party has shrunk.
-	; (R6 is the hazard-scan loop index in APPLY_ONE_HAZARD -- keep it
-	; intact here; the die roll lives in R7.)
-	MOVL	#14, ROW_TMP
+	; Ghouls: each living member fights one round, its real fighting
+	; strength + a die against the ghouls' strength 2 + a die.  Slain
+	; members are removed and drop their treasure into the chamber.
+	; (R6/R8 are the APPLY scan state -- left intact by every call here.)
+	MOVAB	DSC_HZ_GHOULS_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, ROW_TMP			; the heavy-treasure note
 	PUSHAL	ROW_TMP
-	PUSHAL	DSC_HZ_GHOULS_MSG
+	PUSHAL	DSC_GHOUL_DROP
 	CALLS	#2, G^PAINT_CENTERED
-	MOVL	#15, R9				; next result row
+	MOVL	#7, R9				; next result row
 	CLRL	R5				; party slot
 HG_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HG_BODY
 	BRW	HG_END
 HG_BODY:
-	; Skip stone or already-dead members.
-	CMPL	SCAVE_PARTY_PS[R5], #2
+	CMPL	SCAVE_PARTY_PS[R5], #2		; skip stone/dead
 	BLSS	HG_FIGHT
 	BRW	HG_NEXT
 HG_FIGHT:
 	CALLS	#0, G^ROLL_DIE
 	MOVL	R0, R7				; party roll
-	CALLS	#0, G^ROLL_DIE			; ghoul roll in R0
-	; Stage simplification: party fight strength = 1, ghouls = 2.
-	ADDL2	#1, R7				; party total
-	ADDL2	#2, R0				; ghoul total
-	; This member's name for the result line.
 	MOVL	SCAVE_PARTY_PC[R5], R1
-	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
-	MOVL	(R2)[R1], GHOUL_NAME_PTR
+	MOVAB	SCAVE_DATA_CR_FS, R2
+	ADDL2	(R2)[R1], R7			; + member's fighting strength
+	CALLS	#0, G^ROLL_DIE			; ghoul roll
+	ADDL2	#2, R0				; + ghoul strength 2
+	MOVAB	DSC_GHOUL_OK, R3
 	CMPL	R7, R0
-	BLSS	HG_SLAIN			; party < ghoul -> slain
-	; Survived (tie = no kill).
-	MOVW	#120, LINE_DSC
-	$FAO_S	ctrstr=DSC_GHOUL_OK, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
-		p1=GHOUL_NAME_PTR
-	BRW	HG_SHOW
-HG_SLAIN:
-	MOVL	#3, SCAVE_PARTY_PS[R5]
-	MOVW	#120, LINE_DSC
-	$FAO_S	ctrstr=DSC_GHOUL_KILL, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
-		p1=GHOUL_NAME_PTR
+	BGEQ	HG_SHOW				; tie or better -> holds them off
+	; slain
+	MOVL	#3, SCAVE_PARTY_PS[R5]		; DEAD
+	MOVAB	DSC_GHOUL_KILL, R3
 HG_SHOW:
-	MOVW	FAO_OUTLEN, LINE_DSC
-	CMPL	R9, #20				; don't run into the prompt row
-	BGTR	HG_NEXT
-	MOVL	R9, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	LINE_DSC
-	CALLS	#2, G^PAINT_CENTERED
-	INCL	R9
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	CMPL	SCAVE_PARTY_PS[R5], #3		; if slain, drop its treasure
+	BNEQ	HG_NEXT
+	BSBW	DROP_MEMBER_TREASURE
 HG_NEXT:
 	INCL	R5
 	BRW	HG_LOOP
 HG_END:
-	MOVL	#21, ROW_TMP
-	PUSHAL	ROW_TMP
-	PUSHAL	DSC_PROMPT_CONT
-	CALLS	#2, G^PAINT_CENTERED
-	CALLS	#0, G^READ_KEY
+	BSBW	HZ_END
 	BRW	AOH_NEXT
 
 HAZ_MUTINY:
-	; Mutiny: every PS=ALLY (1) becomes PS=DEAD (3).  Simplified --
-	; the rules say allies "join any strangers in the chamber"; we
-	; just remove them.  Stage 5 will hook them onto SCAVE_CHAMBER_CS.
-	CLRL	R5
+	; Mutiny: living allies revert to strangers -- they join the
+	; chamber's strangers (to be retested) and drop any treasure they
+	; carried into the chamber.  If the party is entirely allies (no
+	; living original member), one ally of our choice stays loyal.
+	MOVAB	DSC_HZ_MUTINY_MSG, R5
+	BSBW	HZ_BEGIN
+	MOVL	#5, R9				; next result row
+	BSBW	HAS_LIVING_ORIG			; R0 = 1 if a living original exists
+	MOVL	#1, MUT_KEEP			; must keep one ally loyal?
+	TSTL	R0
+	BEQL	HMT_INIT
+	CLRL	MUT_KEEP			; originals remain -> no loyalty
+HMT_INIT:
+	CLRL	MUT_KEPT			; have we kept one loyal yet?
+	CLRL	R5				; party slot
 HMT_LOOP:
 	CMPL	R5, SCAVE_PARTY_NP
 	BLSS	HMT_BODY
-	BRW	AOH_NEXT
+	BRW	HMT_DONE
 HMT_BODY:
-	CMPL	SCAVE_PARTY_PS[R5], #1
-	BNEQ	HMT_NEXT
-	MOVL	#3, SCAVE_PARTY_PS[R5]
+	CMPL	SCAVE_PARTY_PS[R5], #1		; ALLY?
+	BEQL	HMT_ALLY
+	BRW	HMT_NEXT
+HMT_ALLY:
+	TSTL	MUT_KEEP			; keeping one loyal?
+	BEQL	HMT_CONVERT
+	TSTL	MUT_KEPT			; already kept one?
+	BNEQ	HMT_CONVERT
+	MOVL	#1, MUT_KEPT			; this ally stays loyal
+	MOVAB	DSC_MUTINY_LOYAL, R3
+	BSBW	NAME_LINE
+	BSBW	SHOW_RESULT_LINE
+	BRW	HMT_NEXT
+HMT_CONVERT:
+	MOVL	SCAVE_PARTY_PC[R5], R7		; creature index of the deserter
+	MOVL	SCAVE_CHAMBER_NS, R0		; add to strangers if room
+	CMPL	R0, #SCAVE$_CHAMBER_MAX
+	BGEQ	HMT_DROP
+	MOVL	R7, SCAVE_CHAMBER_CS[R0]
+	INCL	SCAVE_CHAMBER_NS
+HMT_DROP:
+	BSBW	DROP_MEMBER_TREASURE		; drop its treasure into the chamber
+	MOVL	#SCAVE$_PS_GONE, SCAVE_PARTY_PS[R5]
+	MOVL	R7, R1				; name from the saved creature index
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], GHOUL_NAME_PTR
+	MOVAB	DSC_MUTINY_DESERT, R3
+	BSBW	NAME_LINE_PRESET		; name ptr already set
+	BSBW	SHOW_RESULT_LINE
 HMT_NEXT:
 	INCL	R5
-	BRB	HMT_LOOP
+	BRW	HMT_LOOP
+HMT_DONE:
+	BSBW	COMPACT_PARTY			; drop the GONE entries, fix NP
+	BSBW	HZ_END
+	BRW	AOH_NEXT
 
 HAZ_TRAP:
 	; Traps are resolved by ENTER_CHAMBER after the hazard pipeline
@@ -744,6 +929,245 @@ HAZ_TRAP:
 	; deciding the fall), so this handler is intentionally inert.
 	; Kept as a valid CASE-table target should index 1 ever dispatch.
 	BRW	AOH_NEXT
+
+
+;
+; ===========================================================
+;  Hazard feedback scaffolding and shared helpers.
+; ===========================================================
+;
+
+; HZ_BEGIN -- R5 = header descriptor addr.  Begin a pasteboard update,
+;             clear the main display, paint the header on row 3.
+HZ_BEGIN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHL	R5
+	CALLS	#2, G^PAINT_CENTERED
+	RSB
+
+; HZ_END -- continue prompt on row 21, flush the batch, wait for a key.
+HZ_END:
+	MOVL	#21, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_PROMPT_CONT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	CALLS	#0, G^READ_KEY
+	RSB
+
+; SHOW_RESULT_LINE -- paint the prepared LINE_DSC at row R9 (when it fits
+;                     above the prompt) and advance R9.
+SHOW_RESULT_LINE:
+	CMPL	R9, #19
+	BGTR	1$
+	MOVL	R9, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+	INCL	R9
+1$:	RSB
+
+; NAME_LINE -- R5 = party slot, R3 = control-string descriptor addr.
+;              Render "<member name>" through that control string into
+;              LINE_DSC.  NAME_LINE_PRESET skips the lookup (GHOUL_NAME_PTR
+;              already set by the caller).
+NAME_LINE:
+	MOVL	SCAVE_PARTY_PC[R5], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], GHOUL_NAME_PTR
+NAME_LINE_PRESET:
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=(R3), outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=GHOUL_NAME_PTR
+	MOVW	FAO_OUTLEN, LINE_DSC
+	RSB
+
+; MEMBER_HAS_TREASURE -- R5 = slot, R0 = treasure index.  R1 = 1 if that
+;                        member carries it, else 0.
+MEMBER_HAS_TREASURE:
+	MOVL	R0, R3
+	MULL3	#SCAVE$_TREAS_PER, R5, R1
+	MOVL	#SCAVE$_TREAS_PER, R2
+1$:	TSTL	R2
+	BLEQ	2$
+	CMPL	SCAVE_PARTY_PT[R1], R3
+	BEQL	3$
+	INCL	R1
+	DECL	R2
+	BRB	1$
+2$:	CLRL	R1
+	RSB
+3$:	MOVL	#1, R1
+	RSB
+
+; DROP_MEMBER_TREASURE -- R5 = slot.  Move that member's treasure into the
+;                         chamber (CT, capped) and clear its pack slots.
+;                         R0 = items moved.  Clobbers R0-R4 (preserves R5+).
+DROP_MEMBER_TREASURE:
+	CLRL	R3				; items moved
+	MULL3	#SCAVE$_TREAS_PER, R5, R1	; PT base index for this member
+	MOVL	#SCAVE$_TREAS_PER, R2		; slots to scan
+DMT_LOOP:
+	TSTL	R2
+	BLEQ	DMT_DONE
+	MOVL	SCAVE_PARTY_PT[R1], R0
+	BLSS	DMT_SKIP			; -1 = empty slot
+	MOVL	SCAVE_CHAMBER_NT, R4
+	CMPL	R4, #SCAVE$_CHAMBER_MAX
+	BGEQ	DMT_CLR				; chamber full -> the item is lost
+	MOVL	R0, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+DMT_CLR:
+	MNEGL	#1, SCAVE_PARTY_PT[R1]		; clear the member's slot
+	INCL	R3
+DMT_SKIP:
+	INCL	R1
+	DECL	R2
+	BRB	DMT_LOOP
+DMT_DONE:
+	MOVL	R3, R0
+	RSB
+
+; HAS_LIVING_ORIG -- R0 = 1 if any living original member (PS = ORIG = 0).
+HAS_LIVING_ORIG:
+	CLRL	R1
+1$:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	2$
+	TSTL	SCAVE_PARTY_PS[R1]
+	BNEQ	3$
+	MOVL	#1, R0
+	RSB
+3$:	INCL	R1
+	BRB	1$
+2$:	CLRL	R0
+	RSB
+
+; COMPACT_PARTY -- drop PS = GONE members, shifting PC/PS/PK and the
+;                  per-member PT block down, and fix NP.  Clobbers R0-R5.
+COMPACT_PARTY:
+	CLRL	R1				; dst slot
+	CLRL	R2				; src slot
+CP_LOOP:
+	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	CP_DONE
+	CMPL	SCAVE_PARTY_PS[R2], #SCAVE$_PS_GONE
+	BEQL	CP_SKIP
+	CMPL	R1, R2
+	BEQL	CP_ADV				; already in place
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R1]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R1]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R1]
+	MULL3	#<SCAVE$_TREAS_PER*4>, R2, R3
+	MOVAB	SCAVE_PARTY_PT, R4
+	ADDL2	R4, R3				; R3 = src PT-block addr
+	MULL3	#<SCAVE$_TREAS_PER*4>, R1, R0
+	ADDL2	R4, R0				; R0 = dst PT-block addr
+	PUSHR	#^M<R1,R2>			; MOVC3 clobbers R0-R5
+	MOVC3	#<SCAVE$_TREAS_PER*4>, (R3), (R0)
+	POPR	#^M<R1,R2>
+CP_ADV:
+	INCL	R1
+CP_SKIP:
+	INCL	R2
+	BRB	CP_LOOP
+CP_DONE:
+	MOVL	R1, SCAVE_PARTY_NP
+	RSB
+
+; COUNT_QUAKES -- R0 = number of EARTHQUAKE cards (index 2) in CH.
+COUNT_QUAKES:
+	CLRL	R0
+	CLRL	R2
+1$:	CMPL	R2, SCAVE_CHAMBER_NH
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CH[R2], #2
+	BNEQ	3$
+	INCL	R0
+3$:	INCL	R2
+	BRB	1$
+2$:	RSB
+
+; COLLAPSE_AREA -- R5 = area index.  Wipe its card (MP), flags (AF) and
+;                  persisted contents (AC).  No-op for area 0.
+COLLAPSE_AREA:
+	TSTL	R5
+	BEQL	CA_DONE
+	CLRL	SCAVE_MAP_MP[R5]
+	CLRL	SCAVE_AREA_AF[R5]
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R5, R0
+	MOVAB	SCAVE_AREA_AC, R1
+	ADDL2	R0, R1
+	MOVL	#SCAVE$_AREA_ITEMS, R2
+CA_CLR:	CLRL	(R1)+
+	SOBGTR	R2, CA_CLR
+CA_DONE:
+	RSB
+
+; APPLY_QUAKE -- earthquake, fired once.  One quake collapses the previous
+;                area; two (variant packs) collapse the last two.  Feedback.
+APPLY_QUAKE:
+	BSBW	COUNT_QUAKES			; R0 = quake cards present
+	TSTL	R0
+	BNEQ	1$
+	RSB					; no earthquake here
+1$:	MOVL	R0, R7				; quake count
+	CMPL	R7, #1
+	BGTR	2$
+	MOVAB	DSC_HZ_QUAKE_MSG, R5
+	BRB	3$
+2$:	MOVAB	DSC_HZ_QUAKE2_MSG, R5
+3$:	BSBW	HZ_BEGIN
+	MOVL	SCAVE_MAP_PP, R5
+	BSBW	COLLAPSE_AREA
+	CMPL	R7, #1
+	BLEQ	4$
+	MOVL	SCAVE_MAP_PP2, R5
+	BSBW	COLLAPSE_AREA
+4$:	BSBW	HZ_END
+	RSB
+
+
+;
+; ===========================================================
+;  RESOLVE_TRAPS  --  weigh the chamber's trap count against a living
+;                     dwarf and decide the fall.  A single living dwarf
+;                     steps the party around one trap (not two).  On a
+;                     fall: paint the message, persist the chamber
+;                     untouched, set SCAVE_MAP_FELL, and return R0 = 1.
+;                     Otherwise return R0 = 0.  Shared by the fresh visit
+;                     and re-entry (a trap "continues in effect").
+; ===========================================================
+;
+RESOLVE_TRAPS:
+	CLRL	DWARF_TRAP			; assume no "dwarf-negated trap" pending
+	BSBW	COUNT_TRAPS			; R0 = trap count
+	TSTL	R0
+	BNEQ	1$
+	CLRL	R0				; no trap -> no fall
+	RSB
+1$:	MOVL	R0, R6				; R6 = trap count
+	BSBW	HAS_DWARF			; R0 = 1 if a living dwarf is along
+	TSTL	R0
+	BEQL	RT_FALL				; no dwarf -> the party falls
+	CMPL	R6, #1
+	BGTR	RT_FALL				; two+ traps -> a dwarf can't cope
+	; single trap, dwarf present -- stepped around for now.  Remember it:
+	; if the dwarf is slain in a fight here, the party falls on leaving.
+	MOVL	#1, DWARF_TRAP
+	MOVAB	DSC_HZ_TRAP_DWARF, R5
+	BSBW	PAINT_TRAP_LINE
+	CLRL	R0				; no fall
+	RSB
+RT_FALL:
+	MOVAB	DSC_HZ_TRAP_MSG, R5
+	BSBW	PAINT_TRAP_LINE
+	BSBW	SAVE_PERSISTED			; keep this chamber's contents
+	MOVL	#1, SCAVE_MAP_FELL
+	MOVL	#1, R0				; signal: fell
+	RSB
 
 
 ;
@@ -921,10 +1345,16 @@ SI_LOOP:
 	BEQL	25$
 	CMPL	R0, #^A/ /			; Space also gives
 	BNEQ	30$
-25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 rejected
+25$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 slots-full, 2 too heavy
+	CMPL	R0, #1
+	BEQL	26$				; assigned -- next item
+	CMPL	R0, #2
+	BNEQ	27$				; slots-full (error already shown)
+	; Too heavy -- let the player drop this member's treasure for room.
+	BSBW	DROP_FOR_ROOM			; R0 = 1 placed, 0 cancelled
 	TSTL	R0
-	BNEQ	26$
-	BRW	SI_LOOP				; rejected -- keep choosing
+	BNEQ	26$				; placed after dropping
+27$:	BRW	SI_LOOP
 26$:	RSB					; assigned -- next item
 30$:	CMPL	R0, #^A/L/			; leave this item behind
 	BEQL	SI_LEAVE
@@ -933,6 +1363,246 @@ SI_LOOP:
 	BRW	SI_LOOP
 SI_LEAVE:
 	RSB
+
+
+;
+; ===========================================================
+;  ADD_TO_CHAMBER  --  R0 = treasure index.  Return it to the chamber:
+;                      reuse a consumed (-1) CT slot if one exists (so it
+;                      is not re-offered this pass), else append if there
+;                      is room; otherwise it is lost.  Clobbers R0,R1.
+; ===========================================================
+;
+ADD_TO_CHAMBER:
+	CLRL	R1
+1$:	CMPL	R1, SCAVE_CHAMBER_NT
+	BGEQ	2$
+	CMPL	SCAVE_CHAMBER_CT[R1], #-1
+	BEQL	3$				; reuse this consumed slot
+	INCL	R1
+	BRB	1$
+2$:	CMPL	SCAVE_CHAMBER_NT, #SCAVE$_CHAMBER_MAX
+	BGEQ	4$				; chamber full -> item lost
+	MOVL	SCAVE_CHAMBER_NT, R1
+	INCL	SCAVE_CHAMBER_NT
+3$:	MOVL	R0, SCAVE_CHAMBER_CT[R1]
+4$:	RSB
+
+
+;
+; ===========================================================
+;  BUILD_DROP_LIST  --  R3 = party slot.  Fill DROP_LIST[0..DROP_N-1]
+;                       with the absolute PARTY_PT indices of the items
+;                       that member is carrying.  Clobbers R0,R1,R2,R4.
+; ===========================================================
+;
+BUILD_DROP_LIST:
+	CLRL	DROP_N
+	MULL3	#SCAVE$_TREAS_PER, R3, R0	; PT base for this member
+	CLRL	R1				; k
+1$:	CMPL	R1, #SCAVE$_TREAS_PER
+	BGEQ	2$
+	ADDL3	R0, R1, R2			; absolute PT index
+	CMPL	SCAVE_PARTY_PT[R2], #-1
+	BEQL	3$
+	MOVL	DROP_N, R4
+	MOVL	R2, DROP_LIST[R4]
+	INCL	DROP_N
+3$:	INCL	R1
+	BRB	1$
+2$:	RSB
+
+
+;
+; ===========================================================
+;  PAINT_DROP_SCREEN  --  the "drop to make room" panel: the wanted item,
+;                         and the selected member's carried treasure with
+;                         weights and point values so the player can swap
+;                         up.  DROP_SEL is the highlighted carried item.
+; ===========================================================
+;
+PAINT_DROP_SCREEN:
+	CALLS	#0, G^BEGIN_BATCH
+	CALLS	#0, G^ERASE_MAIN
+
+	MOVL	#3, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_HDR
+	CALLS	#2, G^PAINT_CENTERED
+
+	; "<member> wants <item> (w kg, v pts) but is full."
+	MOVL	DROP_MSLOT, R0
+	MOVL	SCAVE_PARTY_PC[R0], R1
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R2
+	MOVL	(R2)[R1], PICK_MNAME_PTR
+	MOVL	PT_TRIDX, R0
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R0], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R0], PICK_WT_VAL
+	MOVAB	SCAVE_DATA_TR_PTS, R1
+	MOVL	(R1)[R0], PICK_PTS_VAL
+	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DROP_WANT_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MNAME_PTR, p2=PICK_NAME_PTR, p3=PICK_WT_VAL, p4=PICK_PTS_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	MOVL	#5, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	CALLS	#2, G^PAINT_CENTERED
+
+	; Carried-item list (rows 8+).
+	CLRL	R6
+DPS_L:	CMPL	R6, DROP_N
+	BLSS	DPS_B
+	BRW	DPS_D
+DPS_B:	MOVL	DROP_LIST[R6], R7		; absolute PT index
+	MOVL	SCAVE_PARTY_PT[R7], R8		; treasure index
+	MOVAB	SCAVE_DATA_TR_NAME_PTR, R1
+	MOVL	(R1)[R8], PICK_NAME_PTR
+	MOVAB	SCAVE_DATA_TR_WT, R1
+	MOVL	(R1)[R8], PICK_WT_VAL
+	MOVAB	SCAVE_DATA_TR_PTS, R1
+	MOVL	(R1)[R8], PICK_PTS_VAL
+	CMPL	R6, DROP_SEL
+	BNEQ	1$
+	MOVAB	MARK_SEL, PICK_MARK_PTR
+	BRB	2$
+1$:	MOVAB	MARK_NONE, PICK_MARK_PTR
+2$:	MOVW	#120, LINE_DSC
+	$FAO_S	ctrstr=DSC_DROP_ITEM_FAO, outlen=FAO_OUTLEN, outbuf=LINE_DSC, -
+		p1=PICK_MARK_PTR, p2=PICK_NAME_PTR, p3=PICK_WT_VAL, p4=PICK_PTS_VAL
+	MOVW	FAO_OUTLEN, LINE_DSC
+	ADDL3	#8, R6, ROW_TMP
+	CMPL	R6, DROP_SEL
+	BNEQ	3$
+	PUSHAL	REND_REVERSE
+	PUSHAL	FLAGS_ZERO
+	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#6, G^SMG$PUT_CHARS
+	BRB	4$
+3$:	PUSHAL	COL_SIX
+	PUSHAL	ROW_TMP
+	PUSHAL	LINE_DSC
+	PUSHAL	SCAVE_UI_DSP_MAP
+	CALLS	#4, G^SMG$PUT_CHARS
+4$:	INCL	R6
+	BRW	DPS_L
+DPS_D:
+	TSTL	DROP_N
+	BNEQ	5$
+	MOVL	#8, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_NONE
+	CALLS	#2, G^PAINT_CENTERED
+5$:	MOVL	#20, ROW_TMP
+	PUSHAL	ROW_TMP
+	PUSHAL	DSC_DROP_PROMPT
+	CALLS	#2, G^PAINT_CENTERED
+	CALLS	#0, G^END_BATCH
+	RSB
+
+
+;
+; ===========================================================
+;  DROP_FOR_ROOM  --  the highlighted member (PICK_SEL) cannot carry the
+;                     current item.  Let the player drop carried treasure
+;                     (returned to the chamber) until the item fits, or
+;                     cancel.  R0 = 1 if the new item was taken, 0 if not.
+; ===========================================================
+;
+DROP_FOR_ROOM:
+	MOVL	PICK_SEL, R0
+	MOVL	PICK_SLOTS[R0], DROP_MSLOT
+	CLRL	DROP_SEL
+DFR_LOOP:
+	MOVL	DROP_MSLOT, R3
+	BSBW	BUILD_DROP_LIST			; DROP_LIST / DROP_N
+	; clamp DROP_SEL into range
+	TSTL	DROP_N
+	BNEQ	1$
+	CLRL	DROP_SEL
+	BRB	2$
+1$:	CMPL	DROP_SEL, DROP_N
+	BLSS	2$
+	MOVL	DROP_N, R0
+	DECL	R0
+	MOVL	R0, DROP_SEL
+2$:	BSBW	PAINT_DROP_SCREEN
+	CALLS	#0, G^READ_KEY
+	; Cursor + actions are factored into short helpers so every back-
+	; branch here is a BRW to the loop top (well within range).
+	CMPL	R0, #SMG$K_TRM_UP
+	BNEQ	10$
+	BSBW	DROP_CURSOR_UP
+	BRW	DFR_LOOP
+10$:	CMPL	R0, #SMG$K_TRM_DOWN
+	BNEQ	20$
+	BSBW	DROP_CURSOR_DOWN
+	BRW	DFR_LOOP
+20$:	CMPL	R0, #^A/D/			; drop the highlighted item
+	BEQL	25$
+	CMPL	R0, #^A/d/
+	BNEQ	30$
+25$:	BSBW	DROP_DO_DROP
+	BRW	DFR_LOOP
+30$:	CMPL	R0, #SMG$K_TRM_CR		; take the new item now
+	BEQL	35$
+	CMPL	R0, #^A/ /
+	BNEQ	40$
+35$:	BSBW	TRY_ASSIGN			; R0 = 1 placed, 0 slots, 2 heavy
+	CMPL	R0, #1
+	BEQL	DFR_PLACED
+	MOVAB	DSC_DROP_STILL, R5
+	BSBW	PAINT_PICK_ERR
+	BRW	DFR_LOOP
+40$:	CMPL	R0, #^A/L/			; cancel
+	BEQL	DFR_CANCEL
+	CMPL	R0, #^A/l/
+	BEQL	DFR_CANCEL
+	BRW	DFR_LOOP
+DFR_PLACED:
+	MOVL	#1, R0
+	RSB
+DFR_CANCEL:
+	CLRL	R0
+	RSB
+
+; DROP_CURSOR_UP / _DOWN -- move DROP_SEL over the carried-item list.
+DROP_CURSOR_UP:
+	TSTL	DROP_N
+	BEQL	1$
+	DECL	DROP_SEL
+	BGEQ	1$
+	MOVL	DROP_N, R0
+	DECL	R0
+	MOVL	R0, DROP_SEL
+1$:	RSB
+DROP_CURSOR_DOWN:
+	TSTL	DROP_N
+	BEQL	1$
+	INCL	DROP_SEL
+	CMPL	DROP_SEL, DROP_N
+	BLSS	1$
+	CLRL	DROP_SEL
+1$:	RSB
+
+; DROP_DO_DROP -- return the highlighted carried item to the chamber and
+;   clear it from the member's pack.
+DROP_DO_DROP:
+	TSTL	DROP_N
+	BEQL	1$
+	MOVL	DROP_SEL, R0
+	MOVL	DROP_LIST[R0], R1		; absolute PT index
+	MOVL	SCAVE_PARTY_PT[R1], R0		; treasure index
+	BSBW	ADD_TO_CHAMBER
+	MOVL	DROP_SEL, R0
+	MOVL	DROP_LIST[R0], R1
+	MNEGL	#1, SCAVE_PARTY_PT[R1]
+1$:	RSB
 
 
 ;
@@ -955,14 +1625,20 @@ TRY_ASSIGN:
 	MOVAB	SCAVE_DATA_TR_WT, R2
 	MOVL	(R2)[R6], R4			; item weight
 	BEQL	TA_PLACE			; weightless artifact -- no limit
+	; GET_LOAD_USED clobbers R4, so stash the item weight in R7 (which it
+	; preserves) before computing the prospective load.  (This was the
+	; bug that let a Man accept treasure far past his 50 kg limit.)
+	MOVL	R4, R7				; R7 = item weight (preserved)
 	BSBW	GET_LOAD_USED			; R0 = current load (R3 kept)
 	MOVL	SCAVE_PARTY_PC[R3], R5		; creature index
 	MOVAB	SCAVE_DATA_CR_CARRY, R2
-	ADDL3	R0, R4, R1			; prospective load
+	ADDL3	R0, R7, R1			; prospective load = current + item
 	CMPL	R1, (R2)[R5]
 	BLEQ	TA_PLACE
-	MOVAB	DSC_ERR_WEIGHT, R5
-	BRW	TA_REJECT
+	; Too heavy.  Return code 2 (no error painted) so the caller can
+	; offer to drop carried treasure to make room.
+	MOVL	#2, R0
+	RSB
 
 TA_PLACE:
 	; Store in the first free backing slot (index = R3*stride + k).
@@ -1155,7 +1831,7 @@ LP_LOOP:
 	BLEQ	LP_DONE
 	MOVL	(R8)+, R0			; encoded value
 	BEQL	LP_NEXT				; 0 = empty
-	; Decode: 100..199 -> creature, 200..299 -> treasure
+	; Decode: 100s -> creature, 200s -> treasure, 300s -> hazard
 	DIVL3	#100, R0, R1
 	MULL3	#100, R1, R2
 	SUBL3	R2, R0, R2			; R2 = index within type
@@ -1168,10 +1844,18 @@ LP_LOOP:
 	BRB	LP_NEXT
 LP_TR:
 	CMPL	R1, #2
-	BNEQ	LP_NEXT				; ignore unknown encodings
+	BNEQ	LP_HZ
 	MOVL	SCAVE_CHAMBER_NT, R4
 	MOVL	R2, SCAVE_CHAMBER_CT[R4]
 	INCL	SCAVE_CHAMBER_NT
+	BRB	LP_NEXT
+LP_HZ:
+	CMPL	R1, #3
+	BNEQ	LP_NEXT				; ignore unknown encodings
+	; Re-firing hazard left here from a prior visit (Trap/Medusa/Ghouls).
+	MOVL	SCAVE_CHAMBER_NH, R4
+	MOVL	R2, SCAVE_CHAMBER_CH[R4]
+	INCL	SCAVE_CHAMBER_NH
 LP_NEXT:
 	DECL	R3
 	BRB	LP_LOOP
@@ -1211,7 +1895,7 @@ SP_T:
 	CLRL	R6
 SP_T_LOOP:
 	CMPL	R6, SCAVE_CHAMBER_NT
-	BGEQ	SP_PAD
+	BGEQ	SP_H				; done with treasure -> hazards
 	TSTL	R3
 	BLEQ	SP_PAD
 	MOVL	SCAVE_CHAMBER_CT[R6], R0
@@ -1221,6 +1905,29 @@ SP_T_LOOP:
 SP_T_NEXT:
 	INCL	R6
 	BRB	SP_T_LOOP
+SP_H:
+	; Persist only the re-firing hazards (TRAP=1, MEDUSA=3, GHOULS=4) as
+	; 300+i, so a later visit re-applies them.  MUTINY(0) and
+	; EARTHQUAKE(2) are one-shot and are deliberately not saved.
+	CLRL	R6
+SP_H_LOOP:
+	CMPL	R6, SCAVE_CHAMBER_NH
+	BGEQ	SP_PAD
+	TSTL	R3
+	BLEQ	SP_PAD
+	MOVL	SCAVE_CHAMBER_CH[R6], R0
+	CMPL	R0, #1
+	BEQL	SP_H_KEEP
+	CMPL	R0, #3
+	BEQL	SP_H_KEEP
+	CMPL	R0, #4
+	BNEQ	SP_H_NEXT
+SP_H_KEEP:
+	ADDL3	#300, R0, (R8)+
+	DECL	R3
+SP_H_NEXT:
+	INCL	R6
+	BRB	SP_H_LOOP
 SP_PAD:
 	; Zero out any unused tail slots so a previous visit's longer
 	; contents don't leak through.

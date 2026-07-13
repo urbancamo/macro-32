@@ -33,6 +33,7 @@
 	.EXTRN	SCAVE_MAP_PA
 	.EXTRN	SCAVE_MAP_PL
 	.EXTRN	SCAVE_MAP_PP
+	.EXTRN	SCAVE_MAP_PP2
 	.EXTRN	SCAVE_MAP_DEADEND
 	.EXTRN	SCAVE_MAP_NM
 	.EXTRN	SCAVE_MAP_MP
@@ -41,6 +42,11 @@
 	.EXTRN	SCAVE_DECK_LP
 	.EXTRN	SCAVE_DECK_LI
 	.EXTRN	SCAVE_DATA_AREA_CARDS
+	.EXTRN	SCAVE_AREA_FU
+	.EXTRN	SCAVE_AREA_MIR
+	.EXTRN	SCAVE_AREA_SD
+	.EXTRN	SCAVE_AREA_AF
+	.EXTRN	SCAVE_MAP_SDN
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
 	.EXTRN	SCAVE_DEC_AS
@@ -125,6 +131,15 @@ CARD_VAL:	.LONG	0
 	SUBL3	#1, R6, R5			; R5 = direction-1 = 0..5
 	CLRL	SCAVE_MAP_DEADEND		; assume not a dead end
 
+	; SC-6.1-12: on level 1 an up-stair is a cave EXIT (the exitCave action),
+	; never a climbable move -- a DIR_UP (5) move stays blocked here.
+	CMPL	R6, #5
+	BNEQ	M_DIR_OK
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	M_DIR_OK
+	BRW	M_FAIL
+M_DIR_OK:
+
 	; Decode the current card to find its exits.
 	MOVL	SCAVE_MAP_PA, R7		; R7 = current PA
 	PUSHL	SCAVE_MAP_MP[R7]
@@ -176,6 +191,19 @@ M_FIND:
 	BRW	M_NEW
 
 M_USE_EXISTING:
+	; SC-6.1-5: an earthquake-collapsed destination is rubble -- the doorway
+	; onto it is blocked.  Prune the phantom exit and report a dead end.
+	MOVL	SCAVE_AREA_AF[R2], R0
+	BBC	#2, R0, M_UE_LIVE		; bit 2 = AF_DESTROYED (^X04); clear -> proceed
+	CMPL	R6, #4				; prune only a LATERAL exit; a stair (U/D)
+	BGTR	M_UE_RUBBLE			; is never pruned, so it re-dead-ends each try
+	MOVAB	DEAD_MASK, R0
+	MOVL	(R0)[R5], R0
+	BICL2	R0, SCAVE_MAP_MP[R7]		; clear the doorway bit on the current card
+M_UE_RUBBLE:
+	MOVL	#1, SCAVE_MAP_DEADEND
+	BRW	M_FAIL
+M_UE_LIVE:
 	; R2 = index of the existing area.  Decode it and check that
 	; the back-exit is open from our direction.
 	;
@@ -207,6 +235,8 @@ M_USE_EXISTING:
 
 M_DO_MOVE_EXISTING:
 	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
+	MOVL	#1, SCAVE_AREA_FU[R2]		; entering it turns the tile face up
+	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2	; PP2 = area two moves back
 	MOVL	R7, SCAVE_MAP_PP		; PP = old PA
 	MOVL	R2, SCAVE_MAP_PA		; new PA
 	MOVL	R8, SCAVE_MAP_PL		; new level
@@ -227,13 +257,9 @@ M_DRAW:
 	MOVL	SCAVE_DATA_AREA_CARDS[R0], R0	; R0 = packed card value
 	MOVL	R0, CARD_VAL
 
-	; No up-staircases on level 1 except the gateway: the only way up
-	; from the first level is out through the gateway, so a freshly
-	; drawn level-1 card never keeps its up-stair.  (R8 = target level.)
-	CMPL	R8, #1
-	BNEQ	M_DRAW_LVLOK
-	BICL2	#^X20, CARD_VAL			; clear AU (bit 5)
-M_DRAW_LVLOK:
+	; SC-6.1-12: a printed level-1 up-stair is KEPT -- it is a cave exit
+	; (exitCave), not a move (a DIR_UP move is blocked in TRY_MOVE above), so
+	; several cards besides the Gateway can let a party escape.  Do NOT strip it.
 
 	PUSHL	CARD_VAL
 	CALLS	#1, DECODE_AREA
@@ -254,8 +280,10 @@ M_PLACE_OPEN:
 	MOVL	SCAVE_MAP_NM, R2
 	MOVL	CARD_VAL, SCAVE_MAP_MP[R2]
 	MOVL	R10, SCAVE_MAP_ML[R2]
+	MOVL	#1, SCAVE_AREA_FU[R2]		; a connecting tile is placed face up
 
 	BSBW	MIRROR_UP_STAIR			; D-descent: give dest an up-stair
+	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2	; PP2 = area two moves back
 	MOVL	R7, SCAVE_MAP_PP
 	MOVL	R2, SCAVE_MAP_PA
 	MOVL	R8, SCAVE_MAP_PL
@@ -301,9 +329,25 @@ M_FAIL:
 ; ===========================================================
 ;
 MIRROR_UP_STAIR:
-	CMPL	R6, #6				; D = descend a staircase
+	; Choose the return-stair bit: descend (dir 6) needs an up-stair (AU=^X20),
+	; ascend (dir 5) needs a down-stair (AD=^X40).  Lateral moves: nothing.
+	CMPL	R6, #6
+	BNEQ	2$
+	MOVL	#^X20, R0			; stair-up
+	BRB	3$
+2$:	CMPL	R6, #5
 	BNEQ	1$
-	BISL2	#^X20, SCAVE_MAP_MP[R2]		; set AU (bit 5) on destination
+	MOVL	#^X40, R0			; stair-down
+3$:	; If the card already pictures that stair, it's a real doorway -- no
+	; mirror, no secret door (SC-6.1-13/14).
+	BITL	R0, SCAVE_MAP_MP[R2]
+	BNEQ	1$
+	BISL2	R0, SCAVE_MAP_MP[R2]		; mirror the return stair onto the card
+	BISL2	R0, SCAVE_AREA_MIR[R2]		; record it as a mirrored (secret) stair
+	CMPL	SCAVE_AREA_SD[R2], #-1		; lay a secret-door ordinal if none yet
+	BNEQ	1$
+	MOVL	SCAVE_MAP_SDN, SCAVE_AREA_SD[R2]
+	INCL	SCAVE_MAP_SDN
 1$:	RSB
 
 
@@ -354,6 +398,7 @@ FTB_PLACE:
 	MOVL	SCAVE_MAP_NM, R2
 	MOVL	R0, SCAVE_MAP_MP[R2]
 	MOVL	R10, SCAVE_MAP_ML[R2]
+	MOVL	#1, SCAVE_AREA_FU[R2]		; a trap-fall tile is placed face up (relocateDown)
 
 FTB_USE:
 	MOVL	R7, SCAVE_MAP_PP		; PP = area we fell from

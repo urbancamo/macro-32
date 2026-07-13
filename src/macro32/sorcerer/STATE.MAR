@@ -35,6 +35,18 @@
 	SCAVE$_GS_QUIT    = 3
 
 ;
+; -- interactive phase values (engine-spec SC-4-3) --
+;    The reducer's mode: which actions ENG_APPLY accepts and which
+;    controls the UI may offer.  Printed by SCCONF as EXP/ENC/FGT/
+;    PKP/END in conformance checkpoint lines.
+;
+	SCAVE$_PH_EXPLORE   = 0
+	SCAVE$_PH_ENCOUNTER = 1
+	SCAVE$_PH_FIGHT     = 2
+	SCAVE$_PH_PICKUP    = 3
+	SCAVE$_PH_GAMEOVER  = 4
+
+;
 ; -- party-creature status values --
 ;
 	SCAVE$_PS_ORIG    = 0			; chosen during party selection
@@ -64,9 +76,9 @@
 ;
 ; -- container sizes --
 ;
-	SCAVE$_AREA_COUNT  = 61			; 61 area cards in the large pack
-	SCAVE$_SMALL_COUNT = 52			; 52 chamber cards in the small pack
-	SCAVE$_PARTY_MAX   = 12			; max creatures in party
+	SCAVE$_AREA_COUNT  = 62			; 61 area cards, indexed 1-based (1..61) -> need 62 slots
+	SCAVE$_SMALL_COUNT = 71			; small-pack card count (SC-3-13); sizes SCAVE_DECK_SP
+	SCAVE$_PARTY_MAX   = 32			; max creatures in party
 	SCAVE$_TREAS_PER   = 20			; per-creature treasure backing
 						; slots.  The rules cap carrying
 						; by WEIGHT only (heavy treasure
@@ -82,7 +94,9 @@
 						; each module redeclares it to 20.
 	SCAVE$_AREA_ITEMS  = 8			; max persistent items per area
 						; (creatures + leftover treasure)
-	SCAVE$_CHAMBER_MAX = 8			; max strangers / treasure per chamber
+	SCAVE$_CHAMBER_MAX = 32			; buffer headroom for the floor set (reference is unbounded);
+						; the drawn small pack is still capped at 8 (DRAW_CHAMBER),
+						; but spills/drops/parked treasure can accumulate past 8
 	SCAVE$_HAZARD_MAX  = 4			; max hazards per chamber draw
 
 
@@ -99,6 +113,28 @@ SCAVE_STATE_TN::	.LONG	1			; turn counter
 SCAVE_STATE_SC::	.LONG	0			; current/final score
 SCAVE_STATE_NC::	.LONG	0			; curse count
 SCAVE_STATE_SK::	.LONG	0			; sorcerer-killed flag
+SCAVE_STATE_BONUS::	.LONG	0			; bonusScore (Treasure Chest silver/gold/gems)
+SCAVE_STATE_PH::	.LONG	SCAVE$_PH_EXPLORE	; interactive phase (SC-4-3)
+SCAVE_STATE_SR::	.LONG	0			; surprise-ready: fresh encounter entry (SC-4-16)
+SCAVE_STATE_IS::	.LONG	0			; indiffStreak: consecutive indifferent tests this
+							; chamber visit; 3rd pacifies (SC-8.4-3..5)
+SCAVE_STATE_FT::	.LONG	0			; fellThroughTrap: here via a one-way trap fall --
+							; no surprise, no withdraw/retreat up (SC-4-14/17/27)
+SCAVE_STATE_LOTUSSORC::	.LONG	0		; Lotus Dust cast on the Sorcerer this fight (-2 MP)
+
+;
+; ===========================================================
+;  Engine event queue (SC-4-42).  ENG_APPLY clears the queue on
+;  entry and appends one longword event code per game fact, in
+;  emission order.  Callers (UI, SCCONF) drain it after each
+;  action; the engine never reads it back.
+; ===========================================================
+;
+	SCAVE$_EVQ_MAX = 32			; events per action, generous
+
+	.ALIGN	LONG
+SCAVE_EVQ_N::		.LONG	0			; events queued this action
+SCAVE_EVQ::		.BLKL	SCAVE$_EVQ_MAX		; event codes, in order
 
 ;
 ; ===========================================================
@@ -110,6 +146,7 @@ SCAVE_MAP_NM::		.LONG	0			; areas placed so far
 SCAVE_MAP_PA::		.LONG	1			; current party area index (1-based)
 SCAVE_MAP_PL::		.LONG	1			; current party level
 SCAVE_MAP_PP::		.LONG	0			; previous area (for earthquake)
+SCAVE_MAP_PP2::		.LONG	0			; area two moves back (double quake)
 SCAVE_MAP_FELL::	.LONG	0			; set by ENTER_CHAMBER when a trap
 							; drops the party; MAIN relocates one
 							; level down and re-dispatches the turn
@@ -134,18 +171,24 @@ SCAVE_AREA_AC::		.BLKL	<SCAVE$_AREA_COUNT*SCAVE$_AREA_ITEMS>
 							; encoded creature=100+i, treasure=200+i
 SCAVE_AREA_AF::		.BLKL	SCAVE$_AREA_COUNT	; per-area flag bits
 SCAVE_AREA_AI::		.BLKL	SCAVE$_AREA_COUNT	; indifference test count
+SCAVE_AREA_FU::		.BLKL	SCAVE$_AREA_COUNT	; face-up flag per area (0 = dead-end face-down)
+SCAVE_AREA_MIR::	.BLKL	SCAVE$_AREA_COUNT	; mirrored-stair bits per area (D8 secret doors)
+SCAVE_AREA_SD::		.BLKL	SCAVE$_AREA_COUNT	; secret-door ordinal per area (-1 = none)
+	.ALIGN	LONG
+SCAVE_MAP_SDN::		.LONG	0			; next secret-door ordinal (global counter)
 							; (rolls of "indifferent" in this
 							; chamber's stranger encounter; on
 							; the 3rd, set AF_PERMINDIFF)
 
-; Heavy treasure left "in the doorway" at the Deep Pool (rules): the
-; party drops it crossing the water and reclaims it by leaving via that
-; doorway again.  DROP_SIDE = the doorway direction (1=N 2=E 3=S 4=W),
-; 0 = nothing dropped here.  DROP_PT = up to 4 dropped treasure indices,
-; stored as index+1 (0 = empty slot).
+; Heavy treasure dropped into a Deep Pool crossing the water (reference
+; area.dropped): the party leaves it behind on the pool tile (a Giant carries
+; all, so none drops).  DROP_N = count of dropped ids for that area; DROP_PT =
+; the raw treasure ids in drop order (8 slots/area of headroom).  DROP_SIDE is
+; the old reclaim-doorway model (unused by the vectors).
 	.ALIGN	LONG
 SCAVE_AREA_DROP_SIDE::	.BLKL	SCAVE$_AREA_COUNT
-SCAVE_AREA_DROP_PT::	.BLKL	<SCAVE$_AREA_COUNT*4>
+SCAVE_AREA_DROP_N::	.BLKL	SCAVE$_AREA_COUNT	; dropped-item count per area
+SCAVE_AREA_DROP_PT::	.BLKL	<SCAVE$_AREA_COUNT*8>	; dropped treasure ids (raw), in order
 
 ;
 ; ===========================================================
@@ -172,6 +215,10 @@ SCAVE_CHAMBER_NH::	.LONG	0			; hazard count
 SCAVE_CHAMBER_CS::	.BLKL	SCAVE$_CHAMBER_MAX	; stranger creature indices
 SCAVE_CHAMBER_CT::	.BLKL	SCAVE$_CHAMBER_MAX	; treasure indices
 SCAVE_CHAMBER_CH::	.BLKL	SCAVE$_HAZARD_MAX	; hazard indices
+SCAVE_CHAMBER_NSL::	.LONG	0			; sleeping count (Lotus Dust, SC-11-9)
+SCAVE_CHAMBER_SL::	.BLKL	SCAVE$_CHAMBER_MAX	; sleeping creature ids (parked as 400+id)
+SCAVE_CHAMBER_NLULL::	.LONG	0			; flute-lulled dragon count (SC-11)
+SCAVE_CHAMBER_LULL::	.BLKL	SCAVE$_CHAMBER_MAX	; lulled dragon ids (parked as 100+id, AWAKE)
 
 ;
 ; ===========================================================
@@ -183,6 +230,8 @@ SCAVE_DECK_LP::		.BLKL	60			; large pack -- 60 cards (gateway pulled)
 SCAVE_DECK_LI::		.LONG	0			; large-pack draw position
 SCAVE_DECK_SP::		.BLKL	SCAVE$_SMALL_COUNT	; small pack
 SCAVE_DECK_SI::		.LONG	0			; small-pack draw position
+SCAVE_DECK_SN::		.LONG	SCAVE$_SMALL_COUNT	; live small-pack size after the party
+							; picks are spliced out (SC-5-5 / D2)
 
 ;
 ; ===========================================================
@@ -190,13 +239,26 @@ SCAVE_DECK_SI::		.LONG	0			; small-pack draw position
 ; ===========================================================
 ;
 	.ALIGN	LONG
-SCAVE_FIGHT_FA::	.BLKL	SCAVE$_CHAMBER_MAX	; party fighter slots (front)
-SCAVE_FIGHT_FD::	.BLKL	SCAVE$_CHAMBER_MAX	; defender (stranger) slots
-SCAVE_FIGHT_FB::	.BLKL	SCAVE$_CHAMBER_MAX	; background magic supporters
+	SCAVE$_MPM = 12				; max members per side of a match (front/backer/stranger)
+; Multi-front battle plan (SC-9.1).  Each of NF matches i holds three lists,
+; flattened as [i*MPM + j], with a per-match count:
+SCAVE_FIGHT_FN::	.BLKL	SCAVE$_CHAMBER_MAX	; front count per match
+SCAVE_FIGHT_BN::	.BLKL	SCAVE$_CHAMBER_MAX	; backer count per match
+SCAVE_FIGHT_SN::	.BLKL	SCAVE$_CHAMBER_MAX	; stranger count per match
+SCAVE_FIGHT_FA::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; front party slots
+SCAVE_FIGHT_FB::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; backer party slots (background magic)
+SCAVE_FIGHT_FD::	.BLKL	<SCAVE$_CHAMBER_MAX*SCAVE$_MPM>	; stranger (defender) idxs
+SCAVE_FIGHT_ATTACH::	.BLKL	SCAVE$_CHAMBER_MAX	; gang-up: stranger idx attached to match i (-1 none)
+SCAVE_FIGHT_FOLD::	.LONG	0			; gang-up: leftover-caster MP folded onto the focus
+SCAVE_FIGHT_FOCUS::	.LONG	-1			; focus match: first non-Spectre match (-1 = none)
 SCAVE_FIGHT_NF::	.LONG	0			; matches
 SCAVE_FIGHT_FS::	.LONG	0			; surprise (+1=us, -1=them, 0=neither)
 SCAVE_FIGHT_RD::	.LONG	1			; round number
 SCAVE_FIGHT_POTION::	.LONG	-1			; party slot using strength potion
+; Casualty queue (SC-9.2): a match lost with >1 mortal front -> the player picks
+; which of the pair falls.  CQ[k*2+0], CQ[k*2+1] = the two mortal front slots.
+SCAVE_FIGHT_CQN::	.LONG	0			; pending pairs
+SCAVE_FIGHT_CQ::	.BLKL	<SCAVE$_CHAMBER_MAX*2>
 
 ;
 ; ===========================================================

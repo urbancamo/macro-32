@@ -1,0 +1,3647 @@
+	.TITLE	ENGINE	Headless game-engine boundary for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; ENGINE.MAR
+;
+;   The pure, headless entry points to the game rules (engine-spec
+;   SC-4-1): no SMG$, no keyboard, no clock.  Both SCAVE.EXE (the
+;   interactive UI) and SCCONF.EXE (the conformance-vector replayer)
+;   link against this module and drive the game exclusively through:
+;
+;     ENG_NEWGAME(seed, npicks, picks)   build a fresh game state
+;     ENG_APPLY(action, a1, a2, a3)      the single reducer
+;
+;   Game facts are reported through the event queue in STATE.MAR
+;   (SCAVE_EVQ_N / SCAVE_EVQ, one longword code per event, in
+;   emission order -- SC-4-42).  ENG_APPLY clears the queue on entry.
+;
+;   Status: G0 skeleton.  ENG_NEWGAME performs the real deck build /
+;   map init / party seat against the CURRENT (pre-parity) data
+;   tables; ENG_APPLY is a stub that accepts every action and emits
+;   nothing.  The per-gate work in claude/sorcerers-cave/
+;   2026-07-11-refresh/loop/LEDGER.md fills it in.
+;
+; Action codes (SC-4-41, keep in sync with SCCONF.MAR's parser --
+; MACRO-32 "=" constants are file-local, so modules redeclare them):
+;
+;    1 MOVE      2 QUIT       3 EXITCAVE   4 WITHDRAW   5 TAKE
+;    6 LEAVE     7 RETAKE     8 GIVE       9 DROP      10 BORNE
+;   11 TEST     12 ATTACK    13 FIGHT     14 CASUALTY  15 RETREAT
+;   16 USE      17 OPENCHEST
+;--
+
+	SCAVE$_PS_ORIG  = 0
+	SCAVE$_PARTY_MAX = 32
+	SCAVE$_TREAS_PER = 20			; must equal STATE.MAR's value
+	SCAVE$_PH_EXPLORE = 0
+
+	SCAVE$_ACT_MOVE = 1			; SC-4-41 action codes
+	SCAVE$_ACT_EXITCAVE = 3
+	SCAVE$_ACT_WITHDRAW = 4
+	SCAVE$_ACT_TAKE = 5
+	SCAVE$_ACT_LEAVE = 6
+	SCAVE$_ACT_TEST = 11
+	SCAVE$_ACT_ATTACK = 12
+	SCAVE$_ACT_FIGHT = 13
+	SCAVE$_ACT_CASUALTY = 14
+	SCAVE$_ACT_USE = 16
+	SCAVE$_ACT_OPENCHEST = 17
+	SCAVE$_MPM = 12				; max members per side of a match (match STATE.MAR)
+
+	; artifact treasure ids (SC-11)
+	SCAVE$_TR_CARPET = 4			; Magic Carpet
+	SCAVE$_TR_LOTUS  = 5			; Lotus Dust
+	SCAVE$_TR_BALM   = 6			; Healing Balm
+	SCAVE$_TR_POTION = 8			; Strength Potion
+	SCAVE$_TR_STAFF  = 9			; Magic Staff
+	SCAVE$_TR_FLUTE  = 12			; Charmed Flute
+
+	; creature-flag masks (file-local `=` in DATA.MAR/STATE.MAR; redeclare here)
+	SCAVE$M_CR_CHARISMA = ^X02		; +1 reaction (Hero / W-Hero)
+	SCAVE$M_CR_BEFRIENDS_UNICORN = ^X04	; a "Woman" for Unicorn purposes
+	SCAVE$M_AF_PERMINDIFF = ^X10		; area is permanently indifferent (pacified)
+	SCAVE$_CR_UNICORN = 13
+	SCAVE$_PH_FIGHT = 2			; must equal STATE.MAR
+	SCAVE$_PH_GAMEOVER = 4
+	SCAVE$_GS_ESCAPED = 1			; SC-3-23 game states
+	SCAVE$_GS_DEAD = 2
+	SCAVE$_PS_DEAD = 3			; SC-3-21 member status
+	SCAVE$M_AF_DESTROYED = ^X04		; per-area flag (must equal STATE.MAR)
+	SCAVE$_EVQ_MAX = 32			; must equal STATE.MAR's value
+	SCAVE$_AREA_ITEMS = 8			; must equal STATE.MAR's value
+
+	; Phase codes (SC-4-3) -- must equal STATE.MAR's values.
+	SCAVE$_PH_ENCOUNTER = 1
+	SCAVE$_PH_PICKUP    = 3
+	SCAVE$M_AREA_CHAMBER = ^X10		; area-card chamber bit (bit 4)
+
+	; Event codes -- KEEP IN SYNC with SCCONF.MAR's EV name table.
+	SCAVE$_EV_MOVED    = 1
+	SCAVE$_EV_DEADEND  = 2
+	SCAVE$_EV_BLOCKED  = 3
+	SCAVE$_EV_DREWCHAMBER = 4
+	SCAVE$_EV_ENTEREDSPECIAL = 5
+	SCAVE$_EV_FIGHTSTARTED = 6
+	SCAVE$_EV_COMBATROLL = 7
+	SCAVE$_EV_STRANGERKILLED = 8
+	SCAVE$_EV_MEMBERDIED = 9
+	SCAVE$_EV_FIGHTWON = 10
+	SCAVE$_EV_GAMEOVER = 11
+	SCAVE$_EV_SORCERERSLAIN = 12
+	SCAVE$_EV_SPECTRESLEW = 13
+	SCAVE$_EV_RUBYTAKEN = 14
+	SCAVE$_EV_STATUEAROUSED = 15
+	SCAVE$_EV_HAZARDFIRED = 16
+	SCAVE$_EV_CROSSEDSPECIAL = 17
+	SCAVE$_EV_VIPERPIT = 18
+	SCAVE$_EV_TREASUREDROPPED = 19
+	SCAVE$_EV_REACTION = 20
+	SCAVE$_EV_STRANGERSJOINED = 21
+	SCAVE$_EV_PACIFIED = 22
+	SCAVE$_EV_UNICORNGUARDS = 23
+	SCAVE$_EV_CASUALTYCHOSEN = 24
+	SCAVE$_EV_ITEMSSPILLED = 25
+	SCAVE$_EV_TRAPSPRUNG = 26
+	SCAVE$_EV_TRAPAVOIDED = 27
+	SCAVE$_EV_MEDUSAGAZE = 28
+	SCAVE$_EV_MUTINIED = 29
+	SCAVE$_EV_GHOULSWARDED = 30
+	SCAVE$_EV_MEDUSAAVERTED = 31
+	SCAVE$_EV_PETRIFIEDOUT = 32
+	SCAVE$_EV_DEATHPREVENTED = 33
+	SCAVE$_EV_ANNIHILATED = 34
+	SCAVE$_EV_STATUEPOWERLESS = 35
+	SCAVE$_EV_ARTIFACTUSED = 36
+	SCAVE$_EV_CARPETUSED = 37
+	SCAVE$_EV_SECRETDOORREVEALED = 38
+	SCAVE$_EV_DRAGONSLULLED = 39
+	SCAVE$_EV_VIPERSLULLED = 40
+	SCAVE$_EV_UNICORNDEPARTED = 41
+	SCAVE$_EV_WARDEDOFF = 42
+	SCAVE$_EV_CHESTOPENED = 43
+	SCAVE$_EV_TREASURERECLAIMED = 44
+	SCAVE$_EV_EYEFORSAKEN = 45
+	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
+	SCAVE$_HZ_MUTINY = 0
+	SCAVE$_HZ_TRAP = 1
+	SCAVE$_HZ_MEDUSA = 3
+	SCAVE$_HZ_GHOULS = 4
+	SCAVE$_CR_DWARF = 7			; guides the party past a trap
+	SCAVE$M_CR_GUIDES_PAST_TRAP = ^X08
+	SCAVE$_CR_SPECTRE = 9			; creature indices
+	SCAVE$_CR_DRAGON = 10			; single-handed kill -> dragonKills++
+	SCAVE$_CR_SORCERER = 11			; felling him -> sorcererSlain + curse lift
+	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
+	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
+	SCAVE$_TR_TALISMAN = 7			; Talisman (wards off Ghouls, SC-7.2)
+	SCAVE$_TR_CHEST = 14			; Treasure Chest (openChest, SC-12)
+	SCAVE$_TR_RING = 10			; The Ring (+1 party die in combat, SC-11-24)
+	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
+	SCAVE$_TR_EYE = 13			; Eye of God (annihilates Spectres on entry, SC-11-35)
+	SCAVE$_TR_HEAVY_MAX = 2			; heavy treasure ids 0..2 (Silver, Gold, Gems)
+
+	; Area special types (card bits 7-9); the "stop at edge" specials.
+	SCAVE$_SPECIAL_POOL  = 2			; Deep Pool
+	SCAVE$_SPECIAL_VIPER = 3			; Viper Pit
+
+	.PSECT	ENGINE_CODE, EXE, NOWRT, LONG
+
+;
+; ===========================================================
+;  ENG_NEWGAME(seed, npicks, picks)
+;
+;    seed    longword LCG seed, by value (SC-5-13: caller-supplied)
+;    npicks  number of starting creatures, by value
+;    picks   address of npicks longword creature ids
+;
+;  Builds decks in the normative RNG order -- large pack first,
+;  then small pack (SC-5-12; INIT_DECKS already shuffles in that
+;  order) -- places the Gateway and seats the party.
+;
+;  G0 note: picks are trusted (SCCONF feeds vector data); the
+;  SC-5-1..4 validation arrives with gate G2.
+; ===========================================================
+;
+	.ENTRY	ENG_NEWGAME, ^M<R2,R3,R4,R5,R6>
+
+	MOVL	4(AP), SCAVE_RNG_SEED		; the seed IS the argument
+
+	CALLS	#0, G^INIT_DECKS		; large then small (SC-5-12)
+	CALLS	#0, G^INIT_MAP			; zero map, place Gateway
+
+	; SC-5-5 / D2: splice each picked creature (100+id) out of the shuffled
+	; small pack once, so a starting creature cannot reappear as a stranger.
+	; Every card after the removed one shifts down; SCAVE_DECK_SN tracks the
+	; live size (DRAW_CHAMBER's exhaustion bound).
+	MOVL	SCAVE_DATA_SMALL_N, SCAVE_DECK_SN
+	MOVL	8(AP), R2			; npicks
+	MOVL	12(AP), R3			; picks base
+	CLRL	R4				; pick index
+RP_L:	CMPL	R4, R2
+	BGEQ	RP_DONE
+	ADDL3	#100, (R3)[R4], R5		; R5 = 100 + pick id (small-pack code)
+	CLRL	R6				; scan for the first matching card
+RP_S:	CMPL	R6, SCAVE_DECK_SN
+	BGEQ	RP_NEXT				; not present (should not happen)
+	CMPL	SCAVE_DECK_SP[R6], R5
+	BEQL	RP_SPL
+	INCL	R6
+	BRB	RP_S
+RP_SPL:	MOVL	R6, R0				; splice: shift [R6+1..SN-1] down one
+RP_SH:	ADDL3	R0, #1, R1
+	CMPL	R1, SCAVE_DECK_SN
+	BGEQ	RP_SHD
+	MOVL	SCAVE_DECK_SP[R1], SCAVE_DECK_SP[R0]
+	MOVL	R1, R0
+	BRB	RP_SH
+RP_SHD:	DECL	SCAVE_DECK_SN
+RP_NEXT: INCL	R4
+	BRB	RP_L
+RP_DONE:
+
+	; Seat the party: PC[i] = picks[i], status ORIG, no kills.
+	MOVL	8(AP), R2			; R2 = npicks
+	MOVL	12(AP), R3			; R3 = picks base
+	MOVL	R2, SCAVE_PARTY_NP
+	CLRL	R4				; i = 0
+	TSTL	R2
+	BEQL	20$
+10$:	MOVL	(R3)[R4], SCAVE_PARTY_PC[R4]
+	CLRL	SCAVE_PARTY_PS[R4]		; SCAVE$_PS_ORIG
+	CLRL	SCAVE_PARTY_PK[R4]
+	AOBLSS	R2, R4, 10$
+20$:
+
+	; Empty every treasure slot (-1 = empty).
+	CLRL	R4
+	MOVAB	SCAVE_PARTY_PT, R5
+30$:	MOVL	#-1, (R5)[R4]
+	AOBLSS	#<SCAVE$_PARTY_MAX*SCAVE$_TREAS_PER>, R4, 30$
+
+	; Top-level state (SC-3-23).
+	CLRL	SCAVE_STATE_GS			; GS_PLAYING
+	MOVL	#1, SCAVE_STATE_TN
+	CLRL	SCAVE_STATE_SC
+	CLRL	SCAVE_STATE_NC
+	CLRL	SCAVE_STATE_SK
+	CLRL	SCAVE_STATE_PH			; explore
+
+	; Clear the chamber working set and the event queue.
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_EVQ_N
+
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  ENG_APPLY(action, a1, a2, a3)
+;
+;  The single reducer (SC-4-1).  G0 stub: clears the event queue,
+;  changes nothing, succeeds.  Real dispatch lands with gates
+;  G2..G6; the contract already holds -- a call that changes no
+;  state also emits no events (SC-4-6 discipline).
+; ===========================================================
+;
+	.ENTRY	ENG_APPLY, ^M<R2,R3,R4,R5,R6,R7>
+
+	CLRL	SCAVE_EVQ_N			; SC-4-6: fresh event queue per action
+	MOVL	4(AP), R2			; R2 = action code
+
+	CMPL	R2, #SCAVE$_ACT_MOVE
+	BNEQ	1$
+	BRW	EA_MOVE
+1$:	CMPL	R2, #SCAVE$_ACT_LEAVE
+	BNEQ	2$
+	BRW	EA_LEAVE
+2$:	CMPL	R2, #SCAVE$_ACT_TAKE
+	BNEQ	3$
+	BRW	EA_TAKE
+3$:	CMPL	R2, #SCAVE$_ACT_WITHDRAW
+	BNEQ	4$
+	BRW	EA_WITHDRAW
+4$:	CMPL	R2, #SCAVE$_ACT_TEST
+	BNEQ	41$
+	BRW	EA_TEST
+41$:	CMPL	R2, #SCAVE$_ACT_ATTACK
+	BNEQ	5$
+	BRW	EA_ATTACK
+5$:	CMPL	R2, #SCAVE$_ACT_FIGHT
+	BNEQ	51$
+	BRW	EA_FIGHT
+51$:	CMPL	R2, #SCAVE$_ACT_CASUALTY
+	BNEQ	6$
+	BRW	EA_CASUALTY
+6$:	CMPL	R2, #SCAVE$_ACT_EXITCAVE
+	BNEQ	61$
+	BRW	EA_EXITCAVE
+61$:	CMPL	R2, #SCAVE$_ACT_USE
+	BNEQ	62$
+	BRW	EA_USE
+62$:	CMPL	R2, #SCAVE$_ACT_OPENCHEST
+	BNEQ	7$
+	BRW	EA_OPENCHEST
+7$:	BRW	EA_DONE				; other actions: not yet implemented
+
+;
+; ---- MOVE (SC-4-9, SC-6.1-18, M1) ----
+;   a1 (8(AP)) = direction 1..6.  Delegates the map mechanics to
+;   TRY_MOVE (already headless), then applies the reducer contract:
+;   turn++ only on a successful move; emit moved / deadEnd / blocked.
+;
+EA_MOVE:
+	TSTL	SCAVE_STATE_PH			; SCAVE$_PH_EXPLORE = 0
+	BEQL	1$
+	BRW	EA_DONE				; SC-4-24: reject move outside explore (far -> BRW)
+1$:
+	; Capture the crossing inputs BEFORE the move: R6 = the special type of
+	; the area we are leaving, R7 = oldPrev.  TRY_MOVE overwrites SCAVE_MAP_PP
+	; (prev := old PA), so these must be sampled up front (SC-10, reduce.ts).
+	; TRY_MOVE saves R2-R11, so R6/R7 survive the call.
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R6		; from-card (MOVL scales the index x4)
+	EXTZV	#7, #3, R6, R6			; R6 = fromSpecial (card bits 7-9)
+	MOVL	SCAVE_MAP_PP, R7		; R7 = oldPrev
+	PUSHL	8(AP)				; direction
+	CALLS	#1, G^TRY_MOVE			; R0 = 1 moved / 0 not; sets DEADEND
+	TSTL	R0
+	BNEQ	EA_MOVED
+
+	; Not moved: dead end (doorway drew/hit a blocked tile) vs blocked
+	; (no exit that way / large pack exhausted).  Neither advances a turn.
+	TSTL	SCAVE_MAP_DEADEND
+	BEQL	EA_BLOCKED
+	MOVL	#SCAVE$_EV_DEADEND, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_BLOCKED:
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+EA_MOVED:
+	INCL	SCAVE_STATE_TN			; SC-4-9: +1 only on success
+
+	; Special crossing (SC-10, reduce.ts move handler): leaving a Viper Pit or
+	; Deep Pool for a genuinely new area (not straight back the way we came)
+	; fires the crossing BEFORE the moved event.  crossing = newPA != oldPrev.
+	MOVL	SCAVE_MAP_PA, R2
+	CMPL	R2, R7				; back the way we came? -> no crossing
+	BEQL	EA_NOCROSS
+	CMPL	R6, #SCAVE$_SPECIAL_VIPER
+	BEQL	EA_XVIPER
+	CMPL	R6, #SCAVE$_SPECIAL_POOL
+	BEQL	EA_XPOOL
+	BRB	EA_NOCROSS
+
+EA_XVIPER:
+	MOVL	#SCAVE$_EV_CROSSEDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, VIPER_CROSSING		; emits viperPit + memberDied; R0 = living count
+	TSTL	R0
+	BNEQ	EA_NOCROSS
+	; the pit swallowed the whole party -> game over DEAD (no moved emitted)
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+EA_XPOOL:
+	MOVL	#SCAVE$_EV_CROSSEDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, DEEPPOOL_CROSSING		; Giant carries all, else drop heavy loot
+
+EA_NOCROSS:
+	CLRL	SCAVE_STATE_FT			; a normal move reaches a reachable area (SC-4-9)
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+
+	; Resolve the area just entered (reference resolveArea).  A trap fall loops
+	; back here after relocating one level down (re-emitting moved beforehand).
+EA_RESOLVE:
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R1
+	EXTZV	#7, #3, R1, R3			; R3 = special type (card bits 7-9)
+
+	; Deep Pool / Viper Pit: entry stops at the edge -- emit enteredSpecial,
+	; stay in explore (SC-10-3).  The crossing (crossedSpecial + viper/pool
+	; rolls on the move OUT) and the Giant pool-recovery are gate G6.
+	CMPL	R3, #SCAVE$_SPECIAL_POOL
+	BEQL	EA_SPECIAL
+	CMPL	R3, #SCAVE$_SPECIAL_VIPER
+	BNEQ	EA_CHAMBER
+EA_SPECIAL:
+	; Deep Pool holding dropped treasure a living Giant can lift -> reclaim to pickup
+	; (reference resolveArea: state.treasures = area.dropped; phase pickup).
+	CMPL	R3, #SCAVE$_SPECIAL_POOL
+	BNEQ	ES_ENTER
+	MOVL	SCAVE_MAP_PA, R2
+	TSTL	SCAVE_AREA_DROP_N[R2]
+	BEQL	ES_ENTER
+	CALLS	#0, GIANT_CAN_RECOVER		; R0 = 1 if a living Giant can lift >=1 dropped item
+	TSTL	R0
+	BEQL	ES_ENTER
+	CALLS	#0, RECLAIM_POOL		; move the dropped pile onto the floor (CT)
+	MOVL	#SCAVE$_EV_TREASURERECLAIMED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+ES_ENTER:
+	MOVL	#SCAVE$_EV_ENTEREDSPECIAL, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+	; Chamber-draw-on-arrival (SC-7.1-2): first visit to a chamber-type area
+	; deals the small-pack cards, emits drewChamber, sets ENC/PKP.  (Hazard
+	; firing + reaction rolls, and the revisit reclassify path, are gate G4.)
+EA_CHAMBER:
+	BBS	#4, R1, EA_CH1			; a chamber (SCAVE$M_AREA_CHAMBER) -> resolve it
+	BRW	EA_DONE				; not a chamber (far -> BRW)
+EA_CH1:	TSTL	SCAVE_MAP_MV[R2]
+	BEQL	7$
+	CALLS	#0, REVISIT_CHAMBER		; visited -> reclassify parked contents
+	CLRL	R3				; fresh = 0 (revisit)
+	BRB	8$
+7$:	CALLS	#0, DRAW_CHAMBER		; first visit -> deal from the small pack
+	MOVL	#1, R3				; fresh = 1
+8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, ANNIHILATE_EYE		; SC-11-35: the Eye destroys Spectres on sight
+	CALLS	#0, WARD_OFF_SPECTRES		; Talisman drives off Spectres on level >= 4
+	CALLS	#0, RESOLVE_HAZARDS		; on-draw hazards (SC-7.2)
+
+	; A hazard (Medusa / Ghouls) may leave no one able to act -> the run ends.
+	BSBW	COUNT_LIVING
+	TSTL	R0
+	BNEQ	EA_HZ_OK
+	CALLS	#0, PETRIFIED_CHECK		; all-stone -> petrifiedOut (else nothing)
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_HZ_OK:
+	; Trap fall (SC-4-14): this chamber's strangers/treasure stay parked here;
+	; the party drops one level and re-resolves there (may chain).
+	TSTL	SCAVE_MAP_FELL
+	BEQL	EA_PHASE
+	CLRL	SCAVE_MAP_FELL
+	CALLS	#0, PERSIST_AREA
+	CALLS	#0, G^FALL_TO_BELOW		; R0 = 1 relocated, 0 pack-empty
+	BLBC	R0, EA_PHASE			; no area below -> end the turn here
+	MOVL	#1, SCAVE_STATE_FT		; one-way: no surprise / withdraw / retreat up
+	MOVL	#SCAVE$_EV_TRAPSPRUNG, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_RESOLVE			; re-resolve the area below
+
+EA_PHASE:
+	; Charmed Flute (SC-11): a living Hero/W-Hero/Priest/Man/Woman/Wizard holding
+	; it passively lulls every Dragon -- removed from the active strangers (parked
+	; 100+id on leave, re-lulled on re-entry).  dragonsLulled emits on fresh entry.
+	CLRL	SCAVE_CHAMBER_NLULL
+	CALLS	#0, FLUTE_LULL			; R0 = dragons lulled (R3 fresh-flag preserved)
+	TSTL	R0
+	BEQL	EA_PH_PAC
+	TSTL	R3
+	BEQL	EA_PH_PAC
+	MOVL	#SCAVE$_EV_DRAGONSLULLED, R0
+	BSBW	EMIT_EVENT
+EA_PH_PAC:
+	; Permanently indifferent to this party (SC-8.4-4): walk freely through --
+	; park the guards + treasure back and stay in explore.
+	MOVL	SCAVE_MAP_PA, R2
+	BITL	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	BEQL	EA_PH_STR
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+EA_PH_STR:
+	; phase: strangers -> encounter; else treasure -> pickup; else explore
+	TSTL	SCAVE_CHAMBER_NS
+	BEQL	5$
+	MOVL	#SCAVE$_PH_ENCOUNTER, SCAVE_STATE_PH
+	MOVL	R3, SCAVE_STATE_SR		; surpriseReady = fresh entry (SC-4-16)...
+	TSTL	SCAVE_STATE_FT			; ...but never after a trap fall (SC-4-16)
+	BEQL	81$
+	CLRL	SCAVE_STATE_SR
+81$:	CLRL	SCAVE_STATE_IS			; SC-8.4-5: indiffStreak resets on chamber entry
+	BRW	EA_DONE
+5$:	TSTL	SCAVE_CHAMBER_NT
+	BEQL	EA_EXPL				; nothing to face/pick up -> re-park + explore
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+EA_EXPL:
+	; pass-through: re-park the loaded working set (a REVISIT pulled sleeping
+	; creatures / re-parked hazards into it) so they persist on the tile.
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+
+EA_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ---- LEAVE (SC-4-30, leaveTreasure) ----
+;   Legal only in the pickup phase; else a no-op that emits blocked
+;   (SC-4-24).  Parks the chamber working set onto the area (persistAndExplore)
+;   and returns to explore.  No turn advance, no other events.
+;
+EA_LEAVE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BEQL	3$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+3$:	CALLS	#0, PERSIST_AREA		; park working set + clear it
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+;
+; ---- TAKE (SC-4-29, takeTreasure) ----
+;   Legal only in pickup.  Moves floor treasure slot ti (a1) to member mi (a2),
+;   weight-checked; when the floor empties, persistAndExplore -> explore.  Plain
+;   path, no events.  The Lost Ruby (tid 11 -> statue wrestle) is a later step;
+;   TAKE_TREASURE no-ops it for now.
+;
+EA_TAKE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BEQL	4$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+4$:	MOVL	8(AP), R2			; ti
+	MOVL	12(AP), R3			; mi
+	; Lost Ruby at the floor slot -> statue wrestle (SC-11); else plain take.
+	CMPL	R2, SCAVE_CHAMBER_NT
+	BGEQU	ET_PLAIN
+	CMPL	SCAVE_CHAMBER_CT[R2], #SCAVE$_TR_RUBY
+	BNEQ	ET_PLAIN
+	PUSHL	R3				; mi
+	PUSHL	R2				; ti
+	CALLS	#2, STATUE_WRESTLE
+	BRB	ET_FIN
+ET_PLAIN: PUSHL	R3				; mi
+	PUSHL	R2				; ti
+	CALLS	#2, TAKE_TREASURE
+ET_FIN:	; if the floor emptied and we are still in pickup, persistAndExplore
+	TSTL	SCAVE_CHAMBER_NT
+	BNEQ	5$
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BNEQ	5$
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+5$:	BRW	EA_DONE
+
+;
+; ---- WITHDRAW (SC-4-16/21, withdraw) ----
+;   Legal only from the encounter phase.  Blocked if the way back collapsed
+;   (prev area earthquake-destroyed).  Parks the current area's working set,
+;   moves the party back to prev, returns to explore, emits moved.  No turn,
+;   no RNG.  (fellThroughTrap block is added with trap falls.)
+;
+EA_WITHDRAW:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	6$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+6$:	MOVL	SCAVE_MAP_PP, R3
+	MOVL	SCAVE_AREA_AF[R3], R0
+	BBC	#2, R0, 7$			; AF_DESTROYED clear -> proceed
+	MOVL	#SCAVE$_EV_BLOCKED, R0		; way back collapsed
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+7$:	CALLS	#0, PERSIST_AREA		; park current area, clear working set
+	MOVL	SCAVE_MAP_PP, R3
+	MOVL	R3, SCAVE_MAP_PA		; back to the previous area
+	MOVL	SCAVE_MAP_ML[R3], R0
+	DIVL2	#10000, R0			; level = coord / 10000
+	MOVL	R0, SCAVE_MAP_PL
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- ATTACK (SC-8.4, startFight) ----
+;   From the encounter phase, begin a fight: surprise = surpriseReady (+1 on a
+;   fresh entry, else 0), round 1, phase fight, emit fightStarted.  No turn, no
+;   RNG -- the dice belong to the FIGHT action.  The pacified-area attack from
+;   explore (D22) is deferred.
+;
+EA_ATTACK:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BNEQ	EA_ATT_NE
+	BRW	EA_ATT_ENC
+EA_ATT_NE:
+	; SC-4-22: attacking the parked guards of a pacified chamber from explore --
+	; un-park guards+treasure and fight, no surprise (the chamber was visited).
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EA_ATT_BLK
+	MOVL	SCAVE_MAP_PA, R2
+	BITL	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	BEQL	EA_ATT_BLK
+	MULL3	#SCAVE$_AREA_ITEMS, R2, R3	; scan AC for a parked stranger (100..199)
+	MOVAB	SCAVE_AREA_AC, R4
+	CLRL	R5
+EA_AS:	CMPL	R5, #SCAVE$_AREA_ITEMS
+	BGEQ	EA_ATT_BLK			; no guard parked -> blocked
+	ADDL3	R3, R5, R0
+	MOVL	(R4)[R0], R1
+	CMPL	R1, #100
+	BLSS	EA_ASN
+	CMPL	R1, #200
+	BLSS	EA_AS_GO			; 100..199 -> a stranger is parked
+EA_ASN:	INCL	R5
+	BRB	EA_AS
+EA_AS_GO:
+	CALLS	#0, REVISIT_GUARDS		; load guards+treasure into CS/CT; keep sleeping parked
+	CLRL	SCAVE_FIGHT_FS			; surprise 0
+	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_ATT_BLK:
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_ATT_ENC: MOVL SCAVE_STATE_SR, SCAVE_FIGHT_FS	; surprise (+1 fresh, else 0)
+	MOVL	#1, SCAVE_FIGHT_RD		; round 1
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
+	CLRL	SCAVE_STATE_SR			; surprise now baked into the fight
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- TEST (SC-4-18, SC-8.*, reduce.ts "test") ----
+;   Approach the strangers and roll a reaction.  Legal only in encounter and
+;   while indiffStreak < 3.  Forfeits surprise, rolls one d6 (REACTION_ROLL,
+;   threads the seed), emits reaction, then acts on the outcome:
+;     hostile    -> start a fight, surprise -1 (strangers gain it)  (SC-8.4-2)
+;     indifferent -> indiffStreak++; the 3rd pacifies the area (AF_PERMINDIFF),
+;                    parks strangers+treasure guarded, back to explore (SC-8.4-3/4)
+;     friendly   -> recruit every stranger as an ally (status 1, no size cap);
+;                    a womanless Unicorn (13) instead guards the area, pacifying
+;                    it; then treasure -> pickup else explore  (SC-8.4-7/8, SC-8.5-4)
+;
+EA_TEST:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	ET_OK
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+ET_OK:	CMPL	SCAVE_STATE_IS, #3		; permanently indifferent -> blocked
+	BLSS	ET_GO
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+ET_GO:	CLRL	SCAVE_STATE_SR			; SC-8.1-6: testing forfeits surprise
+	CALLS	#0, REACTION_ROLL		; R0 = 0 hostile / 1 indiff / 2 friendly
+	MOVL	R0, R11				; save outcome
+	MOVL	#SCAVE$_EV_REACTION, R0
+	BSBW	EMIT_EVENT
+	TSTL	R11
+	BEQL	ET_HOST
+	CMPL	R11, #1
+	BEQL	ET_INDIF
+	BRW	ET_FRIEND
+
+ET_HOST:					; SC-8.4-2: hostile -> fight, surprise -1
+	MOVL	#-1, SCAVE_FIGHT_FS
+	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+ET_INDIF:					; SC-8.4-3..5
+	INCL	SCAVE_STATE_IS
+	CMPL	SCAVE_STATE_IS, #3
+	BGEQ	ET_PACIFY
+	BRW	EA_DONE				; < 3 -> stay in encounter
+ET_PACIFY:
+	MOVL	SCAVE_MAP_PA, R2
+	BISL2	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	MOVL	#SCAVE$_EV_PACIFIED, R0
+	BSBW	EMIT_EVENT
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+ET_FRIEND:					; SC-8.4-7/8: recruit all, womanless Unicorn guards
+	CALLS	#0, HAS_WOMAN			; R0 = 1 if a "woman" is present
+	MOVL	R0, R10				; womanPresent
+	CLRL	R2				; stranger index
+ET_FL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	ET_FJOINED
+	MOVL	SCAVE_CHAMBER_CS[R2], R3	; cid
+	CMPL	R3, #SCAVE$_CR_UNICORN
+	BNEQ	ET_FADD
+	TSTL	R10				; womanless Unicorn -> does not join
+	BEQL	ET_FNEXT
+ET_FADD:					; append as ally (status 1, empty treasure)
+	MOVL	SCAVE_PARTY_NP, R4
+	MOVL	R3, SCAVE_PARTY_PC[R4]
+	MOVL	#1, SCAVE_PARTY_PS[R4]		; SCAVE$_PS_ALLY
+	CLRL	SCAVE_PARTY_PK[R4]
+	MULL3	#SCAVE$_TREAS_PER, R4, R5	; clear its PT row to -1
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R7
+ET_FPT:	ADDL3	R5, R7, R0
+	MOVL	#-1, (R6)[R0]
+	AOBLSS	#SCAVE$_TREAS_PER, R7, ET_FPT
+	INCL	SCAVE_PARTY_NP
+ET_FNEXT: INCL	R2
+	BRB	ET_FL
+ET_FJOINED:
+	MOVL	#SCAVE$_EV_STRANGERSJOINED, R0
+	BSBW	EMIT_EVENT
+	; Rebuild CS to hold only the womanless Unicorn guards (emit unicornGuards each).
+	CLRL	R2				; read index
+	CLRL	R8				; write index = guard count
+ET_GL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	ET_GDONE
+	MOVL	SCAVE_CHAMBER_CS[R2], R3
+	CMPL	R3, #SCAVE$_CR_UNICORN
+	BNEQ	ET_GNEXT
+	TSTL	R10
+	BNEQ	ET_GNEXT			; woman present -> Unicorn joined, not a guard
+	MOVL	R3, SCAVE_CHAMBER_CS[R8]		; keep as guard
+	INCL	R8
+	MOVL	#SCAVE$_EV_UNICORNGUARDS, R0
+	BSBW	EMIT_EVENT
+ET_GNEXT: INCL	R2
+	BRB	ET_GL
+ET_GDONE:
+	MOVL	R8, SCAVE_CHAMBER_NS		; NS = guard count (0 if none)
+	TSTL	R8
+	BEQL	ET_NOGUARD
+	MOVL	SCAVE_MAP_PA, R2		; womanless Unicorn guards -> pacify + park
+	BISL2	#SCAVE$M_AF_PERMINDIFF, SCAVE_AREA_AF[R2]
+	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+ET_NOGUARD:					; all recruited: treasure -> pickup else explore
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	ET_NG1
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EA_DONE
+ET_NG1:	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EA_DONE
+
+;
+; ---- EXITCAVE (SC-6.1-12, exitCave) ----
+;   Escape the cave: only from explore, only on level 1 while standing on a
+;   card with an up-stair (the Gateway or any printed/mirrored level-1 up-stair).
+;   Sets GS=ESCAPED + phase gameOver, emits gameOver.  Otherwise blocked.
+;
+EA_EXITCAVE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	20$
+	CMPL	SCAVE_MAP_PL, #1
+	BNEQ	20$
+	MOVL	SCAVE_MAP_PA, R3
+	MOVL	SCAVE_MAP_MP[R3], R4		; R4 = current card (MOVL scales index x4)
+	BBS	#5, R4, 21$			; card has stair-up (AU) -> escape
+20$:	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+21$:	MOVL	#SCAVE$_GS_ESCAPED, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- USE (SC-4-34, useArtifact) ----
+;   a1 = artifact treasure id, a2 = target (member/stranger idx, -1 none),
+;   a3 = direction (0 none).  Finds a living bearer; blocked if none.  Each
+;   artifact has its own phase/target rules.  Emits artifactUsed + effect events.
+;   (Potion 8 and Staff 9 are wired but unexercised so far; Carpet/Flute/Balm/
+;   Lotus are exercised by the artifact vectors.)
+;
+EA_USE:
+	MOVL	8(AP), R6			; artifact id
+	MOVL	12(AP), R7			; target (-1 none)
+	MOVL	16(AP), R8			; dir (0 none)
+	MOVL	R6, R1
+	BSBW	FIND_BEARER			; R0 = bearer member idx, or -1
+	MOVL	R0, R9				; bearer
+	BLSS	EU_BLK				; no living bearer -> blocked
+
+	CMPL	R6, #SCAVE$_TR_LOTUS
+	BNEQ	EUD1
+	BRW	EU_LOTUS
+EUD1:	CMPL	R6, #SCAVE$_TR_CARPET
+	BNEQ	EUD2
+	BRW	EU_CARPET
+EUD2:	CMPL	R6, #SCAVE$_TR_FLUTE
+	BNEQ	EUD3
+	BRW	EU_FLUTE
+EUD3:	CMPL	R6, #SCAVE$_TR_BALM
+	BNEQ	EUD4
+	BRW	EU_BALM
+EUD4:	CMPL	R6, #SCAVE$_TR_POTION
+	BNEQ	EUD5
+	BRW	EU_POTION
+EUD5:	CMPL	R6, #SCAVE$_TR_STAFF
+	BNEQ	EU_BLK				; other artifacts wired next
+	BRW	EU_STAFF
+EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
+
+;
+; -- Healing Balm (6): at rest or while looting, revive a dead member (SC-11-14).
+;
+EU_BALM:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	EB_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BNEQ	EU_BLKB
+	BRB	EB_OK
+EU_BLKB: BRW	EU_BLOCK			; trampoline for the Balm block
+EB_OK:	TSTL	R7				; target required
+	BLSS	EU_BLKB
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKB
+	CMPL	SCAVE_PARTY_PS[R7], #SCAVE$_PS_DEAD	; must be a dead member
+	BNEQ	EU_BLKB
+	CLRL	SCAVE_PARTY_PS[R7]		; revive to status ORIG (0)
+	MOVL	R9, R2				; consume the Balm from the bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Strength Potion (8): during a fight, a living Hero/W-Hero/Man/Woman drinks
+;    it for +2 front strength until the fight ends (SC-11, potionActive).  The
+;    target member is marked in SCAVE_FIGHT_POTION; the Potion is consumed from
+;    its bearer.  Not nullified by the Eye.
+;
+EU_BLKP: BRW	EU_BLOCK			; trampoline for the Potion block
+EU_POTION:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BNEQ	EU_BLKP
+	TSTL	R7				; target required
+	BLSS	EU_BLKP
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKP
+	CMPL	SCAVE_PARTY_PS[R7], #2		; target living (0/1)
+	BGEQ	EU_BLKP
+	MOVL	SCAVE_PARTY_PC[R7], R2		; boostable: Hero(0)/W-Hero(1)/Man(5)/Woman(6)
+	CMPL	R2, #1
+	BLEQ	EU_POK
+	CMPL	R2, #5
+	BLSS	EU_BLKP
+	CMPL	R2, #6
+	BGTR	EU_BLKP
+EU_POK:	MOVL	R7, SCAVE_FIGHT_POTION		; this member drinks the potion (+2)
+	MOVL	R9, R2				; consume the Potion from its bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Magic Staff (9): at rest or while looting, reanimate a stoned (status 2)
+;    member back to life (SC-11).  NOT consumed.  (Its combat +MP for a Priest/
+;    Wizard backer is possession-based, handled in the fight.)
+;
+EU_BLKS: BRW	EU_BLOCK			; trampoline for the Staff block
+EU_STAFF:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	ES_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BNEQ	EU_BLKS
+ES_OK:	TSTL	R7				; target required
+	BLSS	EU_BLKS
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKS
+	CMPL	SCAVE_PARTY_PS[R7], #2		; must be a stoned member (status 2)
+	BNEQ	EU_BLKS
+	CLRL	SCAVE_PARTY_PS[R7]		; reanimate to status ORIG (0); Staff not consumed
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Charmed Flute (12): with a1 = UP/DOWN in explore, reveal a concealed
+;    stairway to a vertically-adjacent placed tile that carries the matching
+;    return stair (SC-11-32).  NOT consumed.  (Dragon/Viper lulling is passive,
+;    handled on entry / at the pit crossing -- without a dir the Flute is inert.)
+;
+EU_BLK3: BRW	EU_BLOCK			; trampoline for the Flute block
+EU_FLUTE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EU_BLK3
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R3		; current card
+	MOVL	SCAVE_MAP_ML[R2], R4		; current coord
+	CMPL	R8, #5				; UP: reveal a stair-up, needs a stair-down above
+	BEQL	EF_UP
+	CMPL	R8, #6				; DOWN: reveal a stair-down, needs a stair-up below
+	BEQL	EF_DOWN
+	BRW	EU_BLK3
+EF_UP:	BBS	#5, R3, EU_BLK3			; already has a visible stair-up
+	SUBL2	#10000, R4			; the tile one level up
+	MOVL	#5, R5				; require its stair-DOWN (bit 6)
+	MOVL	#^X20, R6			; reveal our stair-UP (bit 5)
+	BRB	EF_FIND
+EF_DOWN: BBS	#6, R3, EU_BLK3			; already has a visible stair-down
+	ADDL2	#10000, R4			; the tile one level down
+	MOVL	#6, R5				; require its stair-UP (bit 5)
+	MOVL	#^X40, R6			; reveal our stair-DOWN (bit 6)
+EF_FIND:
+	MOVL	#1, R7				; find the vertically-adjacent placed tile
+EF_FL:	CMPL	R7, SCAVE_MAP_NM
+	BGTR	EU_BLK4				; not placed -> nothing to link to
+	CMPL	SCAVE_MAP_ML[R7], R4
+	BEQL	EF_GOT
+	INCL	R7
+	BRB	EF_FL
+EU_BLK4: BRW	EU_BLOCK			; trampoline for the lower Flute branches
+EF_GOT:	MOVL	SCAVE_MAP_MP[R7], R0		; the adjacent card
+	CMPL	R5, #5				; must carry the matching return stair
+	BNEQ	EF_D6
+	BBC	#6, R0, EU_BLK4			; UP: neighbour needs a stair-down
+	BRB	EF_REVEAL
+EF_D6:	BBC	#5, R0, EU_BLK4			; DOWN: neighbour needs a stair-up
+EF_REVEAL:
+	BISL2	R6, SCAVE_MAP_MP[R2]		; reveal the concealed stair (not consumed)
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_SECRETDOORREVEALED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Magic Carpet (4): explore only; teleport one step in a1's direction
+;    ignoring doors, draw + face-up the landing tile, then resolve it.  Valid
+;    dirs: N/E/S/W, DOWN, and UP only above level 1 (never out of the cave).
+;
+EU_CARPET:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EU_BLK5
+	TSTL	R8				; a direction is required
+	BLEQ	EU_BLK5
+	CMPL	R8, #4				; 1..4 always valid
+	BLEQ	EC_OK
+	CMPL	R8, #6				; DOWN valid
+	BEQL	EC_OK
+	CMPL	R8, #5				; UP only above level 1
+	BNEQ	EU_BLK5
+	CMPL	SCAVE_MAP_PL, #1
+	BGTR	EC_OK
+EU_BLK5: BRW	EU_BLOCK			; trampoline for the Carpet block
+EC_OK:	MOVL	R9, R2				; consume the Carpet from the bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_CARPETUSED, R0
+	BSBW	EMIT_EVENT
+	PUSHL	R8				; teleport
+	CALLS	#1, CARPET_MOVE
+	CLRL	SCAVE_STATE_FT			; carpet links both ways
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_RESOLVE			; resolve the landing tile (may draw a chamber)
+
+;
+; -- Lotus Dust (5): encounter/fight, target a stranger -> sleep it (no effect
+;    on a Spectre; only weakens the Sorcerer).  When none remain awake, the
+;    party may pass: fight cleared, pickup if treasure else explore.
+;
+EU_BLK2: BRW	EU_BLOCK			; trampoline for the Lotus block
+EU_LOTUS:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	EL_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BNEQ	EU_BLK2
+EL_OK:	TSTL	R7				; need a target
+	BLSS	EU_BLK2
+	CMPL	R7, SCAVE_CHAMBER_NS		; target in range?
+	BGEQU	EU_BLK2
+	MOVL	SCAVE_CHAMBER_CS[R7], R2	; sid
+	CMPL	R2, #SCAVE$_CR_SPECTRE
+	BEQL	EU_BLK2				; no effect on a Spectre
+	CMPL	R2, #SCAVE$_CR_SORCERER
+	BNEQ	EL_SLEEP
+	; Sorcerer: not slept, only weakened -- set lotusOnSorcerer, consume, done
+	MOVL	#1, SCAVE_STATE_LOTUSSORC
+	BRB	EL_FIN
+EL_SLEEP:
+	; the creature sleeps -- inert but stays in the chamber (parked as 400+id on
+	; persist); remove it from the awake stranger set.
+	MOVL	SCAVE_CHAMBER_NSL, R0
+	MOVL	R2, SCAVE_CHAMBER_SL[R0]		; SL[NSL++] = sid
+	INCL	SCAVE_CHAMBER_NSL
+	MOVL	R7, R3				; splice CS[target]
+EL_SL:	ADDL3	#1, R3, R0
+	CMPL	R0, SCAVE_CHAMBER_NS
+	BGEQ	EL_SD
+	MOVL	SCAVE_CHAMBER_CS[R0], SCAVE_CHAMBER_CS[R3]
+	MOVL	R0, R3
+	BRB	EL_SL
+EL_SD:	DECL	SCAVE_CHAMBER_NS
+EL_FIN:	PUSHL	R6				; consume the Lotus from the bearer
+	PUSHL	R9
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	; if no strangers remain awake, the party may proceed
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	EU_DONE
+	MOVL	#1, SCAVE_FIGHT_RD		; fight cleared (round reset)
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	EL_EXPL
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EU_DONE
+EL_EXPL: CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EU_DONE
+
+EU_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+EU_DONE: BRW	EA_DONE
+
+;
+; ---- OPENCHEST (SC-12, openChest) ----
+;   Explore only; a living member must bear the Treasure Chest (id 14).  Consume
+;   it, roll a d6, emit chestOpened, then act on the roll: 1 Curse (curses++),
+;   2 Spectre attacks (fight, surprise -1), 3 Sand (nothing), 4/5/6 Silver/Gold/
+;   Gems (+20/+40/+80 bonusScore).
+;
+EA_OPENCHEST:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	OC_OK
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_OK:	MOVL	#SCAVE$_TR_CHEST, R1
+	BSBW	FIND_BEARER			; R0 = living bearer, or -1
+	BGEQ	OC_GO
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_GO:	MOVL	R0, R2				; bearer
+	PUSHL	#SCAVE$_TR_CHEST		; the chest is opened (consumed)
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6
+	MOVL	R0, R3				; result
+	MOVL	#SCAVE$_EV_CHESTOPENED, R0
+	BSBW	EMIT_EVENT
+	CMPL	R3, #1				; Curse
+	BNEQ	OC_R2
+	INCL	SCAVE_STATE_NC
+	BRW	EA_DONE
+OC_R2:	CMPL	R3, #2				; a Spectre appears and attacks
+	BNEQ	OC_R4
+	MOVL	SCAVE_CHAMBER_NS, R4		; push a Spectre (cid 9) into the strangers
+	MOVL	#SCAVE$_CR_SPECTRE, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	MOVL	#-1, SCAVE_FIGHT_FS		; surprise -1
+	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION
+	CLRL	SCAVE_STATE_SR
+	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+OC_R4:	CMPL	R3, #4				; Silver +20
+	BNEQ	OC_R5
+	ADDL2	#20, SCAVE_STATE_BONUS
+	BRW	EA_DONE
+OC_R5:	CMPL	R3, #5				; Gold +40
+	BNEQ	OC_R6
+	ADDL2	#40, SCAVE_STATE_BONUS
+	BRW	EA_DONE
+OC_R6:	CMPL	R3, #6				; Gems +80
+	BNEQ	OC_DONE
+	ADDL2	#80, SCAVE_STATE_BONUS
+OC_DONE: BRW	EA_DONE				; 3 = Sand (nothing)
+
+;
+; ===========================================================
+;  FIND_BEARER (JSB)  --  R1 = artifact id; R0 = index of the first living
+;    member holding it, or -1.  Clobbers R0, preserves R1-R5.
+;  CONSUME_ARTIFACT(member, artifact) -- splice the artifact out of the member's
+;    treasure row (shift the tail down, pad -1), keeping the list contiguous so
+;    the CARRY order matches the reference.
+; ===========================================================
+;
+FIND_BEARER:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	CLRL	R2
+FB_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	FB_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living/ally only
+	BGEQ	FB_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+FB_SL:	ADDL3	R3, R5, R0
+	CMPL	(R4)[R0], R1
+	BEQL	FB_YES
+	AOBLSS	#SCAVE$_TREAS_PER, R5, FB_SL
+FB_MN:	INCL	R2
+	BRB	FB_ML
+FB_NO:	MNEGL	#1, R0
+	BRB	FB_RET
+FB_YES:	MOVL	R2, R0
+FB_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+	.ENTRY	CONSUME_ARTIFACT, ^M<R2,R3,R4,R5,R6,R7>
+	MOVL	4(AP), R2			; member
+	MOVL	8(AP), R3			; artifact id
+	MULL3	#SCAVE$_TREAS_PER, R2, R4	; row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R5
+	CLRL	R6				; find the artifact slot
+CA_F:	CMPL	R6, #SCAVE$_TREAS_PER
+	BGEQ	CA_RET				; not present
+	ADDL3	R4, R6, R0
+	CMPL	(R5)[R0], R3
+	BEQL	CA_SH
+	INCL	R6
+	BRB	CA_F
+CA_SH:	ADDL3	R4, R6, R0			; write element index
+	ADDL3	R6, #1, R7			; next slot
+	CMPL	R7, #SCAVE$_TREAS_PER
+	BGEQ	CA_LAST
+	ADDL3	R4, R7, R1			; read element index
+	MOVL	(R5)[R1], (R5)[R0]		; shift the tail down
+	INCL	R6
+	BRB	CA_SH
+CA_LAST: MOVL	#-1, (R5)[R0]			; last slot emptied
+CA_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  CARPET_MOVE(dir)  --  teleport the party one step in `dir`, ignoring doors
+;    (reference carpetMove).  Reuses an existing tile at the target coords (turned
+;    face up) or draws + places a new large-pack card there, mirroring a return
+;    stair (DOWN -> stair-up, UP -> stair-down).  Sets prev/PA/level; the caller
+;    resolves the landing tile.
+; ===========================================================
+;
+	.ALIGN	LONG
+CARPET_DELTA: .LONG 0, -100, 1, 100, -1, -10000, 10000	; coord delta indexed by dir 1..6
+
+	.ENTRY	CARPET_MOVE, ^M<R2,R3,R4,R5,R7,R9,R10>
+	MOVL	4(AP), R2			; dir
+	MOVL	SCAVE_MAP_PA, R7		; area we leave
+	MOVAB	CARPET_DELTA, R0
+	ADDL3	SCAVE_MAP_ML[R7], (R0)[R2], R10	; target coord = current + delta[dir]
+	DIVL3	#10000, R10, R9			; target level
+	MOVL	#1, R3				; find an existing area at those coords
+CM_F:	CMPL	R3, SCAVE_MAP_NM
+	BGTR	CM_DRAW
+	CMPL	SCAVE_MAP_ML[R3], R10
+	BEQL	CM_USE
+	INCL	R3
+	BRB	CM_F
+CM_DRAW:
+	MOVL	SCAVE_DECK_LI, R4		; draw a large card (fallback 31 if exhausted)
+	CMPL	R4, #60
+	BLSS	CM_PL
+	MOVL	#31, R5
+	BRB	CM_MIR
+CM_PL:	MOVL	SCAVE_DECK_LP[R4], R5
+	INCL	SCAVE_DECK_LI
+	MOVL	SCAVE_DATA_AREA_CARDS[R5], R5	; packed card value
+CM_MIR:	CLRL	R0				; mirrored-stair bit for the return link
+	CMPL	R2, #6				; DOWN -> landing gets a stair-UP (^X20)
+	BNEQ	CM_MU
+	MOVL	#^X20, R0
+	BRB	CM_MSET
+CM_MU:	CMPL	R2, #5				; UP -> landing gets a stair-DOWN (^X40)
+	BNEQ	CM_MSET
+	MOVL	#^X40, R0
+CM_MSET: BISL2	R0, R5				; mirror the return stair into the card
+	INCL	SCAVE_MAP_NM
+	MOVL	SCAVE_MAP_NM, R3
+	MOVL	R5, SCAVE_MAP_MP[R3]
+	MOVL	R10, SCAVE_MAP_ML[R3]
+	MOVL	R0, SCAVE_AREA_MIR[R3]		; record the mirrored (secret) stair bits
+	MOVL	#1, SCAVE_AREA_FU[R3]		; landed face up
+	BRB	CM_MOVE
+CM_USE:	MOVL	#1, SCAVE_AREA_FU[R3]		; existing tile turned face up
+CM_MOVE:
+	MOVL	SCAVE_MAP_PP, SCAVE_MAP_PP2
+	MOVL	R7, SCAVE_MAP_PP
+	MOVL	R3, SCAVE_MAP_PA
+	MOVL	R9, SCAVE_MAP_PL
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ---- FIGHT (SC-9.1, resolveRound) -- single 1v1 matches ----
+;   Reads the plan buffer marshalled by the caller: FA[i]=front party slot,
+;   FD[i]=stranger index, NF=match count.  Resolves one round (FIGHT_ROUND),
+;   then finalizes: party wiped -> gameOver(DEAD); all strangers cleared ->
+;   fightWon (then pickup if floor treasure, else persistAndExplore/explore);
+;   otherwise keep fighting.  Deferred within G5: validatePlan, multi-front /
+;   backers / gang-up, casualty queue, heavy-drop, sweepFallen loot detail.
+;
+EA_FIGHT:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BEQL	10$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+10$:	CALLS	#0, FIGHT_ROUND			; dice + kills + combatRoll/killed/died
+	TSTL	SCAVE_FIGHT_CQN			; a casualty is pending -> pause for CASUALTY
+	BEQL	14$
+	BRW	EA_DONE
+14$:	CALLS	#0, FINALIZE_ROUND
+	BRW	EA_DONE
+
+;
+; ---- CASUALTY (SC-4-26, chooseCasualty) ----
+;   Legal only in fight with a pending casualtyQueue; a1 = the party slot the
+;   player would sacrifice, which must be one of the queued mortal pair.  Rolls
+;   d6: 4-6 honours the pick, else the other of the pair falls.  Emits
+;   casualtyChosen + memberDied; when the queue drains, finalizes the round.
+;
+EA_CASUALTY:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT	; guards invert to keep EC_BLOCK (far) a BRW
+	BEQL	EC_G2
+	BRW	EC_BLOCK
+EC_G2:	TSTL	SCAVE_FIGHT_CQN
+	BNEQ	EC_G3
+	BRW	EC_BLOCK
+EC_G3:	MOVL	8(AP), R2			; chosen slot
+	MOVL	SCAVE_FIGHT_CQ, R3		; pair = CQ[0], CQ[1]
+	MOVL	SCAVE_FIGHT_CQ+4, R4
+	CMPL	R2, R3
+	BEQL	EC_PICK				; preferred = CQ[0], other = CQ[1]
+	CMPL	R2, R4
+	BEQL	EC_G4				; idx == CQ[1] -> valid, swap
+	BRW	EC_BLOCK			; not one of the pair
+EC_G4:	MOVL	R3, R5				; preferred = CQ[1]: swap so R3=pref, R4=other
+	MOVL	R4, R3
+	MOVL	R5, R4
+EC_PICK: CALLS	#0, G^ROLL_DIE			; d6
+	CMPL	R0, #4
+	BGEQ	EC_PREF				; 4-6 -> honour the pick
+	MOVL	R4, R5				; else the other falls
+	BRB	EC_KILL
+EC_PREF: MOVL	R3, R5
+EC_KILL: MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R5]
+	MOVL	#SCAVE$_EV_CASUALTYCHOSEN, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+	MOVL	R5, R0				; Eye forsaken if the fallen held it
+	BSBW	EYE_FORSAKEN
+	DECL	SCAVE_FIGHT_CQN			; shift the queue down one pair
+	CLRL	R2
+EC_SH:	CMPL	R2, SCAVE_FIGHT_CQN
+	BGEQ	EC_SHD
+	MULL3	#2, R2, R3
+	ADDL3	R3, #2, R4
+	MOVL	SCAVE_FIGHT_CQ[R4], SCAVE_FIGHT_CQ[R3]
+	ADDL3	R4, #1, R5
+	ADDL3	R3, #1, R6
+	MOVL	SCAVE_FIGHT_CQ[R5], SCAVE_FIGHT_CQ[R6]
+	INCL	R2
+	BRB	EC_SH
+EC_SHD:	TSTL	SCAVE_FIGHT_CQN			; queue drained -> finalize the round
+	BNEQ	EC_DONE
+	CALLS	#0, FINALIZE_ROUND
+EC_DONE: BRW	EA_DONE
+EC_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+
+;
+; ---- FINALIZE_ROUND -- resolve a round's aftermath (reference finalizeRound) --
+;   party wiped -> gameOver(DEAD); all strangers cleared -> fightWon then
+;   pickup (floor treasure) or persistAndExplore; else keep fighting (PH FGT).
+;   (sweepFallen loot detail + reclaim of floor drops arrive with §9.5-11.)
+;
+	.ENTRY	FINALIZE_ROUND, ^M<R2,R3>
+	CALLS	#0, RECONCILE_UNICORNS		; a Unicorn departs if the last "Woman" fell
+	BSBW	COUNT_LIVING			; R0 = living party count
+	TSTL	R0
+	BNEQ	FZ_11
+	; party wiped: the fallen spill their CARRIED items onto the tile (SC-9.5-11
+	; sweepFallen "contents"), emitted BEFORE gameOver.
+	PUSHL	#1
+	CALLS	#1, SWEEP_FALLEN
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS	; party wiped
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	RET
+FZ_11:	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	FZ_KEEP				; strangers remain -> keep fighting
+	; the party won: reclaim heavy treasure dropped to fight (§387) into the
+	; pickup, then the fallen's CARRIED items spill in (SC-9.5-11 sweepFallen),
+	; all before fightWon.
+	CALLS	#0, RECLAIM_DROPS
+	PUSHL	#0
+	CALLS	#1, SWEEP_FALLEN
+	MOVL	#SCAVE$_EV_FIGHTWON, R0		; all strangers cleared
+	BSBW	EMIT_EVENT
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	FZ_13
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	RET
+FZ_13:	CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	RET
+FZ_KEEP: MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ---- SWEEP_FALLEN(mode) -- spill dead members' carried items (SC-9.5-11) ----
+;   mode (4(AP)): 0 = into the post-win pickup set (CT); 1 = onto the tile as
+;   200+tid in the area contents (AC), for a wiped party.  For each status-DEAD
+;   member with carried (non-borne) treasure, move each tid to the destination,
+;   clear the PT row, and emit one itemsSpilled.  Borne tracking is deferred, so
+;   every carried item spills.
+;
+	.ENTRY	SWEEP_FALLEN, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	MOVL	4(AP), R8			; mode
+	CLRL	R2				; member slot
+SF_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	SF_GO
+	BRW	SF_DONE
+SF_GO:	CMPL	SCAVE_PARTY_PS[R2], #SCAVE$_PS_DEAD
+	BNEQ	SF_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; spilled count
+	CLRL	R6				; slot in row
+SF_SL:	ADDL3	R3, R6, R7
+	MOVL	(R4)[R7], R0			; tid or -1
+	BLSS	SF_SN				; empty slot
+	TSTL	R8
+	BNEQ	SF_TILE
+	MOVL	SCAVE_CHAMBER_NT, R1		; mode 0: append to the pickup set CT
+	MOVL	R0, SCAVE_CHAMBER_CT[R1]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	SF_INC
+SF_TILE: ADDL2	#200, R0			; mode 1: park on the tile as 200+tid
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R11	; AC row base (element index)
+	CLRL	R9				; slot j
+SF_AL:	CMPL	R9, #SCAVE$_AREA_ITEMS
+	BGEQ	SF_INC				; row full -> drop (edge, unexercised)
+	ADDL3	R11, R9, R10
+	TSTL	SCAVE_AREA_AC[R10]		; find the first empty (0) slot
+	BEQL	SF_APUT
+	INCL	R9
+	BRB	SF_AL
+SF_APUT: MOVL	R0, SCAVE_AREA_AC[R10]
+SF_INC:	MOVL	#-1, (R4)[R7]			; taken off the corpse
+	INCL	R5
+SF_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, SF_SL
+	TSTL	R5
+	BEQL	SF_MN
+	MOVL	#SCAVE$_EV_ITEMSSPILLED, R0
+	BSBW	EMIT_EVENT
+SF_MN:	INCL	R2
+	BRW	SF_ML
+SF_DONE: MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ---- EMIT_EVENT (JSB) -- append event code R0 to SCAVE_EVQ ----
+;
+EMIT_EVENT:
+	MOVL	SCAVE_EVQ_N, R1
+	CMPL	R1, #SCAVE$_EVQ_MAX
+	BGEQ	10$				; full -- drop (should not happen)
+	MOVL	R0, SCAVE_EVQ[R1]
+	INCL	SCAVE_EVQ_N
+10$:	RSB
+
+;
+; ===========================================================
+;  DRAW_CHAMBER  --  pure first-visit chamber draw (SC-7.1-2/4).
+;
+;  Marks the party's area visited, then deals min(level,4) small-pack
+;  cards (+1 Tomb, +2 Great Hall, cap 8) into the chamber working set
+;  (CS/CT/CH by type = code/100), advancing SI and stopping when the
+;  pack is exhausted.  Pure: consumes cards, never RNG.  The headless
+;  counterpart to the deal loop inside CHAMBER.MAR's interactive
+;  ENTER_CHAMBER; the revisit reclassify-from-parked path is gate G4.
+; ===========================================================
+;
+	.ENTRY	DRAW_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MOVL	#1, SCAVE_MAP_MV[R7]		; SC-7.1-2: mark visited
+
+	PUSHL	SCAVE_MAP_MP[R7]		; decode card -> SCAVE_DEC_* (AT = special)
+	CALLS	#1, G^DECODE_AREA
+
+	; draw count = min(level,4) + Tomb(+1)/Great Hall(+2), capped 8
+	MOVL	SCAVE_MAP_PL, R6
+	CMPL	R6, #4
+	BLEQ	1$
+	MOVL	#4, R6
+1$:	CMPL	SCAVE_DEC_AT, #4			; Tomb of Kings
+	BNEQ	2$
+	INCL	R6
+	BRB	3$
+2$:	CMPL	SCAVE_DEC_AT, #5			; Great Hall
+	BNEQ	3$
+	ADDL2	#2, R6
+3$:	CMPL	R6, #8
+	BLEQ	4$
+	MOVL	#8, R6
+4$:
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+
+	CLRL	R2				; cards drawn so far
+DC_LOOP:
+	CMPL	R2, R6
+	BLSS	10$
+	BRW	DC_DONE				; drew enough (far target -> BRW)
+10$:	MOVL	SCAVE_DECK_SI, R3
+	CMPL	R3, SCAVE_DECK_SN		; SC-7.1-4: stop at the live pack size (picks spliced)
+	BLSS	11$
+	BRW	DC_DONE
+11$:	MOVL	SCAVE_DECK_SP[R3], R4		; encoded card = type*100 + index
+	INCL	SCAVE_DECK_SI
+	DIVL3	#100, R4, R5			; R5 = type (1 cre / 2 tre / 3 haz)
+	MULL3	#100, R5, R0
+	SUBL2	R0, R4				; R4 = index within type
+
+	; Pick the destination array (R9), its count cell (R10) and cap (R11)
+	; by type, then store if the bucket isn't full.  A single unified store
+	; keeps every branch here in byte range (VAX cond branches are +/-127).
+	CMPL	R5, #1
+	BNEQ	20$
+	MOVAB	SCAVE_CHAMBER_CS, R9		; creature
+	MOVAB	SCAVE_CHAMBER_NS, R10
+	MOVL	#8, R11
+	BRB	30$
+20$:	CMPL	R5, #2
+	BNEQ	25$
+	MOVAB	SCAVE_CHAMBER_CT, R9		; treasure
+	MOVAB	SCAVE_CHAMBER_NT, R10
+	MOVL	#8, R11
+	BRB	30$
+25$:	CMPL	R5, #3
+	BNEQ	DC_NEXT				; unknown type -> skip
+	MOVAB	SCAVE_CHAMBER_CH, R9		; hazard
+	MOVAB	SCAVE_CHAMBER_NH, R10
+	MOVL	#4, R11
+30$:	MOVL	(R10), R8			; current count
+	CMPL	R8, R11
+	BGEQ	DC_NEXT				; bucket full -> drop the card
+	MOVL	R4, (R9)[R8]			; array[count] = index
+	INCL	(R10)				; count++
+DC_NEXT:
+	INCL	R2
+	BRW	DC_LOOP				; loop body > 127 bytes -> word branch
+DC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  RESOLVE_HAZARDS  --  fire the drawn chamber's hazards (SC-7.2), in the
+;                       fixed priority order Earthquake, Medusa, Ghouls,
+;                       Mutiny, Trap.  Emits hazardFired per present hazard.
+;
+;  Only Earthquake's effect is implemented: it collapses the previous area
+;  (prev != partyArea) -- AF_DESTROYED + cleared contents -- and consumes no
+;  RNG.  The RNG-bearing hazards (Medusa gaze, Ghouls fight, Mutiny, Trap) and
+;  the Talisman/Staff wards still emit hazardFired but skip their effect; add
+;  them when a vector exercises them.  Clears the working hazard set after.
+; ===========================================================
+;
+	.ALIGN	LONG
+HAZ_ORDER: .LONG 2, 3, 4, 0, 1, -1		; Earthquake, Medusa, Ghouls, Mutiny, Trap
+
+	.ENTRY	RESOLVE_HAZARDS, ^M<R2,R3,R4,R5,R6>
+
+	CLRL	SCAVE_MAP_FELL			; no trap fall unless a dwarf-less Trap fires
+	MOVAB	HAZ_ORDER, R2
+RH_L:	MOVL	(R2)+, R3			; next hazard in priority order
+	CMPL	R3, #-1
+	BNEQ	RH_L1
+	BRW	RH_DONE				; end of list (far -> BRW)
+RH_L1:	CLRL	R4				; is R3 present in CH?
+RH_P:	CMPL	R4, SCAVE_CHAMBER_NH
+	BGEQ	RH_L
+	CMPL	SCAVE_CHAMBER_CH[R4], R3
+	BEQL	RH_FIRE
+	INCL	R4
+	BRB	RH_P
+RH_FIRE:
+	CMPL	R3, #SCAVE$_HZ_MEDUSA		; Medusa ward: a living Staff-Wizard averts the gaze
+	BNEQ	RH_FGH
+	CALLS	#0, HAS_STAFF_WIZARD
+	TSTL	R0
+	BEQL	RH_FIRE2
+	MOVL	#SCAVE$_EV_MEDUSAAVERTED, R0	; averted -> no hazardFired, no gaze
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RH_FGH:	CMPL	R3, #SCAVE$_HZ_GHOULS		; Ghouls ward: any living member's Talisman
+	BNEQ	RH_FIRE2
+	MOVL	#SCAVE$_TR_TALISMAN, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	RH_FIRE2
+	MOVL	#SCAVE$_EV_GHOULSWARDED, R0	; warded -> no hazardFired, no fight
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RH_FIRE2:
+	MOVL	#SCAVE$_EV_HAZARDFIRED, R0
+	BSBW	EMIT_EVENT
+	CMPL	R3, #SCAVE$_HZ_EARTHQUAKE
+	BEQL	RH_QUAKE
+	CMPL	R3, #SCAVE$_HZ_TRAP
+	BEQL	RH_TRAP
+	CMPL	R3, #SCAVE$_HZ_GHOULS
+	BNEQ	RHF1
+	BRW	RH_GHOULS
+RHF1:	CMPL	R3, #SCAVE$_HZ_MUTINY
+	BEQL	RH_MUTINY
+	CMPL	R3, #SCAVE$_HZ_MEDUSA
+	BNEQ	RHF2
+	BRW	RH_MEDUSA
+RHF2:	BRW	RH_L
+
+RH_MUTINY:
+	CALLS	#0, MUTINY_FIRE			; allies desert -> revert to strangers
+	BRW	RH_L
+
+RH_QUAKE:
+	MOVL	SCAVE_MAP_PP, R5		; collapse prev (if it isn't the party's area)
+	CMPL	R5, SCAVE_MAP_PA
+	BNEQ	RQ_GO
+	BRW	RH_L
+RQ_GO:	BISL2	#SCAVE$M_AF_DESTROYED, SCAVE_AREA_AF[R5]
+	MULL3	#SCAVE$_AREA_ITEMS, R5, R6	; clear its AC slots
+	CLRL	R4
+RH_CLR:	ADDL3	R6, R4, R0
+	CLRL	SCAVE_AREA_AC[R0]
+	AOBLSS	#SCAVE$_AREA_ITEMS, R4, RH_CLR
+	BRW	RH_L
+
+RH_TRAP:					; SC-7.2: a living Dwarf guides the party past
+	CLRL	R4
+RT_L:	CMPL	R4, SCAVE_PARTY_NP
+	BGEQ	RT_FALL
+	CMPL	SCAVE_PARTY_PS[R4], #2		; alive (0/1) only
+	BGEQ	RT_N
+	MOVL	SCAVE_PARTY_PC[R4], R5
+	MOVL	SCAVE_DATA_CR_FLAGS[R5], R6
+	BITL	#SCAVE$M_CR_GUIDES_PAST_TRAP, R6
+	BNEQ	RT_AVOID
+RT_N:	INCL	R4
+	BRB	RT_L
+RT_AVOID:
+	MOVL	#SCAVE$_EV_TRAPAVOIDED, R0
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RT_FALL:
+	MOVL	#1, SCAVE_MAP_FELL		; no guide -> the party drops a level (caller relocates)
+	BRW	RH_L
+
+RH_GHOULS:
+	CALLS	#0, GHOULS_FIGHT
+	BRW	RH_L
+
+RH_MEDUSA:
+	CALLS	#0, MEDUSA_GAZE
+	BRW	RH_L
+
+RH_DONE:
+	; Medusa & Ghouls lurk: re-park them (300+hz) from the working hazard set so
+	; they reload and re-fire on every re-entry (SC-7.2), whether fired or warded.
+	CLRL	R4
+RH_RP:	CMPL	R4, SCAVE_CHAMBER_NH
+	BGEQ	RH_RPD
+	MOVL	SCAVE_CHAMBER_CH[R4], R3
+	CMPL	R3, #SCAVE$_HZ_MEDUSA
+	BEQL	RH_RP1
+	CMPL	R3, #SCAVE$_HZ_GHOULS
+	BNEQ	RH_RPN
+RH_RP1:	MOVL	R3, R0
+	BSBW	PARK_HAZARD
+RH_RPN:	INCL	R4
+	BRB	RH_RP
+RH_RPD:	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GHOULS_FIGHT  --  SC-7.2 Ghouls: every living member fights the ghouls
+;    (enemy strength 2, no surprise, full front strength).  Two dice per member
+;    (party then enemy), emit combatRoll; a lost match (enemy strictly higher)
+;    kills the member (Ring-invincibility deferred).  The slain then spill their
+;    carried items into the pickup (sweepFallen).  (Heavy-drop-to-floor deferred.)
+; ===========================================================
+;
+	.ENTRY	GHOULS_FIGHT, ^M<R2,R3,R4,R5,R6,R7>
+	; The attack forces everyone to drop heavy treasure (ids 0..2) to fight; it
+	; lands on the chamber floor (the pickup set CT), reclaimable at turn end.
+	CLRL	R2
+GHD_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GHD_D
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living/ally only
+	BGEQ	GHD_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; read slot
+	CLRL	R6				; write slot (compacting)
+GHD_SL:	CMPL	R5, #SCAVE$_TREAS_PER
+	BGEQ	GHD_PAD
+	ADDL3	R3, R5, R0
+	MOVL	(R4)[R0], R1			; tid or -1
+	BLSS	GHD_SN				; empty
+	CMPL	R1, #SCAVE$_TR_HEAVY_MAX
+	BGTR	GHD_KEEP			; not heavy -> keep
+	MOVL	SCAVE_CHAMBER_NT, R7		; heavy -> to the pickup floor CT
+	MOVL	R1, SCAVE_CHAMBER_CT[R7]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	GHD_SN
+GHD_KEEP: ADDL3	R3, R6, R0			; keep at the compact position
+	MOVL	R1, (R4)[R0]
+	INCL	R6
+GHD_SN:	INCL	R5
+	BRB	GHD_SL
+GHD_PAD: CMPL	R6, #SCAVE$_TREAS_PER		; pad the tail with -1
+	BGEQ	GHD_MN
+	ADDL3	R3, R6, R0
+	MOVL	#-1, (R4)[R0]
+	INCL	R6
+	BRB	GHD_PAD
+GHD_MN:	INCL	R2
+	BRB	GHD_ML
+GHD_D:
+	; each living member fights the Ghouls (strength 2, no surprise).  A loss
+	; kills the member SILENTLY (no memberDied -- deaths surface via sweepFallen
+	; -> itemsSpilled).  Ring-invincibility (deathPrevented) is deferred.
+	CLRL	R2
+GF_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GF_SWEEP
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive (0/1) only
+	BGEQ	GF_N
+	MOVL	R2, R0
+	BSBW	FRONT_STR			; partyStr = fs+PK+MP
+	MOVL	R0, R3
+	CALLS	#0, G^ROLL_DIE
+	ADDL2	R0, R3				; + party die
+	MOVL	#2, R4				; enemyStr = 2 (ghouls)
+	CALLS	#0, G^ROLL_DIE
+	ADDL2	R0, R4				; + enemy die
+	MOVL	#SCAVE$_EV_COMBATROLL, R0
+	BSBW	EMIT_EVENT
+	CMPL	R4, R3
+	BLEQ	GF_N				; enemy <= party -> survives (ties survive)
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]	; ghoul-slain (silent)
+GF_N:	INCL	R2
+	BRB	GF_L
+GF_SWEEP:
+	PUSHL	#0				; the slain spill carried items into the pickup
+	CALLS	#1, SWEEP_FALLEN
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  MUTINY_FIRE  --  SC-7.2 Mutiny: every ally (status 1) deserts, reverting to a
+;    stranger (retestable) and dropping its treasure onto the pickup floor.  If
+;    the party is ALL allies, the first stays loyal.  The party is then compacted.
+;    Emits mutinied if anyone deserted.  No RNG.
+; ===========================================================
+;
+	.ENTRY	MUTINY_FIRE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	CLRL	R9				; count originals (status 0)
+	CLRL	R2
+MF_CO:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_CD
+	TSTL	SCAVE_PARTY_PS[R2]
+	BNEQ	MF_CN
+	INCL	R9
+MF_CN:	INCL	R2
+	BRB	MF_CO
+MF_CD:	MNEGL	#1, R10				; the loyal-ally index to keep (-1 = none)
+	TSTL	R9
+	BNEQ	MF_DESERT			; some originals -> every ally deserts
+	CLRL	R2				; all allies -> the first stays loyal
+MF_FK:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_DESERT
+	CMPL	SCAVE_PARTY_PS[R2], #1
+	BNEQ	MF_FKN
+	MOVL	R2, R10
+	BRB	MF_DESERT
+MF_FKN:	INCL	R2
+	BRB	MF_FK
+MF_DESERT:
+	CLRL	R11				; deserted count
+	CLRL	R2
+MF_DL:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	MF_D1
+	BRW	MF_COMPACT
+MF_D1:	CMPL	SCAVE_PARTY_PS[R2], #1		; an ally?
+	BNEQ	MF_DN
+	CMPL	R2, R10				; the loyal one?
+	BEQL	MF_DN
+	MOVL	SCAVE_CHAMBER_NS, R3		; desert: revert to a stranger
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	SCAVE_CHAMBER_NS
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; drop its treasure to the pickup floor
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R7
+MF_TL:	ADDL3	R5, R7, R0
+	MOVL	(R6)[R0], R1
+	BLSS	MF_TN				; -1 empty
+	MOVL	SCAVE_CHAMBER_NT, R8
+	MOVL	R1, SCAVE_CHAMBER_CT[R8]
+	INCL	SCAVE_CHAMBER_NT
+MF_TN:	AOBLSS	#SCAVE$_TREAS_PER, R7, MF_TL
+	MOVL	#99, SCAVE_PARTY_PS[R2]		; mark for removal from the party
+	INCL	R11
+MF_DN:	INCL	R2
+	BRB	MF_DL
+MF_COMPACT:
+	CLRL	R2				; read
+	CLRL	R3				; write
+MF_CL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_CDONE
+	CMPL	SCAVE_PARTY_PS[R2], #99
+	BEQL	MF_CSKIP
+	CMPL	R2, R3
+	BEQL	MF_CKEEP
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R3]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R3]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R3]
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; copy the PT row R2 -> R3
+	MULL3	#SCAVE$_TREAS_PER, R3, R6
+	MOVAB	SCAVE_PARTY_PT, R7
+	CLRL	R8
+MF_PTL:	ADDL3	R5, R8, R0
+	ADDL3	R6, R8, R1
+	MOVL	(R7)[R0], (R7)[R1]
+	AOBLSS	#SCAVE$_TREAS_PER, R8, MF_PTL
+MF_CKEEP: INCL	R3
+MF_CSKIP: INCL	R2
+	BRB	MF_CL
+MF_CDONE:
+	MOVL	R3, SCAVE_PARTY_NP		; new party size
+	TSTL	R11
+	BEQL	MF_RET
+	MOVL	#SCAVE$_EV_MUTINIED, R0
+	BSBW	EMIT_EVENT
+MF_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  PARK_HAZARD (JSB)  --  R0 = hazard id; append 300+hz to the party area's
+;    contents (AC, first empty slot) so a lurking Medusa/Ghouls reloads and
+;    re-fires on every re-entry (SC-7.2).  REVISIT_CHAMBER clears the slot as it
+;    reclassifies, so there is no accumulation.  Clobbers R0/R1, preserves R2/R3.
+; ===========================================================
+;
+PARK_HAZARD:
+	ADDL2	#300, R0			; 300+hz -> park on the tile (once)
+	PUSHL	R2
+	PUSHL	R3
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R2	; AC row base (element index)
+	CLRL	R3
+PH_DL:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	PH_ADD
+	ADDL3	R2, R3, R1
+	CMPL	SCAVE_AREA_AC[R1], R0		; already parked -> no duplicate
+	BEQL	PH_RET
+	INCL	R3
+	BRB	PH_DL
+PH_ADD:	BSBW	APPEND_AC
+PH_RET:	MOVL	(SP)+, R3
+	MOVL	(SP)+, R2
+	RSB
+
+;
+; ===========================================================
+;  APPEND_AC (JSB)  --  R0 = a contents code (100+cid / 200+tid / 300+hz);
+;    append it to the party area's AC contents at the first empty slot.
+;    Clobbers R0/R1, preserves R2/R3.
+; ===========================================================
+;
+APPEND_AC:
+	PUSHL	R3
+	PUSHL	R2
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R2	; AC row base (element index)
+	CLRL	R3
+APA_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	APA_RET				; row full -> drop (edge)
+	ADDL3	R2, R3, R1
+	TSTL	SCAVE_AREA_AC[R1]
+	BEQL	APA_PUT
+	INCL	R3
+	BRB	APA_L
+APA_PUT: MOVL	R0, SCAVE_AREA_AC[R1]
+APA_RET: MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	RSB
+
+;
+; ===========================================================
+;  HEAVY_DROP  --  §387: every front fighter drops its heavy treasure (ids 0..2,
+;    Silver/Gold/Gems) onto the tile (AC as 200+tid) for the duration of the
+;    fight, so it is not lost if they fall.  Reclaimed into the pickup on a win
+;    (RECLAIM_DROPS), left behind on a loss/retreat.
+;  RECLAIM_DROPS  --  move any 200+tid on the tile back into the pickup set (CT).
+; ===========================================================
+;
+	.ENTRY	HEAVY_DROP, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10>
+	CLRL	R2				; match i
+HD_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	HD_DONE
+	MULL3	#SCAVE$_MPM, R2, R9		; match row base
+	CLRL	R3				; front index j
+HD_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
+	BLSS	HD_F1
+	BRW	HD_MN2				; front done -> next match
+HD_F1:	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FA[R0], R8		; front party slot
+	MULL3	#SCAVE$_TREAS_PER, R8, R4	; its PT row base
+	MOVAB	SCAVE_PARTY_PT, R5
+	; Drop heavy (id 0..2) to the tile, compacting the row (keep the rest in
+	; order) so the carry list stays dense like the reference m.treasure.
+	CLRL	R6				; read cursor
+	CLRL	R10				; write cursor
+HD_SL:	CMPL	R6, #SCAVE$_TREAS_PER
+	BGEQ	HD_PACK
+	ADDL3	R4, R6, R7
+	MOVL	(R5)[R7], R0			; tid or -1
+	BLSS	HD_SN				; empty -> drop from the row
+	CMPL	R0, #SCAVE$_TR_HEAVY_MAX
+	BLEQ	HD_HEAVY
+	ADDL3	R4, R10, R1			; keep: copy read -> write
+	MOVL	(R5)[R7], (R5)[R1]
+	INCL	R10
+	BRB	HD_SN
+HD_HEAVY: ADDL2	#200, R0			; heavy -> drop to the tile as 200+tid
+	BSBW	APPEND_AC
+HD_SN:	INCL	R6
+	BRB	HD_SL
+HD_PACK: CMPL	R10, #SCAVE$_TREAS_PER		; clear the freed tail slots
+	BGEQ	HD_MN
+	ADDL3	R4, R10, R1
+	MOVL	#-1, (R5)[R1]
+	INCL	R10
+	BRB	HD_PACK
+HD_MN:	INCL	R3
+	BRW	HD_FL
+HD_MN2:	INCL	R2
+	BRW	HD_ML
+HD_DONE: MOVL	#SS$_NORMAL, R0
+	RET
+
+	.ENTRY	RECLAIM_DROPS, ^M<R2,R3,R4>
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R2	; AC row base
+	CLRL	R3
+RD_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	RD_RET
+	ADDL3	R2, R3, R4
+	MOVL	SCAVE_AREA_AC[R4], R0
+	CMPL	R0, #200			; only 200..299 (dropped treasure)
+	BLSS	RD_N
+	CMPL	R0, #300
+	BGEQ	RD_N
+	SUBL2	#200, R0			; tid -> pickup set CT
+	MOVL	SCAVE_CHAMBER_NT, R1
+	MOVL	R0, SCAVE_CHAMBER_CT[R1]
+	INCL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_AREA_AC[R4]		; taken off the tile
+RD_N:	INCL	R3
+	BRB	RD_L
+RD_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  MEDUSA_GAZE  --  SC-7.2 Medusa: every living member rolls a d6 (party order);
+;    a 1 or 2 turns that member to stone (status 2).  A petrified member's
+;    carried items spill onto the chamber floor (CT) -- one itemsSpilled each --
+;    and the row is cleared.  medusaGaze is emitted once if any member rolled.
+;    (Borne tracking is deferred, so every carried item spills; the vectors
+;    never set borne.)  One rollDie per living member threads the seed.
+; ===========================================================
+;
+	.ENTRY	MEDUSA_GAZE, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+	CLRL	R6				; living-member roll count
+	CLRL	R2				; member slot
+MG_L:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	MG_GO
+	BRW	MG_DONE
+MG_GO:	CMPL	SCAVE_PARTY_PS[R2], #2		; living (status 0/1) only
+	BLSS	MG_ALIVE
+	BRW	MG_N
+MG_ALIVE:
+	CALLS	#0, G^ROLL_DIE			; one d6 per living member, party order
+	INCL	R6
+	CMPL	R0, #2				; 1 or 2 -> turned to stone
+	BLEQ	MG_STONE
+	BRW	MG_N
+MG_STONE:
+	MOVL	#2, SCAVE_PARTY_PS[R2]		; petrified
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; spilled count
+	CLRL	R7				; slot in row
+MG_SL:	ADDL3	R3, R7, R8
+	MOVL	(R4)[R8], R9			; tid or -1
+	BLSS	MG_SN				; empty slot
+	MOVL	SCAVE_CHAMBER_NT, R0		; append to the chamber floor set CT
+	MOVL	R9, SCAVE_CHAMBER_CT[R0]
+	INCL	SCAVE_CHAMBER_NT
+	MOVL	#-1, (R4)[R8]			; off the body
+	INCL	R5
+MG_SN:	AOBLSS	#SCAVE$_TREAS_PER, R7, MG_SL
+	TSTL	R5
+	BEQL	MG_N
+	MOVL	#SCAVE$_EV_ITEMSSPILLED, R0
+	BSBW	EMIT_EVENT
+MG_N:	INCL	R2
+	BRW	MG_L
+MG_DONE: TSTL	R6				; any living member rolled -> emit medusaGaze
+	BEQL	MG_RET
+	MOVL	#SCAVE$_EV_MEDUSAGAZE, R0
+	BSBW	EMIT_EVENT
+MG_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  HAS_STAFF_WIZARD (CALLS)  --  R0 = 1 if a living Wizard (cid 8) holds the
+;    Magic Staff (id 9), else 0.  (Medusa ward: her gaze is powerless.)
+; ===========================================================
+;
+	.ENTRY	HAS_STAFF_WIZARD, ^M<R2>
+	CLRL	R2
+HSW_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	HSW_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	HSW_N
+	CMPL	SCAVE_PARTY_PC[R2], #8		; Wizard?
+	BNEQ	HSW_N
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_STAFF, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	HSW_YES
+HSW_N:	INCL	R2
+	BRB	HSW_L
+HSW_YES: MOVL	#1, R0
+	RET
+HSW_NO:	CLRL	R0
+	RET
+
+;
+; ===========================================================
+;  HAS_FLUTE_PLAYER (CALLS)  --  R0 = 1 if a living Hero(0)/W-Hero(1)/Priest(4)/
+;    Man(5)/Woman(6)/Wizard(8) holds the Charmed Flute (id 12), else 0.
+;    (reference fluteLulls -- lulls Dragons and Vipers).
+; ===========================================================
+;
+	.ENTRY	HAS_FLUTE_PLAYER, ^M<R2>
+	CLRL	R2
+HFP_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	HFP_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	HFP_N
+	MOVL	SCAVE_PARTY_PC[R2], R0		; Flute PLAYERS = {0,4,5,6,8} (not W-Hero 1)
+	CMPL	R0, #0
+	BEQL	HFP_H
+	CMPL	R0, #4
+	BEQL	HFP_H
+	CMPL	R0, #5
+	BEQL	HFP_H
+	CMPL	R0, #6
+	BEQL	HFP_H
+	CMPL	R0, #8
+	BNEQ	HFP_N
+HFP_H:	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_FLUTE, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	HFP_YES
+HFP_N:	INCL	R2
+	BRB	HFP_L
+HFP_YES: MOVL	#1, R0
+	RET
+HFP_NO:	CLRL	R0
+	RET
+
+;
+; ===========================================================
+;  PETRIFIED_CHECK  --  if EVERY party member is stone (status 2), emit
+;    petrifiedOut (SC-4-13).  Called when no member is left able to act.
+; ===========================================================
+;
+	.ENTRY	PETRIFIED_CHECK, ^M<R2>
+	CLRL	R2
+PC2_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	PC2_ALL
+	CMPL	SCAVE_PARTY_PS[R2], #2		; any non-stone -> not petrified-out
+	BNEQ	PC2_NO
+	INCL	R2
+	BRB	PC2_L
+PC2_ALL: MOVL	#SCAVE$_EV_PETRIFIEDOUT, R0
+	BSBW	EMIT_EVENT
+PC2_NO:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  VIPER_CROSSING  --  cross the Viper Pit (SC-10.1, special.ts viperCrossing).
+;
+;  Each living member rolls a d6 crossing the ledge; a 1 or 2 is a fatal fall
+;  (member dies, their treasure is lost to the pit).  Emits viperPit first (its
+;  per-member rolls payload is not printed), then memberDied per victim.
+;  Returns R0 = surviving-member count so the caller can end the game if the pit
+;  swallowed everyone.  (Charmed-Flute lull and the Eye-of-God forfeit are
+;  deferred -- no conformance vector holds either while crossing.)
+; ===========================================================
+;
+	.ENTRY	VIPER_CROSSING, ^M<R2,R3,R4,R5>
+	CALLS	#0, HAS_FLUTE_PLAYER		; SC-11-31: a living Flute PLAYER lulls the vipers --
+	TSTL	R0				; the whole party crosses safely, no rolls
+	BEQL	VC_ROLL
+	MOVL	#SCAVE$_EV_VIPERSLULLED, R0
+	BSBW	EMIT_EVENT
+	BSBW	COUNT_LIVING			; R0 = survivors (everyone)
+	RET
+VC_ROLL:
+	MOVL	#SCAVE$_EV_VIPERPIT, R0
+	BSBW	EMIT_EVENT
+	CLRL	R2				; party slot
+VC_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	VC_D
+	CMPL	SCAVE_PARTY_PS[R2], #2		; skip stone(2)/dead(3)
+	BGEQ	VC_N
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6, threads the seed
+	CMPL	R0, #2
+	BGTR	VC_N				; 3..6 crosses safely
+	; fatal fall: kill the member, lose their carried treasure, emit memberDied
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
+	MOVL	R2, R0				; Eye forsaken before the pit takes the treasure
+	BSBW	EYE_FORSAKEN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+VC_CLR:	ADDL3	R3, R5, R0
+	MOVL	#-1, (R4)[R0]			; -1 = empty slot
+	AOBLSS	#SCAVE$_TREAS_PER, R5, VC_CLR
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+VC_N:	INCL	R2
+	BRB	VC_L
+VC_D:	BSBW	COUNT_LIVING			; R0 = survivors
+	RET
+
+;
+; ===========================================================
+;  DEEPPOOL_CROSSING  --  cross the Deep Pool (SC-10.2, special.ts
+;                         deepPoolCrossing).
+;
+;  A living Giant (creature 12) carries all heavy treasure across; otherwise
+;  every living member leaves their heavy loot (ids 0..2 -- Silver/Gold/Gems)
+;  at the pool's edge, emitting one treasureDropped per member that drops any.
+;  No conformance vector crosses a pool while carrying heavy loot, so the drop
+;  loop is a verified no-op here, but it is wired for correctness.
+; ===========================================================
+;
+	.ENTRY	DEEPPOOL_CROSSING, ^M<R2,R3,R4,R5,R6,R7,R8>
+	CLRL	R2				; look for a living Giant
+DP_GL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	DP_DROP
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	DP_GN
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_GIANT
+	BNEQ	DP_GN
+	BRW	DP_RET				; Giant present -> carries all, no drops
+DP_GN:	INCL	R2
+	BRB	DP_GL
+
+DP_DROP:
+	CLRL	R2				; member slot
+DP_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	DP_M1
+	BRW	DP_RET
+DP_M1:	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	DP_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; dropped-count
+	CLRL	R6				; slot in row
+DP_SL:	ADDL3	R3, R6, R0
+	MOVL	(R4)[R0], R1
+	BLSS	DP_SN				; -1 empty
+	CMPL	R1, #SCAVE$_TR_HEAVY_MAX
+	BGTR	DP_SN				; light treasure stays with the member
+	MOVL	SCAVE_MAP_PP, R7		; record the id on the pool tile (area.dropped)
+	MULL3	#8, R7, R8			; pool DROP_PT row base = pool*8
+	ADDL2	SCAVE_AREA_DROP_N[R7], R8	; + current count -> next slot
+	MOVL	R1, SCAVE_AREA_DROP_PT[R8]
+	INCL	SCAVE_AREA_DROP_N[R7]
+	MOVL	#-1, (R4)[R0]			; heavy -> left in the pool
+	INCL	R5
+DP_SN:	AOBLSS	#SCAVE$_TREAS_PER, R6, DP_SL
+	TSTL	R5
+	BEQL	DP_MN
+	MOVL	#SCAVE$_EV_TREASUREDROPPED, R0
+	BSBW	EMIT_EVENT
+DP_MN:	INCL	R2
+	BRB	DP_ML
+DP_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GIANT_CAN_RECOVER (CALLS)  --  R0 = 1 if a living Giant (cid 12) has the spare
+;    weight capacity to lift at least one treasure dropped into the party's
+;    current Deep-Pool tile (reference giantCanRecover), else 0.
+; ===========================================================
+;
+	.ENTRY	GIANT_CAN_RECOVER, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	CLRL	R2				; find a living Giant
+GCR_L:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	GCR_L1
+	BRW	GCR_NO
+GCR_L1:	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	GCR_N
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_GIANT
+	BEQL	GCR_F
+GCR_N:	INCL	R2
+	BRB	GCR_L
+GCR_F:	MULL3	#SCAVE$_TREAS_PER, R2, R3	; carried weight of the Giant -> R6
+	MOVAB	SCAVE_PARTY_PT, R4
+	MOVAB	SCAVE_DATA_TR_WT, R5
+	CLRL	R6
+	CLRL	R7
+GCR_WL:	ADDL3	R3, R7, R0
+	MOVL	(R4)[R0], R1
+	BLSS	GCR_WN				; -1 empty
+	ADDL2	(R5)[R1], R6
+GCR_WN:	AOBLSS	#SCAVE$_TREAS_PER, R7, GCR_WL
+	MOVL	SCAVE_PARTY_PC[R2], R9		; Giant capacity -> R9
+	MOVAB	SCAVE_DATA_CR_CARRY, R8
+	MOVL	(R8)[R9], R9
+	MOVL	SCAVE_MAP_PA, R10		; scan the pool's dropped pile
+	MULL3	#8, R10, R7			; DROP_PT row base
+	CLRL	R11				; j
+GCR_DL:	CMPL	R11, SCAVE_AREA_DROP_N[R10]
+	BGEQ	GCR_NO
+	ADDL3	R7, R11, R0
+	MOVL	SCAVE_AREA_DROP_PT[R0], R1	; dropped tid
+	ADDL3	R6, (R5)[R1], R0		; carried + WT[tid]
+	CMPL	R0, R9				; <= capacity?
+	BLEQ	GCR_YES
+	INCL	R11
+	BRB	GCR_DL
+GCR_YES: MOVL	#1, R0
+	RET
+GCR_NO:	CLRL	R0
+	RET
+
+;
+; ===========================================================
+;  RECLAIM_POOL (CALLS)  --  move the party's current Deep-Pool tile's dropped
+;    pile (SCAVE_AREA_DROP_*) onto the chamber floor (CT), clearing the pile.
+; ===========================================================
+;
+	.ENTRY	RECLAIM_POOL, ^M<R2,R3,R4,R5>
+	MOVL	SCAVE_MAP_PA, R2
+	MULL3	#8, R2, R3			; DROP_PT row base
+	CLRL	R4				; j
+RCP_L:	CMPL	R4, SCAVE_AREA_DROP_N[R2]
+	BGEQ	RCP_D
+	ADDL3	R3, R4, R0
+	MOVL	SCAVE_AREA_DROP_PT[R0], R1	; dropped tid
+	MOVL	SCAVE_CHAMBER_NT, R5		; append to the floor (CT)
+	MOVL	R1, SCAVE_CHAMBER_CT[R5]
+	INCL	SCAVE_CHAMBER_NT
+	INCL	R4
+	BRB	RCP_L
+RCP_D:	CLRL	SCAVE_AREA_DROP_N[R2]		; the pool's pile is now on the floor
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  PERSIST_AREA  --  park the chamber working set onto the party's area
+;                    (reference persistAndExplore) and clear it.
+;
+;  Writes AC[PA*8 + slot] = 100+cid for each stranger, then 200+tid for each
+;  live treasure (skips -1 = consumed), pads the remaining slots with 0, then
+;  clears NS/NT/NH.  Matches the reference order (strangers, treasures); the
+;  Deep-Pool `dropped` pile, sleeping/lulled parking and Medusa/Ghouls
+;  hazard re-park are added when a vector exercises them.
+; ===========================================================
+;
+	.ENTRY	PERSIST_AREA, ^M<R3,R6,R7,R8>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8
+	ADDL2	R0, R8				; R8 = &AC[PA*8]
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; free slots
+
+	; Preserve any contents already parked on the tile (e.g. a re-parked 300+
+	; lurking Medusa/Ghouls) -- append the working set after them, don't overwrite.
+	CLRL	R6
+PA_SK:	TSTL	R3
+	BLEQ	PA_S
+	TSTL	(R8)
+	BEQL	PA_S
+	ADDL2	#4, R8
+	DECL	R3
+	BRB	PA_SK
+
+PA_S:	CMPL	R6, SCAVE_CHAMBER_NS
+	BGEQ	PA_T
+	TSTL	R3
+	BLEQ	PA_PAD
+	ADDL3	#100, SCAVE_CHAMBER_CS[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_S
+PA_T:	CLRL	R6				; treasures -> 200+tid
+PA_TL:	CMPL	R6, SCAVE_CHAMBER_NT
+	BGEQ	PA_SLP
+	TSTL	R3
+	BLEQ	PA_SLP
+	MOVL	SCAVE_CHAMBER_CT[R6], R0
+	BLSS	PA_TN				; -1 consumed -> skip
+	ADDL3	#200, R0, (R8)+
+	DECL	R3
+PA_TN:	INCL	R6
+	BRB	PA_TL
+PA_SLP:	CLRL	R6				; Lotus-slept creatures -> 400+cid
+PA_SL:	CMPL	R6, SCAVE_CHAMBER_NSL
+	BGEQ	PA_LLP
+	TSTL	R3
+	BLEQ	PA_LLP
+	ADDL3	#400, SCAVE_CHAMBER_SL[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_SL
+PA_LLP:	CLRL	R6				; flute-lulled dragons -> 100+cid (park AWAKE)
+PA_LL:	CMPL	R6, SCAVE_CHAMBER_NLULL
+	BGEQ	PA_PAD
+	TSTL	R3
+	BLEQ	PA_PAD
+	ADDL3	#100, SCAVE_CHAMBER_LULL[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_LL
+PA_PAD:	TSTL	R3				; zero unused tail slots
+	BLEQ	PA_CLR
+	CLRL	(R8)+
+	DECL	R3
+	BRB	PA_PAD
+PA_CLR:	CLRL	SCAVE_CHAMBER_NS		; working set now lives on the area
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_CHAMBER_NSL
+	CLRL	SCAVE_CHAMBER_NLULL
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  FLUTE_LULL (CALLS)  --  SC-11 Charmed Flute passive dragon-lull.  If a living
+;    Hero(0)/W-Hero(1)/Priest(4)/Man(5)/Woman(6)/Wizard(8) holds the Flute (id
+;    12), every Dragon (cid 10) is removed from the active strangers (CS) into
+;    the lulled set (SCAVE_CHAMBER_LULL, parked 100+id on leave).  Returns
+;    R0 = number of dragons lulled (0 if no flute player or no dragon).
+; ===========================================================
+;
+	.ENTRY	FLUTE_LULL, ^M<R2,R3,R4,R5,R6>
+	CLRL	R2				; find a living flute player holding the Flute
+FL_PL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	FL_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (0/1)?
+	BGEQ	FL_PN
+	MOVL	SCAVE_PARTY_PC[R2], R3		; Flute PLAYERS = {0,4,5,6,8} (not W-Hero 1)
+	CMPL	R3, #0
+	BEQL	FL_HAS
+	CMPL	R3, #4
+	BEQL	FL_HAS
+	CMPL	R3, #5
+	BEQL	FL_HAS
+	CMPL	R3, #6
+	BEQL	FL_HAS
+	CMPL	R3, #8
+	BNEQ	FL_PN
+FL_HAS:	MOVL	R2, R0				; does this member hold the Flute?
+	MOVL	#SCAVE$_TR_FLUTE, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	FL_LULL
+FL_PN:	INCL	R2
+	BRB	FL_PL
+FL_NO:	CLRL	R0
+	RET
+
+FL_LULL: CLRL	R6				; lulled count
+	CLRL	R2				; scan CS for Dragons (cid 10)
+FL_SL:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	FL_DONE
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_DRAGON
+	BNEQ	FL_SN
+	MOVL	SCAVE_CHAMBER_NLULL, R4		; move it to the lulled set
+	MOVL	#SCAVE$_CR_DRAGON, SCAVE_CHAMBER_LULL[R4]
+	INCL	SCAVE_CHAMBER_NLULL
+	INCL	R6
+	MOVL	R2, R3				; compact CS: shift [R2+1..NS-1] down one
+FL_CMP:	ADDL3	#1, R3, R5
+	CMPL	R5, SCAVE_CHAMBER_NS
+	BGEQ	FL_CMPD
+	MOVL	SCAVE_CHAMBER_CS[R5], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+	BRB	FL_CMP
+FL_CMPD: DECL	SCAVE_CHAMBER_NS
+	BRB	FL_SL				; re-check R2 (now the shifted element)
+FL_SN:	INCL	R2
+	BRB	FL_SL
+FL_DONE: MOVL	R6, R0
+	RET
+
+;
+; ===========================================================
+;  TAKE_TREASURE(ti, mi)  --  reference pickup.ts takeTreasure + canCarry.
+;
+;  Moves floor treasure CT[ti] to member mi's carried list if the member can
+;  bear the extra weight, then splices CT (shifts down, NT--).  Returns R0 = 1
+;  iff a take happened AND the floor is now empty (caller then persists), else
+;  0 (no-op or floor still has treasure).  Lost Ruby (tid 11) is a no-op here
+;  (its statue wrestle is handled separately).
+; ===========================================================
+;
+	.ENTRY	TAKE_TREASURE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CLRL	R0				; default: no floor-emptying take
+	MOVL	4(AP), R4			; ti
+	MOVL	8(AP), R5			; mi
+	CMPL	R4, SCAVE_CHAMBER_NT
+	BLSSU	1$
+	RET					; invalid ti -> no-op
+1$:	MOVL	SCAVE_CHAMBER_CT[R4], R6		; tid
+	CMPL	R6, #11				; Lost Ruby -> statue path (later)
+	BNEQ	2$
+	RET
+2$:	MULL3	#SCAVE$_TREAS_PER, R5, R7	; R7 = mi*20 = PT base index
+
+	; canCarry: carriedWeight(mi) + WT[tid] <= CARRY[PC[mi]]
+	MOVAB	SCAVE_PARTY_PT, R8
+	MOVAB	SCAVE_DATA_TR_WT, R9
+	CLRL	R10				; accumulated weight
+	CLRL	R2				; slot j
+CC_L:	CMPL	R2, #SCAVE$_TREAS_PER
+	BGEQ	CC_D
+	ADDL3	R7, R2, R3			; PT index = base + j
+	MOVL	(R8)[R3], R1			; PT[index]
+	BLSS	CC_N				; -1 empty
+	ADDL2	(R9)[R1], R10			; += WT[held tid]
+CC_N:	INCL	R2
+	BRB	CC_L
+CC_D:	ADDL2	(R9)[R6], R10			; + WT[tid]
+	MOVL	SCAVE_PARTY_PC[R5], R11		; creature id
+	MOVAB	SCAVE_DATA_CR_CARRY, R1
+	CMPL	R10, (R1)[R11]
+	BGTR	TT_NO				; over capacity -> no-op
+
+	; store tid in the member's first empty PT slot
+	CLRL	R2
+FS_L:	CMPL	R2, #SCAVE$_TREAS_PER
+	BGEQ	TT_NO				; member full -> no-op
+	ADDL3	R7, R2, R3
+	MOVL	(R8)[R3], R1
+	BGEQ	FS_N				; occupied
+	MOVL	R6, (R8)[R3]			; PT[slot] = tid
+	BRB	SPLICE
+FS_N:	INCL	R2
+	BRB	FS_L
+
+SPLICE:	; CT[ti] out: shift CT[ti+1..NT-1] down, NT--
+	MOVL	R4, R2				; dst = ti
+SP_L:	ADDL3	#1, R2, R3			; src = dst+1
+	CMPL	R3, SCAVE_CHAMBER_NT
+	BGEQ	SP_D
+	MOVL	SCAVE_CHAMBER_CT[R3], SCAVE_CHAMBER_CT[R2]
+	MOVL	R3, R2
+	BRB	SP_L
+SP_D:	DECL	SCAVE_CHAMBER_NT
+	CLRL	R0
+	TSTL	SCAVE_CHAMBER_NT
+	BNEQ	TT_NO
+	MOVL	#1, R0				; floor now empty
+TT_NO:	RET
+
+;
+; ===========================================================
+;  STATUE_WRESTLE(ti, mi)  --  Lost-Ruby statue (SC-11, reference takeTreasure
+;                              tid===11 branch).
+;
+;  The taker (member mi) wrestles a strength-8 statue: fighterTotal =
+;  frontStrength + d6, enemyTotal = 8 + d6 (fighter die first).  Emits
+;  combatRoll.  On a win the Ruby is taken (rubyTaken) and spliced off the
+;  floor; on a loss the taker dies (memberDied, statueAroused) and the Ruby
+;  stays -- a party wipe ends the game.  (Eye-stills-statue / Ring paths and
+;  sweepFallen of the fallen taker are deferred.)
+; ===========================================================
+;
+	.ENTRY	STATUE_WRESTLE, ^M<R2,R3,R4,R5,R6,R7,R8>
+
+	MOVL	4(AP), R2			; ti
+	MOVL	8(AP), R3			; mi
+	CMPL	SCAVE_PARTY_PS[R3], #2		; taker must be alive
+	BLSS	1$
+	MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+	RET
+1$:	MOVL	#SCAVE$_TR_EYE, R1		; SC-11-28: the Eye stills the statue --
+	BSBW	PARTY_HOLDS			; take the Ruby with no fight, no RNG
+	TSTL	R0
+	BNEQ	SW_EYE
+	MOVL	R3, R0				; frontStrength(fighter): FS+PK+MP + Staff/Sword/Potion
+	BSBW	FRONT_STR			; (Eye-stills-statue handled above, so bonuses apply)
+	MOVL	R0, R6
+	CALLS	#0, G^ROLL_DIE			; fighter die (first)
+	ADDL2	R0, R6				; R6 = fighterTotal
+	CALLS	#0, G^ROLL_DIE			; statue die
+	ADDL2	#8, R0				; R0 = 8 + statue die
+	MOVL	R0, R7				; R7 = enemyTotal
+	MOVL	#SCAVE$_EV_COMBATROLL, R0
+	BSBW	EMIT_EVENT
+	CMPL	R6, R7
+	BGEQ	SW_WON				; fighterTotal >= enemyTotal
+	BRW	SW_LOSE
+
+SW_WON:	CLRL	R7				; won the wrestle -> statue is not powerless
+	BRB	SW_CLAIM
+SW_EYE:	MOVL	#1, R7				; the Eye stilled it -> emit statuePowerless too
+SW_CLAIM: ; the Ruby joins the taker's carried treasure, off the floor
+	MULL3	#SCAVE$_TREAS_PER, R3, R4
+	MOVAB	SCAVE_PARTY_PT, R5
+	CLRL	R8
+SW_PT:	CMPL	R8, #SCAVE$_TREAS_PER
+	BGEQ	SW_SPL
+	ADDL3	R4, R8, R0
+	MOVL	(R5)[R0], R1
+	BLSS	SW_STORE			; -1 empty slot
+	INCL	R8
+	BRB	SW_PT
+SW_STORE: MOVL	#SCAVE$_TR_RUBY, (R5)[R0]
+SW_SPL:	MOVL	R2, R8				; splice CT[ti] out
+SW_SL:	ADDL3	#1, R8, R0
+	CMPL	R0, SCAVE_CHAMBER_NT
+	BGEQ	SW_SD
+	MOVL	SCAVE_CHAMBER_CT[R0], SCAVE_CHAMBER_CT[R8]
+	MOVL	R0, R8
+	BRB	SW_SL
+SW_SD:	DECL	SCAVE_CHAMBER_NT
+	MOVL	#SCAVE$_EV_RUBYTAKEN, R0
+	BSBW	EMIT_EVENT
+	TSTL	R7				; Eye path also announces statuePowerless
+	BEQL	SW_ERET
+	MOVL	#SCAVE$_EV_STATUEPOWERLESS, R0
+	BSBW	EMIT_EVENT
+SW_ERET: RET
+
+SW_LOSE: ; the taker is slain; the Ruby is left in place
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R3]
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+	MOVL	R3, R0				; Eye forsaken if the wrestler held it
+	BSBW	EYE_FORSAKEN
+	MOVL	#SCAVE$_EV_STATUEAROUSED, R0
+	BSBW	EMIT_EVENT
+	PUSHL	#0				; the slain wrestler's carried items spill to
+	CALLS	#1, SWEEP_FALLEN		; the pickup floor (itemsSpilled), before gameOver
+	BSBW	COUNT_LIVING			; party wiped -> game over
+	TSTL	R0
+	BNEQ	SW_RET
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+SW_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  REVISIT_CHAMBER  --  re-entering an already-visited chamber
+;                       (reference enterChamber "visited" branch).
+;
+;  Rebuilds the working set (CS/CT/CH) from the area's parked contents
+;  AC[PA*8+slot] by type (100+cid, 200+tid, 300+hid), clearing each slot as
+;  it goes (reference area.contents = []).  No RNG: parked cards, not a draw.
+; ===========================================================
+;
+	.ENTRY	REVISIT_CHAMBER, ^M<R2,R3,R4,R5,R6,R7,R8>
+
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8
+	ADDL2	R0, R8				; R8 = &AC[PA*8]
+
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_CHAMBER_NSL		; sleeping set rebuilt from parked 400+cid
+	MOVL	#SCAVE$_AREA_ITEMS, R3		; slots to scan
+RC_L:	TSTL	R3
+	BGTR	RC_L1
+	BRW	RC_DONE
+RC_L1:	MOVL	(R8), R0			; AC[slot]
+	CLRL	(R8)+				; clear as we reclassify (contents=[])
+	TSTL	R0
+	BNEQ	RC_L2				; 0 = empty
+	BRW	RC_N
+RC_L2:	DIVL3	#100, R0, R1			; R1 = type (1/2/3)
+	MULL3	#100, R1, R2
+	SUBL3	R2, R0, R2			; R2 = index within type
+	CMPL	R1, #1
+	BNEQ	RC_TR
+	MOVL	SCAVE_CHAMBER_NS, R4		; creature -> CS[]
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	RC_N
+RC_TR:	CMPL	R1, #2
+	BNEQ	RC_HZ
+	MOVL	SCAVE_CHAMBER_NT, R4		; treasure -> CT[]
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	RC_N
+RC_HZ:	CMPL	R1, #3
+	BNEQ	RC_SLP
+	MOVL	SCAVE_CHAMBER_NH, R4		; hazard -> CH[]
+	MOVL	R2, SCAVE_CHAMBER_CH[R4]
+	INCL	SCAVE_CHAMBER_NH
+	BRB	RC_N
+RC_SLP:	CMPL	R1, #4				; 400+cid -> Lotus-slept creature, keep in SL
+	BNEQ	RC_N				; (100+lulled dragons reload as CS strangers)
+	MOVL	SCAVE_CHAMBER_NSL, R4
+	MOVL	R2, SCAVE_CHAMBER_SL[R4]
+	INCL	SCAVE_CHAMBER_NSL
+RC_N:	DECL	R3
+	BRW	RC_L
+RC_DONE:
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  REVISIT_GUARDS  --  un-park a pacified chamber's GUARDS for an ATTACK
+;    (reference attack-from-pacified): reload only strangers (100+cid -> CS) and
+;    treasures (200+tid -> CT) into the working set; KEEP any sleeping creatures
+;    / display markers (400+/300+) parked in AC (compacted to the front, in
+;    order), so their tile position survives the fight and a later persist
+;    appends new contents AFTER them.  NSL is left untouched (still parked).
+; ===========================================================
+;
+	.ENTRY	REVISIT_GUARDS, ^M<R2,R3,R4,R5,R6,R7,R8>
+	MOVL	SCAVE_MAP_PA, R7
+	MULL3	#<SCAVE$_AREA_ITEMS*4>, R7, R0
+	MOVAB	SCAVE_AREA_AC, R8		; R8 = &AC[PA*8]
+	ADDL2	R0, R8
+	CLRL	SCAVE_CHAMBER_NS
+	CLRL	SCAVE_CHAMBER_NT
+	CLRL	R6				; write cursor (compact position)
+	CLRL	R3				; read cursor
+RG_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	RG_PAD
+	MOVL	(R8)[R3], R0			; AC[read]
+	BEQL	RG_N				; empty -> drop
+	DIVL3	#100, R0, R1			; type
+	CMPL	R1, #1
+	BNEQ	RG_TR
+	SUBL3	#100, R0, R2			; creature -> CS (reloaded)
+	MOVL	SCAVE_CHAMBER_NS, R4
+	MOVL	R2, SCAVE_CHAMBER_CS[R4]
+	INCL	SCAVE_CHAMBER_NS
+	BRB	RG_N
+RG_TR:	CMPL	R1, #2
+	BNEQ	RG_KEEP				; 300+/400+ -> keep parked
+	SUBL3	#200, R0, R2			; treasure -> CT (reloaded)
+	MOVL	SCAVE_CHAMBER_NT, R4
+	MOVL	R2, SCAVE_CHAMBER_CT[R4]
+	INCL	SCAVE_CHAMBER_NT
+	BRB	RG_N
+RG_KEEP: MOVL	R0, (R8)[R6]			; keep: write compacted
+	INCL	R6
+RG_N:	INCL	R3
+	BRB	RG_L
+RG_PAD:	CMPL	R6, #SCAVE$_AREA_ITEMS		; clear the freed tail
+	BGEQ	RG_DONE
+	CLRL	(R8)[R6]
+	INCL	R6
+	BRB	RG_PAD
+RG_DONE: MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  FIGHT_ROUND  --  resolve one round of 1v1 matches (reference
+;                   resolvePlannedRound, simple subset).
+;
+;  For each match i: partyStr = FS[cid]+PK[slot]+MP[cid] (front),
+;  enemyStr = FS[sid]+MP[sid]; roll a party die then an enemy die (2 rolls per
+;  match, in order); partyTotal = partyStr + pr + rollBonus + surpriseP,
+;  enemyTotal = enemyStr + er + surpriseE.  Emit combatRoll; higher total wins
+;  (kill the stranger -> strangerKilled, or the front member -> memberDied; tie
+;  = nobody).  Then compact the slain strangers out of CS and bump the round.
+; ===========================================================
+;
+	.ENTRY	FIGHT_ROUND, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CALLS	#0, HEAVY_DROP			; §387: front fighters drop heavy loot to the tile
+	CALLS	#0, SPECTRE_CHECK		; SC-9.4: idle Spectre auto-slay (no RNG)
+	CALLS	#0, GANG_UP			; SC-9.1-10/11: leftover-foe attach + fold
+	CLRL	SCAVE_FIGHT_CQN			; fresh casualty queue this round
+
+	; R10 = party die-add (rollBonus + surpriseP); R11 = enemy die-add (surpriseE).
+	; rollBonus = (Ring?+1:0) - activeCurses; Ring deferred, curses = 0 once the
+	; Sorcerer is dead (SK).  Surprise applies round 1 only.
+	CLRL	R10
+	TSTL	SCAVE_STATE_SK
+	BNEQ	1$
+	MNEGL	SCAVE_STATE_NC, R10
+1$:	MOVL	#SCAVE$_TR_RING, R1		; SC-11-24: The Ring adds +1 to the party die
+	BSBW	PARTY_HOLDS
+	ADDL2	R0, R10
+	CLRL	R11
+	CMPL	SCAVE_FIGHT_RD, #1
+	BNEQ	4$
+	CMPL	SCAVE_FIGHT_FS, #1
+	BNEQ	2$
+	INCL	R10				; surpriseP
+	BRB	4$
+2$:	CMPL	SCAVE_FIGHT_FS, #-1
+	BNEQ	4$
+	INCL	R11				; surpriseE
+4$:
+	CLRL	R2				; match index
+FR_L:	CMPL	R2, SCAVE_FIGHT_NF
+	BLSS	FR_M
+	BRW	FR_COMPACT
+FR_M:	MULL3	#SCAVE$_MPM, R2, R9		; R9 = row base = i*MPM
+
+	CLRL	R6				; partyStr = Sum frontStrength(front) + Sum casterMP(backers)
+	CLRL	R3
+FR_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
+	BGEQ	FR_FLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FA[R0], R0		; front party slot
+	PUSHL	R0				; save the slot
+	BSBW	MATCH_HAS_SPECTRE		; a Spectre match?  (uses R2)
+	TSTL	R0
+	BEQL	FR_FL_PHYS
+	MOVL	(SP), R0			; a caster fights a Spectre with magic (casterMP)
+	BSBW	CASTER_MP
+	TSTL	R0
+	BNEQ	FR_FL_HAVE
+FR_FL_PHYS: MOVL	(SP), R0			; else physical frontStrength (sword-bearer)
+	BSBW	FRONT_STR
+FR_FL_HAVE: ADDL2	R0, R6
+	MOVL	(SP)+, R1			; discard the saved slot
+	INCL	R3
+	BRB	FR_FL
+FR_FLD:	CLRL	R3
+FR_BL:	CMPL	R3, SCAVE_FIGHT_BN[R2]
+	BGEQ	FR_BLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FB[R0], R0		; backer party slot
+	BSBW	CASTER_MP			; + casterMP (base MP + Staff boost, Eye-nullified)
+	ADDL2	R0, R6
+	INCL	R3
+	BRB	FR_BL
+FR_BLD:
+	CLRL	R7				; enemyStr = Sum (fs+MP)(strangers) + attach + fold
+	CLRL	R3
+FR_SL:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	FR_SLD
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FD[R0], R0		; stranger idx
+	BSBW	ENEMY_STR			; R0 = fs+MP of CS[idx]
+	ADDL2	R0, R7
+	INCL	R3
+	BRB	FR_SL
+FR_SLD:	MOVL	SCAVE_FIGHT_ATTACH[R2], R0	; gang-up attached leftover foe
+	BLSS	FR_FOLD
+	BSBW	ENEMY_STR
+	ADDL2	R0, R7
+FR_FOLD: CMPL	R2, SCAVE_FIGHT_FOCUS		; the focus (first non-Spectre) match carries the fold
+	BNEQ	FR_ROLL
+	ADDL2	SCAVE_FIGHT_FOLD, R7
+FR_ROLL:
+	CALLS	#0, G^ROLL_DIE			; party die (order: party then enemy)
+	ADDL2	R0, R6
+	CALLS	#0, G^ROLL_DIE			; enemy die
+	ADDL2	R0, R7
+	ADDL2	R10, R6				; + party die-add
+	ADDL2	R11, R7				; + enemy die-add
+	MOVL	#SCAVE$_EV_COMBATROLL, R0
+	BSBW	EMIT_EVENT
+	CMPL	R6, R7
+	BGTR	FR_WIN				; party total higher -> win (near)
+	BEQL	FR_TIE				; equal -> nobody dies (near)
+	BRW	FR_LOSE				; party lower -> lose (far -> BRW)
+FR_TIE:	BRW	FR_NEXT
+
+FR_WIN:	; SC-9.5: the strongest foe in the match (by fs+MP) is slain.
+	MNEGL	#1, R4				; best stranger idx
+	MNEGL	#1, R5				; best weight
+	CLRL	R3
+FW_L:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	FW_ATT
+	ADDL3	R9, R3, R0
+	MOVL	SCAVE_FIGHT_FD[R0], R6		; stranger idx (R6 free after the roll)
+	MOVL	R6, R0
+	BSBW	ENEMY_STR			; R0 = weight
+	CMPL	R0, R5
+	BLEQ	FW_N
+	MOVL	R0, R5
+	MOVL	R6, R4
+FW_N:	INCL	R3
+	BRB	FW_L
+FW_ATT:	MOVL	SCAVE_FIGHT_ATTACH[R2], R6	; the attached foe can be the strongest
+	BLSS	FW_KILL
+	MOVL	R6, R0
+	BSBW	ENEMY_STR
+	CMPL	R0, R5
+	BLEQ	FW_KILL
+	MOVL	R6, R4
+FW_KILL: MOVL	SCAVE_CHAMBER_CS[R4], R5		; sid = victim creature id
+	; dragonKills: a single-handed lone-Dragon match (SC-9.5-*)
+	CMPL	R5, #SCAVE$_CR_DRAGON
+	BNEQ	FW_NOD
+	CMPL	SCAVE_FIGHT_FN[R2], #1
+	BNEQ	FW_NOD
+	TSTL	SCAVE_FIGHT_BN[R2]
+	BNEQ	FW_NOD
+	CMPL	SCAVE_FIGHT_SN[R2], #1
+	BNEQ	FW_NOD
+	TSTL	SCAVE_FIGHT_ATTACH[R2]
+	BGEQ	FW_NOD				; attach present -> not single-handed
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; the lone front slot
+	INCL	SCAVE_PARTY_PK[R0]		; dragonKills++
+FW_NOD:	MOVL	#SCAVE$_EV_STRANGERKILLED, R0
+	BSBW	EMIT_EVENT
+	CMPL	R5, #SCAVE$_CR_SORCERER		; felling the Sorcerer (SC-9.5, §12)
+	BNEQ	FW_NOS
+	MOVL	#1, SCAVE_STATE_SK
+	MOVL	#SCAVE$_EV_SORCERERSLAIN, R0
+	BSBW	EMIT_EVENT
+FW_NOS:	MNEGL	#1, SCAVE_CHAMBER_CS[R4]		; mark the slain foe for removal
+	BRW	FR_NEXT
+
+FR_LOSE: MOVL	SCAVE_FIGHT_FN[R2], R6		; mortal fronts (Ring deferred -> all mortal)
+	BGTR	FL_HASF				; FN>0 -> proceed
+	BRW	FR_NEXT				; no front (shouldn't) -> nobody (far -> BRW)
+FL_HASF: CMPL	R6, #1
+	BGTR	FL_QUEUE
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; exactly one front -> it would die now
+	PUSHL	R0
+	BSBW	RING_INVINCIBLE			; The Ring shrugs off the killing blow?
+	TSTL	R0
+	BEQL	FL_DIE
+	MOVL	(SP)+, R0			; survives -> deathPrevented, no kill
+	MOVL	#SCAVE$_EV_DEATHPREVENTED, R0
+	BSBW	EMIT_EVENT
+	BRW	FR_NEXT
+FL_DIE:	MOVL	(SP)+, R0			; slot
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R0]
+	PUSHL	R0				; save the slot for the Eye check
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+	MOVL	(SP)+, R0
+	BSBW	EYE_FORSAKEN
+	BRW	FR_NEXT
+FL_QUEUE: ; SC-9.2: >1 mortal front -> queue the pair for chooseCasualty
+	MOVL	SCAVE_FIGHT_CQN, R3
+	MULL3	#2, R3, R4			; CQ write offset = k*2
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; first front
+	MOVL	R0, SCAVE_FIGHT_CQ[R4]
+	ADDL3	R9, #1, R0
+	MOVL	SCAVE_FIGHT_FA[R0], R0		; second front
+	ADDL3	R4, #1, R5
+	MOVL	R0, SCAVE_FIGHT_CQ[R5]
+	INCL	SCAVE_FIGHT_CQN
+	BRW	FR_NEXT
+
+FR_NEXT: INCL	R2
+	BRW	FR_L
+FR_COMPACT:					; drop slain strangers, keep order
+	CLRL	R2				; read
+	CLRL	R3				; write
+CP_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	CP_D
+	MOVL	SCAVE_CHAMBER_CS[R2], R4
+	CMPL	R4, #-1
+	BEQL	CP_N
+	MOVL	R4, SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+CP_N:	INCL	R2
+	BRB	CP_L
+CP_D:	MOVL	R3, SCAVE_CHAMBER_NS
+	INCL	SCAVE_FIGHT_RD			; round++
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  FRONT_STR (JSB)  --  R0 in = party slot; R0 out = frontStrength = fs + dragonKills
+;    + casterMP (base MP; Sword/Potion bonuses come with the artifact grind).
+;  ENEMY_STR (JSB)  --  R0 in = stranger idx (into CS); R0 out = fs + MP of CS[idx].
+;    Both clobber only R0/R1 (they preserve R4/R5 across a push/pop).
+; ===========================================================
+;
+FRONT_STR:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R2				; party slot
+	MOVL	SCAVE_PARTY_PK[R2], R5		; dragonKills
+	MOVL	SCAVE_PARTY_PC[R2], R3		; cid
+	MOVAB	SCAVE_DATA_CR_FS, R4
+	ADDL2	(R4)[R3], R5			; + fs
+	MOVL	R2, R0				; + casterMP (base MP + Staff boost, Eye-nullified)
+	BSBW	CASTER_MP
+	ADDL2	R0, R5
+	; Magic Sword bonus, also nullified while the party holds the Eye.
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BNEQ	FS_DONE				; Eye active -> no Sword bonus
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_SWORD, R1
+	BSBW	MEMBER_HOLDS			; does this member wield the Magic Sword?
+	TSTL	R0
+	BEQL	FS_DONE
+	CMPL	R3, #1				; Hero(0) / W-Hero(1) -> +2
+	BLEQ	FS_SW2
+	CMPL	R3, #5				; Man(5) / Woman(6) -> +1
+	BLSS	FS_DONE
+	CMPL	R3, #6
+	BGTR	FS_DONE
+	INCL	R5
+	BRB	FS_DONE
+FS_SW2:	ADDL2	#2, R5
+FS_DONE:
+	CMPL	R2, SCAVE_FIGHT_POTION		; Strength Potion (+2), not nullified by the Eye
+	BNEQ	FS_NOPOT
+	ADDL2	#2, R5
+FS_NOPOT:
+	MOVL	R5, R0
+	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ---- MATCH_HAS_SPECTRE (JSB) -- R2 = match idx; R0 = 1 if any of its strangers
+;      (FD[i*MPM+0..SN-1]) is a Spectre (cid 9).  Preserves R2-R11.
+;
+MATCH_HAS_SPECTRE:
+	PUSHL	R3
+	PUSHL	R4
+	PUSHL	R5
+	MULL3	#SCAVE$_MPM, R2, R3		; match row base
+	CLRL	R4
+MHS_L:	CMPL	R4, SCAVE_FIGHT_SN[R2]
+	BGEQ	MHS_NO
+	ADDL3	R3, R4, R5
+	MOVL	SCAVE_FIGHT_FD[R5], R0		; stranger index into CS
+	CMPL	SCAVE_CHAMBER_CS[R0], #SCAVE$_CR_SPECTRE
+	BEQL	MHS_YES
+	INCL	R4
+	BRB	MHS_L
+MHS_YES: MOVL	#1, R0
+	BRB	MHS_R
+MHS_NO:	CLRL	R0
+MHS_R:	MOVL	(SP)+, R5
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R3
+	RSB
+
+;
+; ---- CASTER_MP (JSB) -- R0 = party slot; R0 out = casterMP (base creature MP +
+;      Magic Staff boost: Priest +1 / Wizard +2), 0 while the party holds the Eye
+;      (reference casterMP).  Preserves R2-R11.
+;
+CASTER_MP:
+	PUSHL	R1
+	PUSHL	R2
+	PUSHL	R3
+	PUSHL	R4
+	MOVL	R0, R2				; slot
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS			; Eye active -> all magic powerless
+	TSTL	R0
+	BNEQ	CMP_ZERO
+	MOVL	SCAVE_PARTY_PC[R2], R3		; cid
+	MOVAB	SCAVE_DATA_CR_MP, R0
+	MOVL	(R0)[R3], R4			; R4 = base MP
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_STAFF, R1
+	BSBW	MEMBER_HOLDS			; holds the Magic Staff?
+	TSTL	R0
+	BEQL	CMP_DONE
+	CMPL	R3, #4				; Priest +1
+	BNEQ	CMP_W
+	INCL	R4
+	BRB	CMP_DONE
+CMP_W:	CMPL	R3, #8				; Wizard +2
+	BNEQ	CMP_DONE
+	ADDL2	#2, R4
+CMP_DONE: MOVL	R4, R0
+	BRB	CMP_POP
+CMP_ZERO: CLRL	R0
+CMP_POP: MOVL	(SP)+, R4
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R2
+	MOVL	(SP)+, R1
+	RSB
+
+;
+; ===========================================================
+;  MEMBER_HOLDS (JSB)  --  R0 = party slot, R1 = treasure id; R0 = 1 if that
+;    member's treasure row holds it, else 0.  Clobbers R0, preserves R1-R4.
+; ===========================================================
+;
+MEMBER_HOLDS:
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MULL3	#SCAVE$_TREAS_PER, R0, R2	; PT row base
+	MOVAB	SCAVE_PARTY_PT, R3
+	CLRL	R4
+MH_L:	ADDL3	R2, R4, R0
+	CMPL	(R3)[R0], R1
+	BEQL	MH_Y
+	AOBLSS	#SCAVE$_TREAS_PER, R4, MH_L
+	CLRL	R0
+	BRB	MH_R
+MH_Y:	MOVL	#1, R0
+MH_R:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	RSB
+
+;
+; ---- EYE_FORSAKEN (JSB) -- R0 = slot of a member that just fell.  If it holds
+;      the Eye of God (id 13), the party is cursed for losing it: curses++ and
+;      emit eyeForsaken (reference eyeForsakenByDeath).  Check BEFORE the body's
+;      treasure is spilled/cleared.  Clobbers R0; preserves R1-R11.
+;
+EYE_FORSAKEN:
+	PUSHL	R1
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	MEMBER_HOLDS			; R0 = 1 if the fallen member holds the Eye
+	TSTL	R0
+	BEQL	EF2_RET
+	INCL	SCAVE_STATE_NC			; a curse for forsaking the Eye
+	MOVL	#SCAVE$_EV_EYEFORSAKEN, R0
+	BSBW	EMIT_EVENT
+EF2_RET: MOVL	(SP)+, R1
+	RSB
+
+;
+; ---- RING_INVINCIBLE (JSB) -- R0 = member slot; R0 out = 1 if The Ring (id 10)
+;      shrugs off a killing die-roll for it (level >= 4, bearer, Eye not active;
+;      reference ringInvincible).  Clobbers R0; preserves R1-R11.
+;
+RING_INVINCIBLE:
+	CMPL	SCAVE_MAP_PL, #4		; only from level 4 down
+	BLSS	RI_NO
+	PUSHL	R0				; save the slot
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS			; the Eye nullifies the Ring
+	TSTL	R0
+	BNEQ	RI_POP
+	MOVL	(SP)+, R0			; restore the slot
+	MOVL	#SCAVE$_TR_RING, R1
+	BSBW	MEMBER_HOLDS			; R0 = 1 if this member bears the Ring
+	RSB
+RI_POP:	MOVL	(SP)+, R0
+RI_NO:	CLRL	R0
+	RSB
+
+ENEMY_STR:
+	PUSHL	R5
+	PUSHL	R4
+	MOVL	SCAVE_CHAMBER_CS[R0], R1		; cid
+	MOVAB	SCAVE_DATA_CR_FS, R4
+	MOVL	(R4)[R1], R5
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	ADDL2	(R4)[R1], R5
+	MOVL	R5, R0
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  PARTY_HOLDS (JSB)  --  R1 = treasure id; R0 = 1 if any living member holds
+;    it, else 0.  Clobbers R0, preserves R1-R5.  (eyeActive = PARTY_HOLDS(13);
+;    Ring = PARTY_HOLDS(10).)
+; ===========================================================
+;
+PARTY_HOLDS:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	CLRL	R2				; member slot
+PTH_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	PTH_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive (0/1) only
+	BGEQ	PTH_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+PTH_SL:	ADDL3	R3, R5, R0
+	CMPL	(R4)[R0], R1
+	BEQL	PTH_YES
+	AOBLSS	#SCAVE$_TREAS_PER, R5, PTH_SL
+PTH_MN:	INCL	R2
+	BRB	PTH_ML
+PTH_NO:	CLRL	R0
+	BRB	PTH_RET
+PTH_YES: MOVL	#1, R0
+PTH_RET: MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  ANNIHILATE_EYE  --  SC-11-35: while the party holds the Eye of God (id 13),
+;    every Spectre (id 9) is destroyed on sight.  Removes Spectres from the
+;    drawn stranger set (CS), emitting annihilated per Spectre.
+; ===========================================================
+;
+	.ENTRY	ANNIHILATE_EYE, ^M<R2,R3>
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	AE_RET				; no Eye -> nothing
+	CLRL	R2				; read index
+	CLRL	R3				; write index
+AE_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	AE_D
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	AE_KEEP
+	MOVL	#SCAVE$_EV_ANNIHILATED, R0	; drop the Spectre, emit annihilated
+	BSBW	EMIT_EVENT
+	BRB	AE_N
+AE_KEEP: MOVL	SCAVE_CHAMBER_CS[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+AE_N:	INCL	R2
+	BRB	AE_L
+AE_D:	MOVL	R3, SCAVE_CHAMBER_NS		; compacted count
+AE_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  WARD_OFF_SPECTRES  --  the Talisman (id 7) drives off every Spectre (cid 9)
+;    from the drawn strangers on level >= 4 (reference wardOffSpectres).  Emits
+;    wardedOff per removed Spectre; compacts CS.  (Distinct from the Eye's
+;    annihilate: warded Spectres flee, not destroyed.)
+; ===========================================================
+;
+	.ENTRY	WARD_OFF_SPECTRES, ^M<R2,R3>
+	CMPL	SCAVE_MAP_PL, #4		; only on level >= 4
+	BLSS	WO_RET
+	MOVL	#SCAVE$_TR_TALISMAN, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	WO_RET				; no living Talisman holder -> nothing
+	CLRL	R2				; read index
+	CLRL	R3				; write index
+WO_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	WO_D
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	WO_KEEP
+	MOVL	#SCAVE$_EV_WARDEDOFF, R0		; drive off the Spectre, emit wardedOff
+	BSBW	EMIT_EVENT
+	BRB	WO_N
+WO_KEEP: MOVL	SCAVE_CHAMBER_CS[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+WO_N:	INCL	R2
+	BRB	WO_L
+WO_D:	MOVL	R3, SCAVE_CHAMBER_NS		; compacted count
+WO_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  IS_FRONT (JSB)   -- R0 in = party slot;    R0 out = 1 if a front in any match.
+;  IS_ENGAGED (JSB) -- R0 in = stranger idx;  R0 out = 1 if a defender in any match.
+;    Both scan the 2D plan (FN/SN + FA/FD[i*MPM+j]); clobber R0/R1, preserve R2-R5.
+; ===========================================================
+;
+IS_FRONT:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R5				; target slot
+	CLRL	R2
+IF_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	IF_NO
+	MULL3	#SCAVE$_MPM, R2, R4
+	CLRL	R3
+IF_FL:	CMPL	R3, SCAVE_FIGHT_FN[R2]
+	BGEQ	IF_MN
+	ADDL3	R4, R3, R0
+	CMPL	SCAVE_FIGHT_FA[R0], R5
+	BEQL	IF_YES
+	INCL	R3
+	BRB	IF_FL
+IF_MN:	INCL	R2
+	BRB	IF_ML
+IF_YES:	MOVL	#1, R0
+	BRB	IF_RET
+IF_NO:	CLRL	R0
+IF_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+IS_ENGAGED:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R5				; target stranger idx
+	CLRL	R2
+IE_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	IE_NO
+	MULL3	#SCAVE$_MPM, R2, R4
+	CLRL	R3
+IE_SL:	CMPL	R3, SCAVE_FIGHT_SN[R2]
+	BGEQ	IE_MN
+	ADDL3	R4, R3, R0
+	CMPL	SCAVE_FIGHT_FD[R0], R5
+	BEQL	IE_YES
+	INCL	R3
+	BRB	IE_SL
+IE_MN:	INCL	R2
+	BRB	IE_ML
+IE_YES:	MOVL	#1, R0
+	BRB	IE_RET
+IE_NO:	CLRL	R0
+IE_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  COUNT_LIVING (JSB)  --  R0 = number of party members with status < 2
+;                          (0 original / 1 ally are alive; 2 stone / 3 dead).
+; ===========================================================
+;
+COUNT_LIVING:
+	CLRL	R0
+	CLRL	R1
+CL_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	CL_D
+	CMPL	SCAVE_PARTY_PS[R1], #2
+	BGEQ	CL_N
+	INCL	R0
+CL_N:	INCL	R1
+	BRB	CL_L
+CL_D:	RSB
+
+;
+; ===========================================================
+;  REACTION_ROLL  --  one reaction die for a stranger encounter (SC-8.3).
+;    R0 <- outcome: 0 hostile, 1 indifferent, 2 friendly.  Threads the seed.
+;    roll = d6 (+1 if any living member has Charisma) - activeCurses, clamped
+;    to [1..6]; a natural 1 always counts as 1.  Classified against the leader's
+;    hostileMax / indiffMax (reaction.ts reactionRoll).
+; ===========================================================
+;
+	.ENTRY	REACTION_ROLL, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10>
+	CALLS	#0, FIND_LEADER			; R0 = leader creature id
+	MOVL	R0, R10
+	CALLS	#0, G^ROLL_DIE			; R0 = 1..6 natural; threads the seed
+	MOVL	R0, R9				; natural roll
+	MOVL	R0, R8				; working roll
+	CALLS	#0, HAS_CHARISMA
+	TSTL	R0
+	BEQL	RR1
+	INCL	R8				; SC-8.3-2: +1 charisma
+RR1:	TSTL	SCAVE_STATE_SK			; SC-8.3-3: activeCurses = curses unless SK
+	BNEQ	RR2
+	SUBL2	SCAVE_STATE_NC, R8
+RR2:	CMPL	R8, #1				; SC-8.3-4: clamp [1..6]
+	BGEQ	RR3
+	MOVL	#1, R8
+RR3:	CMPL	R8, #6
+	BLEQ	RR4
+	MOVL	#6, R8
+RR4:	CMPL	R9, #1				; SC-8.3-5: natural 1 forced to 1
+	BNEQ	RR5
+	MOVL	#1, R8
+RR5:	MOVL	SCAVE_DATA_CR_HOSTILE_MAX[R10], R6	; SC-8.4-1: classify
+	CMPL	R8, R6
+	BLEQ	RR_HOST
+	MOVL	SCAVE_DATA_CR_INDIFF_MAX[R10], R6
+	CMPL	R8, R6
+	BLEQ	RR_INDIF
+	MOVL	#2, R0				; friendly
+	RET
+RR_HOST: CLRL	R0				; hostile
+	RET
+RR_INDIF: MOVL	#1, R0				; indifferent
+	RET
+
+;
+; ===========================================================
+;  FIND_LEADER  --  R0 <- creature id of the highest-leaderPri stranger in the
+;    chamber working set (CS[0..NS-1]); ties resolve to the first (SC-8.2-1).
+; ===========================================================
+;
+	.ENTRY	FIND_LEADER, ^M<R2,R3,R4,R5,R6>
+	CLRL	R2				; index 0 seeds the best
+	MOVL	SCAVE_CHAMBER_CS[R2], R3	; best cid
+	MOVL	SCAVE_DATA_CR_LEADER_PRI[R3], R4	; best pri
+	MOVL	#1, R2
+FL_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	FL_D
+	MOVL	SCAVE_CHAMBER_CS[R2], R5
+	MOVL	SCAVE_DATA_CR_LEADER_PRI[R5], R6
+	CMPL	R6, R4
+	BLEQ	FL_N				; not strictly greater -> keep first
+	MOVL	R5, R3
+	MOVL	R6, R4
+FL_N:	INCL	R2
+	BRB	FL_L
+FL_D:	MOVL	R3, R0
+	RET
+
+;
+; ===========================================================
+;  HAS_CHARISMA  --  R0 <- 1 if any living/ally member's creature has the
+;    Charisma flag (SC-8.3-2); Ring is excluded (SC-8.3-6 -- reaction never
+;    consults it).  HAS_WOMAN  --  R0 <- 1 if a living member counts as a
+;    "Woman" for the Unicorn (BEFRIENDS_UNICORN flag, not the Unicorn itself).
+; ===========================================================
+;
+	.ENTRY	HAS_CHARISMA, ^M<R2,R3>
+	CLRL	R1
+HC_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	HC_NO
+	CMPL	SCAVE_PARTY_PS[R1], #2		; alive (0/1) only
+	BGEQ	HC_N
+	MOVL	SCAVE_PARTY_PC[R1], R2
+	MOVL	SCAVE_DATA_CR_FLAGS[R2], R3
+	BITL	#SCAVE$M_CR_CHARISMA, R3
+	BNEQ	HC_YES
+HC_N:	INCL	R1
+	BRB	HC_L
+HC_NO:	CLRL	R0
+	RET
+HC_YES:	MOVL	#1, R0
+	RET
+
+	.ENTRY	HAS_WOMAN, ^M<R2,R3>
+	CLRL	R1
+HW_L:	CMPL	R1, SCAVE_PARTY_NP
+	BGEQ	HW_NO
+	CMPL	SCAVE_PARTY_PS[R1], #2
+	BGEQ	HW_N
+	MOVL	SCAVE_PARTY_PC[R1], R2
+	CMPL	R2, #SCAVE$_CR_UNICORN		; the Unicorn is not its own "Woman"
+	BEQL	HW_N
+	MOVL	SCAVE_DATA_CR_FLAGS[R2], R3
+	BITL	#SCAVE$M_CR_BEFRIENDS_UNICORN, R3
+	BNEQ	HW_YES
+HW_N:	INCL	R1
+	BRB	HW_L
+HW_NO:	CLRL	R0
+	RET
+HW_YES:	MOVL	#1, R0
+	RET
+
+;
+; ===========================================================
+;  RECONCILE_UNICORNS (CALLS)  --  reference reconcileUnicorns.  If no living
+;    "Woman" (BEFRIENDS_UNICORN, not the Unicorn itself) remains, every living
+;    Unicorn (cid 13) leaves the party -- emit unicornDeparted each, then compact
+;    the party (drop the PS=99 marks).  No RNG.
+; ===========================================================
+;
+	.ENTRY	RECONCILE_UNICORNS, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+	CALLS	#0, HAS_WOMAN
+	TSTL	R0
+	BEQL	RU_GO
+	BRW	RU_RET				; a "Woman" present -> Unicorns stay
+RU_GO:	CLRL	R9				; departed count
+	CLRL	R2
+RU_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	RU_MD
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living (0/1)?
+	BGEQ	RU_MN
+	CMPL	SCAVE_PARTY_PC[R2], #SCAVE$_CR_UNICORN
+	BNEQ	RU_MN
+	MOVL	#99, SCAVE_PARTY_PS[R2]		; mark for removal
+	MOVL	#SCAVE$_EV_UNICORNDEPARTED, R0
+	BSBW	EMIT_EVENT
+	INCL	R9
+RU_MN:	INCL	R2
+	BRB	RU_ML
+RU_MD:	TSTL	R9
+	BEQL	RU_RET
+	CLRL	R2				; compact out PS==99 (read R2 -> write R3)
+	CLRL	R3
+RU_CL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	RU_CDONE
+	CMPL	SCAVE_PARTY_PS[R2], #99
+	BEQL	RU_CSKIP
+	CMPL	R2, R3
+	BEQL	RU_CKEEP
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R3]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R3]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R3]
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; copy the PT row R2 -> R3
+	MULL3	#SCAVE$_TREAS_PER, R3, R6
+	MOVAB	SCAVE_PARTY_PT, R7
+	CLRL	R8
+RU_PTL:	ADDL3	R5, R8, R0
+	ADDL3	R6, R8, R1
+	MOVL	(R7)[R0], (R7)[R1]
+	AOBLSS	#SCAVE$_TREAS_PER, R8, RU_PTL
+RU_CKEEP: INCL	R3
+RU_CSKIP: INCL	R2
+	BRB	RU_CL
+RU_CDONE: MOVL	R3, SCAVE_PARTY_NP		; new party size
+RU_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  SPECTRE_CHECK  --  the Spectre rule (SC-9.4, reference resolvePlannedRound).
+;
+;  If an IDLE Spectre (creature 9, not the target of any match's FD) is present
+;  and NO living member can engage it -- caster (base MP>0) or Magic Sword
+;  bearer -- the Spectre slays the strongest living member (max FS+PK) and emits
+;  spectreSlew.  Consumes no RNG.  (Ring-invincibility / Eye paths deferred.)
+; ===========================================================
+;
+	.ENTRY	SPECTRE_CHECK, ^M<R2,R3,R4,R5,R6>
+
+	; -- find an idle Spectre in CS --
+	CLRL	R2
+SK_F:	CMPL	R2, SCAVE_CHAMBER_NS
+	BLSS	SK_F1
+	BRW	SK_RET				; no idle Spectre
+SK_F1:	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	SK_FN
+	MOVL	R2, R0				; is this Spectre a defender in any match?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	SK_FN				; engaged -> not idle
+	BRB	SK_ENGAGE			; idle Spectre found
+SK_FN:	INCL	R2
+	BRB	SK_F
+
+	; -- idle Spectre present: can any living member engage it? --
+SK_ENGAGE:
+	MOVL	#SCAVE$_TR_EYE, R1		; the Eye nullifies ALL magic + the Sword ->
+	BSBW	PARTY_HOLDS			; no one can engage the Spectre -> it slays
+	TSTL	R0
+	BNEQ	SK_SLAY
+	CLRL	R2
+SK_CE:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SK_SLAY				; nobody can engage -> slay
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	SK_CEN
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_MP, R4
+	TSTL	(R4)[R3]
+	BEQL	SK_SWCHK
+	BRW	SK_RET				; a caster engages -> no slay
+SK_SWCHK:					; the Sword engages a Spectre only for
+	MOVL	SCAVE_PARTY_PC[R2], R3		; Hero(0)/W-Hero(1)/Man(5)/Woman(6)
+	CMPL	R3, #1
+	BLEQ	SK_SW0
+	CMPL	R3, #5
+	BLSS	SK_CEN
+	CMPL	R3, #6
+	BGTR	SK_CEN
+SK_SW0:	MULL3	#SCAVE$_TREAS_PER, R2, R5	; look for a Magic Sword on this member
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R3
+SK_SW:	CMPL	R3, #SCAVE$_TREAS_PER
+	BGEQ	SK_CEN
+	ADDL3	R5, R3, R4
+	CMPL	(R6)[R4], #SCAVE$_TR_SWORD
+	BNEQ	SK_SWN
+	BRW	SK_RET				; sword bearer engages -> no slay
+SK_SWN:
+	INCL	R3
+	BRB	SK_SW
+SK_CEN:	INCL	R2
+	BRB	SK_CE
+
+	; -- slay the strongest living member (max FS+PK) --
+SK_SLAY:
+	MNEGL	#1, R4				; best slot
+	MNEGL	#1, R5				; best strength
+	CLRL	R2
+SK_ST:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SK_HIT
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	SK_STN
+	MOVL	SCAVE_PARTY_PC[R2], R3
+	MOVAB	SCAVE_DATA_CR_FS, R6
+	MOVL	(R6)[R3], R0
+	ADDL2	SCAVE_PARTY_PK[R2], R0
+	CMPL	R0, R5
+	BLEQ	SK_STN
+	MOVL	R0, R5
+	MOVL	R2, R4
+SK_STN:	INCL	R2
+	BRB	SK_ST
+SK_HIT:	TSTL	R4
+	BLSS	SK_RET				; no living member (shouldn't happen)
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R4]
+	MOVL	#SCAVE$_EV_SPECTRESLEW, R0
+	BSBW	EMIT_EVENT
+	MOVL	R4, R0				; Eye forsaken if the slain member held it
+	BSBW	EYE_FORSAKEN
+SK_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GANG_UP  --  §395 gang-up (reference previewPlan).  Fills the per-match
+;               attach list + folded-magic total, used only when the party has
+;               NO free fighter (every living member is a front).
+;
+;  ATTACH[i] = the strongest unengaged, unassigned, non-caster, non-Spectre
+;  leftover stranger, one per match (strongest first).  FOLD = total MP of the
+;  leftover CASTER strangers (they lend magic from the background to the focus
+;  match).  When a free fighter remains, leftover foes stay separate: ATTACH all
+;  -1, FOLD 0.
+; ===========================================================
+;
+	.ENTRY	GANG_UP, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CLRL	SCAVE_FIGHT_FOLD		; default: no gang-up
+	CLRL	R2
+GU_I:	MNEGL	#1, SCAVE_FIGHT_ATTACH[R2]
+	AOBLSS	#8, R2, GU_I
+
+	; -- focus match = first match whose defenders are not a Spectre (fold target) --
+	MNEGL	#1, SCAVE_FIGHT_FOCUS
+	CLRL	R2
+GU_FOC:	CMPL	R2, SCAVE_FIGHT_NF
+	BGEQ	GU_FOCD
+	BSBW	MATCH_HAS_SPECTRE
+	TSTL	R0
+	BNEQ	GU_FOCN
+	MOVL	R2, SCAVE_FIGHT_FOCUS
+	BRB	GU_FOCD
+GU_FOCN: INCL	R2
+	BRB	GU_FOC
+GU_FOCD:
+
+	; -- free fighter? (a living member that is not a front) --
+	CLRL	R2
+GU_FF:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GU_GANG				; none free -> gang up
+	CMPL	SCAVE_PARTY_PS[R2], #2
+	BGEQ	GU_FFN
+	MOVL	R2, R0
+	BSBW	IS_FRONT			; is this living member a front?
+	TSTL	R0
+	BNEQ	GU_FFN
+	BRW	GU_RET				; a living non-front member -> free fighter, no gang-up
+GU_FFN:	INCL	R2
+	BRW	GU_FF
+
+	; -- no free fighter: attach the strongest eligible leftover per match --
+GU_GANG:
+	CLRL	R2				; match i
+GU_ML:	CMPL	R2, SCAVE_FIGHT_NF
+	BLSS	GU_ML1
+	BRW	GU_FOLD
+GU_ML1:	CMPL	SCAVE_FIGHT_FN[R2], #1		; only 1-front vs 1-stranger matches gang up (ref)
+	BNEQ	GU_MSKIP
+	CMPL	SCAVE_FIGHT_SN[R2], #1
+	BNEQ	GU_MSKIP
+	BSBW	MATCH_HAS_SPECTRE		; a Spectre match never gains an extra hand
+	TSTL	R0
+	BNEQ	GU_MSKIP
+	BRB	GU_MDO
+GU_MSKIP: BRW	GU_MN
+GU_MDO:	MNEGL	#1, R8				; best stranger idx
+	MNEGL	#1, R9				; best FS
+	CLRL	R3				; stranger s
+GU_SL:	CMPL	R3, SCAVE_CHAMBER_NS
+	BGEQ	GU_SD
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	CMPL	R4, #SCAVE$_CR_SPECTRE
+	BEQL	GU_SN				; Spectre never gangs up
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	TSTL	(R5)[R4]
+	BNEQ	GU_SN				; caster -> folds, not an extra hand
+	MOVL	R3, R0				; engaged as a defender in a match?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	GU_SN
+GU_S2:	CLRL	R10				; already attached elsewhere?
+GU_S3:	CMPL	R10, SCAVE_FIGHT_NF
+	BGEQ	GU_S4
+	CMPL	SCAVE_FIGHT_ATTACH[R10], R3
+	BEQL	GU_SN
+	INCL	R10
+	BRB	GU_S3
+GU_S4:	MOVAB	SCAVE_DATA_CR_FS, R5		; eligible -> keep the strongest
+	MOVL	(R5)[R4], R6
+	CMPL	R6, R9
+	BLEQ	GU_SN
+	MOVL	R6, R9
+	MOVL	R3, R8
+GU_SN:	INCL	R3
+	BRB	GU_SL
+GU_SD:	TSTL	R8
+	BLSS	GU_MN
+	MOVL	R8, SCAVE_FIGHT_ATTACH[R2]
+GU_MN:	INCL	R2
+	BRW	GU_ML
+
+	; -- fold leftover casters' MP (unengaged, unattached, non-Spectre) --
+GU_FOLD:
+	CLRL	R7
+	CLRL	R3
+GU_FL:	CMPL	R3, SCAVE_CHAMBER_NS
+	BGEQ	GU_FDONE
+	MOVL	SCAVE_CHAMBER_CS[R3], R4
+	CMPL	R4, #SCAVE$_CR_SPECTRE
+	BEQL	GU_FLN
+	MOVAB	SCAVE_DATA_CR_MP, R5
+	MOVL	(R5)[R4], R6
+	BLEQ	GU_FLN				; MP<=0 -> non-caster
+	MOVL	R3, R0				; engaged as a defender?
+	BSBW	IS_ENGAGED
+	TSTL	R0
+	BNEQ	GU_FLN				; engaged -> not a background caster
+GU_F2:	ADDL2	R6, R7				; unengaged caster -> fold its MP onto the focus
+GU_FLN:	INCL	R3
+	BRB	GU_FL
+GU_FDONE: MOVL	R7, SCAVE_FIGHT_FOLD
+GU_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  COMPUTE_SCORE  --  final score (reference scoreBreakdown, SC-12).
+;
+;  R0 = sum over ALIVE members of [ CR_PTS[cid] * (PK>0 ? 2 : 1) + sum of
+;  TR_PTS[carried] ] + 30 if the Sorcerer was killed - 30 if under any active
+;  curse (a Sorcerer kill lifts curses); a DEAD party scores 0, else floored at
+;  0.  bonusScore (treasure chest) is not yet tracked -> treated as 0.
+; ===========================================================
+;
+	.ENTRY	COMPUTE_SCORE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	CLRL	R0				; raw accumulator
+	CLRL	R2				; member index
+SC_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	SC_MD
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive = status < 2
+	BGEQ	SC_MN				; stone/dead -> 0 points
+	MOVL	SCAVE_PARTY_PC[R2], R3		; creature points (x2 if dragon-slayer)
+	MOVAB	SCAVE_DATA_CR_PTS, R4
+	MOVL	(R4)[R3], R5
+	TSTL	SCAVE_PARTY_PK[R2]
+	BEQL	SC_ADD
+	MULL2	#2, R5
+SC_ADD:	ADDL2	R5, R0
+	MULL3	#SCAVE$_TREAS_PER, R2, R6	; carried treasure points
+	MOVAB	SCAVE_PARTY_PT, R7
+	MOVAB	SCAVE_DATA_TR_PTS, R8
+	CLRL	R9				; slot j
+SC_TL:	CMPL	R9, #SCAVE$_TREAS_PER
+	BGEQ	SC_MN
+	ADDL3	R6, R9, R10
+	MOVL	(R7)[R10], R11			; tid (-1 = empty)
+	BLSS	SC_TN
+	ADDL2	(R8)[R11], R0
+SC_TN:	INCL	R9
+	BRB	SC_TL
+SC_MN:	INCL	R2
+	BRB	SC_ML
+SC_MD:	TSTL	SCAVE_STATE_SK			; + Sorcerer bonus (30)
+	BEQL	SC_CURSE
+	ADDL2	#30, R0
+SC_CURSE:					; - curse penalty (flat 30), unless SK
+	TSTL	SCAVE_STATE_SK
+	BNEQ	SC_BONUS
+	TSTL	SCAVE_STATE_NC
+	BEQL	SC_BONUS
+	SUBL2	#30, R0
+SC_BONUS:					; + Treasure Chest bonusScore (silver/gold/gems)
+	ADDL2	SCAVE_STATE_BONUS, R0
+SC_CLAMP:
+	CMPL	SCAVE_STATE_GS, #SCAVE$_GS_DEAD	; wiped party scores 0
+	BNEQ	SC_FLOOR
+	CLRL	R0
+	RET
+SC_FLOOR:
+	TSTL	R0
+	BGEQ	SC_RET
+	CLRL	R0				; floor at 0
+SC_RET:	RET
+
+	.END

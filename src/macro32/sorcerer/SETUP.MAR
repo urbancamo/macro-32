@@ -8,7 +8,7 @@
 ;
 ;     1. TITLE_SPLASH    -- art + "press any key"
 ;     2. PICK_PARTY      -- choose creatures totalling <= 6 sel-points
-;     3. INIT_DECKS      -- shuffle 60 large-pack + 52 small-pack
+;     3. INIT_DECKS      -- shuffle 60 large-pack + 71 small-pack
 ;     4. INIT_MAP        -- place GATEWAY as area 1, level 1
 ;
 ;   The Stage-1 party picker is number-key driven (1..8 to add,
@@ -33,6 +33,7 @@
 	.EXTRN	INIT_DISPLAY
 	.EXTRN	ERASE_MAIN
 	.EXTRN	READ_KEY
+	.EXTRN	HELP_BROWSER
 	.EXTRN	PAINT_CENTERED
 	.EXTRN	BEGIN_BATCH
 	.EXTRN	END_BATCH
@@ -96,7 +97,7 @@
 TITLE_DSC1:	.ASCID	/THE SORCERER'S CAVE/
 TITLE_DSC2:	.ASCID	/A Game of Exploration, Magic, and Adventure/
 TITLE_DSC3:	.ASCID	/After Terence Donnelly (1978)/
-TITLE_DSC4:	.ASCID	/Press any key to begin.../
+TITLE_DSC4:	.ASCID	/Press ? for the manual, or any other key to begin.../
 
 ;
 ; -- party-selection strings --
@@ -233,6 +234,7 @@ FAO_OUTLEN:	.BLKW	1
 ;
 	.ENTRY	TITLE_SPLASH, ^M<>
 
+TS_LOOP:
 	CALLS	#0, BEGIN_BATCH
 	CALLS	#0, ERASE_MAIN
 
@@ -255,6 +257,12 @@ FAO_OUTLEN:	.BLKW	1
 	CALLS	#0, END_BATCH
 
 	CALLS	#0, READ_KEY			; block on any key
+	; '?' opens the manual, then we repaint the title and wait again.
+	CMPL	R0, #^A/?/
+	BNEQ	TS_DONE
+	CALLS	#0, G^HELP_BROWSER
+	BRW	TS_LOOP
+TS_DONE:
 	MOVL	#SS$_NORMAL, R0
 	RET
 
@@ -567,7 +575,7 @@ PPR_DONE:
 ; ===========================================================
 ;  INIT_DECKS  --  build & shuffle the large pack (60 cards, the
 ;                  GATEWAY at index 21 is held aside) and the
-;                  small pack (52 cards copied from the static
+;                  small pack (71 cards copied from the static
 ;                  template, then shuffled).
 ; ===========================================================
 ;
@@ -592,16 +600,18 @@ LP_SKIP:
 
 	CLRL	SCAVE_DECK_LI
 
-	; Small pack: copy 52 longwords from the template, then shuffle.
+	; Small pack: copy SCAVE_DATA_SMALL_N (71, SC-3-13) longwords from the
+	; template, then shuffle.  Count read from the data symbol so the pack
+	; and the deck stay in lockstep.
 	CLRL	R2
 	MOVAB	SCAVE_DATA_SMALL_PACK, R3
 	MOVAB	SCAVE_DECK_SP, R4
 SP_LOOP:
 	MOVL	(R3)[R2], (R4)[R2]
-	AOBLSS	#52, R2, SP_LOOP
+	AOBLSS	SCAVE_DATA_SMALL_N, R2, SP_LOOP
 
 	PUSHAL	SCAVE_DECK_SP
-	PUSHL	#52
+	PUSHL	SCAVE_DATA_SMALL_N
 	CALLS	#2, G^SHUFFLE_LONGS
 
 	CLRL	SCAVE_DECK_SI
@@ -618,7 +628,7 @@ SP_LOOP:
 ;
 	.ENTRY	INIT_MAP, ^M<R2,R3>
 
-	; Zero MP, ML, MS, MV, AF, AI (61 longwords each).
+	; Zero MP, ML, MS, MV, AF, AI (62 longwords each: 1-based areas 1..61).
 	CLRL	R2
 1$:
 	CLRL	SCAVE_MAP_MP[R2]
@@ -627,7 +637,13 @@ SP_LOOP:
 	CLRL	SCAVE_MAP_MV[R2]
 	CLRL	SCAVE_AREA_AF[R2]
 	CLRL	SCAVE_AREA_AI[R2]
-	AOBLSS	#61, R2, 1$
+	CLRL	SCAVE_AREA_FU[R2]		; face-down until placed/entered
+	CLRL	SCAVE_AREA_MIR[R2]		; D8: no mirrored stairs yet
+	MNEGL	#1, SCAVE_AREA_SD[R2]		; D8: secret-door ordinal = none (-1)
+	CLRL	SCAVE_AREA_DROP_N[R2]		; no Deep-Pool drops yet
+	AOBLSS	#62, R2, 1$
+	CLRL	SCAVE_MAP_SDN			; D8: next secret-door ordinal
+	MOVL	#1, SCAVE_AREA_FU+4		; the Gateway (slot 1) is face up
 
 	; Zero AC (SCAVE$_AREA_ITEMS longwords per area).  Must match
 	; the per-area slot count CHAMBER's LOAD_PERSISTED /

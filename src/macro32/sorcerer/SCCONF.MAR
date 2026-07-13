@@ -1,0 +1,1088 @@
+	.TITLE	SCCONF	Conformance-vector replayer for The Sorcerer's Cave
+	.IDENT	/V0.1/
+
+;++
+; SCCONF.MAR
+;
+;   Headless replayer for the reference engine's conformance vectors
+;   (engine-spec Appendix D; format in docs/specs/conformance/
+;   README.md of the reference repo).  Reads CONFVEC.TXT from the
+;   default directory, drives the engine through ENG_NEWGAME /
+;   ENG_APPLY, and writes CONFRES.TXT in EXACTLY the vector format,
+;   so a host-side diff against the reference file pinpoints the
+;   first divergent line (make vms-scave-conform).
+;
+;   Line handling:
+;     echoed verbatim   titles, SEED, PICKS, BEGIN/END MOVES, END
+;     computed by us    SETUP, per-move checkpoints (text left of
+;                       "->" is echoed, the rest computed), FINAL,
+;                       STATE, PARTY (all members), AREA (all areas)
+;
+;   Status: G0.  ENG_APPLY is a stub, so every checkpoint after
+;   SETUP repeats the newGame state with EV - ; that is the honest
+;   divergence the conformance gates then burn down.
+;--
+
+	$SSDEF
+	$RMSDEF
+	$DSCDEF
+
+	SCAVE$_PARTY_MAX = 32
+	SCAVE$_TREAS_PER = 20			; must equal STATE.MAR's value
+	SCAVE$_AREA_ITEMS = 8
+
+	MAXPICKS = 8
+	LINEMAX  = 256
+
+;
+; ===========================================================
+;  Data
+; ===========================================================
+;
+	.PSECT	SCCONF_DATA, NOEXE, WRT, LONG
+
+	.ALIGN	LONG
+IN_FAB:	$FAB	FNM=<CONFVEC.TXT>, FAC=GET
+	.ALIGN	LONG
+IN_RAB:	$RAB	FAB=IN_FAB, RAC=SEQ, UBF=INBUF, USZ=LINEMAX
+
+	.ALIGN	LONG
+OUT_FAB: $FAB	FNM=<CONFRES.TXT>, FAC=PUT, RFM=VAR, RAT=CR
+	.ALIGN	LONG
+OUT_RAB: $RAB	FAB=OUT_FAB, RAC=SEQ, RBF=OUTBUF
+
+INBUF:	.BLKB	LINEMAX
+OUTBUF:	.BLKB	LINEMAX
+INTBUF:	.BLKB	16
+
+	.ALIGN	LONG
+LINELEN: .LONG	0				; current input-line length
+OUTPOS:	.LONG	0				; append cursor into OUTBUF
+V_SEED:	.LONG	0				; parsed SEED value
+NPICKS:	.LONG	0
+PICKS:	.BLKL	MAXPICKS
+DIDP:	.LONG	0				; emitted our PARTY block
+DIDA:	.LONG	0				; emitted our AREA block
+TMPN:	.LONG	0				; scratch list for EMIT_LIST
+TMPLIST: .BLKL	40
+
+	.ALIGN	LONG
+FAOLEN:	.WORD	0
+	.ALIGN	LONG
+FAODSC:	.WORD	LINEMAX				; runtime len = room left
+	.BYTE	DSC$K_DTYPE_T
+	.BYTE	DSC$K_CLASS_S
+	.ADDRESS OUTBUF				; runtime ptr = OUTBUF+OUTPOS
+	.ALIGN	LONG
+INTDSC:	.WORD	16
+	.BYTE	DSC$K_DTYPE_T
+	.BYTE	DSC$K_CLASS_S
+	.ADDRESS INTBUF
+
+; FAO control strings.
+CTL_SETUP: .ASCID /SETUP TRN !SL LVL !SL ARA !SL PH !AS GS !SL SEED !SL LARGEIDX !SL SMALLIDX !SL/
+CTL_CHKPT: .ASCID /TRN !SL LVL !SL ARA !SL PH !AS GS !SL SEED !SL EV /
+CTL_FINAL: .ASCID /FINAL GS !SL PH !AS TRN !SL LVL !SL AREAS !SL LARGEIDX !SL SMALLIDX !SL SEED !SL SCORE !SL/
+CTL_STATE: .ASCID /STATE CURSES !SL BONUS !SL SORCKILLED !SL STRANGERS /
+CTL_PARTY: .ASCID /PARTY !SL CID !SL ST !SL DK !SL CARRY /
+CTL_AREA:  .ASCID /AREA !SL CARD !SL COORD !SL FU !SL VIS !SL FLG !SL MIR !SL SD /
+CTL_INT:   .ASCID /!SL/
+
+; Phase names, indexed by SCAVE_STATE_PH (SC-4-3).
+PH_EXP_D: .ASCID /EXP/
+PH_ENC_D: .ASCID /ENC/
+PH_FGT_D: .ASCID /FGT/
+PH_PKP_D: .ASCID /PKP/
+PH_END_D: .ASCID /END/
+	.ALIGN	LONG
+PH_TAB:	.ADDRESS PH_EXP_D, PH_ENC_D, PH_FGT_D, PH_PKP_D, PH_END_D
+
+; Literal fragments.
+LIT_SEED:  .ASCII	/SEED /
+LIT_PICKS: .ASCII	/PICKS/
+LIT_SETUP: .ASCII	/SETUP/
+LIT_BEGIN: .ASCII	/BEGIN/
+LIT_END:   .ASCII	/END/
+LIT_FINAL: .ASCII	/FINAL/
+LIT_STATE: .ASCII	/STATE/
+LIT_PARTY: .ASCII	/PARTY/
+LIT_AREA:  .ASCII	/AREA /
+LIT_TREAS: .ASCII	/ TREASURES /
+	LIT_TREAS_L = . - LIT_TREAS
+LIT_HAZ:   .ASCII	/ HAZARDS /
+	LIT_HAZ_L = . - LIT_HAZ
+LIT_BORNE: .ASCII	/ BORNE -/
+	LIT_BORNE_L = . - LIT_BORNE
+LIT_DROP:  .ASCII	/ DROP /
+	LIT_DROP_L = . - LIT_DROP
+LIT_CONT:  .ASCII	/ CONT /
+	LIT_CONT_L = . - LIT_CONT
+LIT_DASH:  .ASCII	/-/
+LIT_COMMA: .ASCII	/,/
+
+; --- G1 self-check (H5/H6) ------------------------------------------
+; Triggered by a "SELFCHECK" line in CONFVEC.TXT; emits RNG + data
+; diagnostics so `make vms-scave-selfcheck` can prove the RNG core and
+; expose the static-data gaps (D1/D3/D4) as a baseline.
+CTL_SC_SEED:  .ASCID	/NEXTSEED1 !UL/
+CTL_SC_RB0:   .ASCID	/RB0 BEFORE !UL AFTER !UL VAL !UL/
+CTL_SC_DECK:  .ASCID	/DECK LARGE !UL SMALL !UL/
+CTL_SC_PACK:  .ASCID	/PACK CREAT !UL TREAS !UL HAZ !UL TOTAL !UL/
+CTL_SC_CELL:  .ASCID	/CELL !AS H !UL I !UL/
+LIT_SELF:  .ASCII	/SELFC/
+LIT_TYPES: .ASCII	/TYPES CREATURES 14 TREASURES 15 HAZARDS 5/
+	LIT_TYPES_L = . - LIT_TYPES
+
+	.ALIGN	LONG
+SC_A:	.LONG	0				; self-check scratch
+SC_B:	.LONG	0
+SC_C:	.LONG	0
+SC_D:	.LONG	0
+; creature indices whose A.1 reaction cells we report, -1 terminated:
+;   Hero, Priest, Man, Woman, Dwarf, Dragon
+SC_CELLS: .LONG	0, 4, 5, 6, 7, 10, -1
+
+; --- action reducer: keywords, parsed args, event-name table ---
+LIT_MOVE:  .ASCII	/MOVE/
+LIT_LEAVE: .ASCII	/LEAVE/
+LIT_TAKE:  .ASCII	/TAKE/
+LIT_WITH:  .ASCII	/WITHDRAW/
+LIT_ATT:   .ASCII	/ATTACK/
+LIT_FIGHT: .ASCII	/FIGHT/
+LIT_EXIT:  .ASCII	/EXITCAVE/
+LIT_TEST:  .ASCII	/TEST/
+LIT_CAS:   .ASCII	/CASUALTY/
+LIT_USE:   .ASCII	/USE/
+LIT_CHEST: .ASCII	/OPENCHEST/
+
+	SCAVE$_MPM = 12				; max members per side of a match (match STATE.MAR)
+
+	.ALIGN	LONG
+V_ACT:	.LONG	0				; parsed action code
+V_A1:	.LONG	0				; parsed args
+V_A2:	.LONG	0
+V_A3:	.LONG	0
+
+; Event-code -> name, indexed by code (KEEP IN SYNC with ENGINE.MAR).
+EV_D_MOVED:   .ASCID	/moved/
+EV_D_DEADEND: .ASCID	/deadEnd/
+EV_D_BLOCKED: .ASCID	/blocked/
+EV_D_DREW:    .ASCID	/drewChamber/
+EV_D_ENTSPEC: .ASCID	/enteredSpecial/
+EV_D_FIGHTST: .ASCID	/fightStarted/
+EV_D_CROLL:   .ASCID	/combatRoll/
+EV_D_SKILL:   .ASCID	/strangerKilled/
+EV_D_MDIED:   .ASCID	/memberDied/
+EV_D_FWON:    .ASCID	/fightWon/
+EV_D_GOVER:   .ASCID	/gameOver/
+EV_D_SORCSL:  .ASCID	/sorcererSlain/
+EV_D_SPECSL:  .ASCID	/spectreSlew/
+EV_D_RUBY:    .ASCID	/rubyTaken/
+EV_D_STATUE:  .ASCID	/statueAroused/
+EV_D_HAZ:     .ASCID	/hazardFired/
+EV_D_XSPEC:   .ASCID	/crossedSpecial/
+EV_D_VIPER:   .ASCID	/viperPit/
+EV_D_TDROP:   .ASCID	/treasureDropped/
+EV_D_REACT:   .ASCID	/reaction/
+EV_D_JOINED:  .ASCID	/strangersJoined/
+EV_D_PACIF:   .ASCID	/pacified/
+EV_D_UNIGRD:  .ASCID	/unicornGuards/
+EV_D_CASCH:   .ASCID	/casualtyChosen/
+EV_D_ITSPIL:  .ASCID	/itemsSpilled/
+EV_D_TSPRNG:  .ASCID	/trapSprung/
+EV_D_TAVOID:  .ASCID	/trapAvoided/
+EV_D_MGAZE:   .ASCID	/medusaGaze/
+EV_D_MUTINY:  .ASCID	/mutinied/
+EV_D_GWARD:   .ASCID	/ghoulsWarded/
+EV_D_MAVERT:  .ASCID	/medusaAverted/
+EV_D_PETOUT:  .ASCID	/petrifiedOut/
+EV_D_DPREV:   .ASCID	/deathPrevented/
+EV_D_ANNIH:   .ASCID	/annihilated/
+EV_D_STPWR:   .ASCID	/statuePowerless/
+EV_D_ARTU:    .ASCID	/artifactUsed/
+EV_D_CARPU:   .ASCID	/carpetUsed/
+EV_D_SDOOR:   .ASCID	/secretDoorRevealed/
+EV_D_DRLULL:  .ASCID	/dragonsLulled/
+EV_D_VPLULL:  .ASCID	/vipersLulled/
+EV_D_UNIDEP:  .ASCID	/unicornDeparted/
+EV_D_WARDED:  .ASCID	/wardedOff/
+EV_D_CHEST:   .ASCID	/chestOpened/
+EV_D_RECLAIM: .ASCID	/treasureReclaimed/
+EV_D_EYEFOR:  .ASCID	/eyeForsaken/
+	.ALIGN	LONG
+EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
+		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
+		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL, EV_D_RUBY, -
+		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP, -
+		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD, EV_D_CASCH, -
+		EV_D_ITSPIL, EV_D_TSPRNG, EV_D_TAVOID, EV_D_MGAZE, EV_D_MUTINY, -
+		EV_D_GWARD, EV_D_MAVERT, EV_D_PETOUT, EV_D_DPREV, EV_D_ANNIH, -
+		EV_D_STPWR, EV_D_ARTU, EV_D_CARPU, EV_D_SDOOR, EV_D_DRLULL, -
+		EV_D_VPLULL, EV_D_UNIDEP, EV_D_WARDED, EV_D_CHEST, -
+		EV_D_RECLAIM, EV_D_EYEFOR
+
+;
+; ===========================================================
+;  Code
+; ===========================================================
+;
+	.PSECT	SCCONF_CODE, EXE, NOWRT, LONG
+
+	.ENTRY	SCCONF, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+
+	$OPEN	FAB=IN_FAB
+	BLBS	R0, 1$
+	BRW	DONE
+1$:	$CONNECT RAB=IN_RAB
+	BLBS	R0, 2$
+	BRW	DONE
+2$:	$CREATE	FAB=OUT_FAB
+	BLBS	R0, 3$
+	BRW	DONE
+3$:	$CONNECT RAB=OUT_RAB
+	BLBS	R0, 4$
+	BRW	DONE
+4$:
+
+	CLRL	DIDP
+	CLRL	DIDA
+
+;
+; -- main line loop --------------------------------------------------
+;
+LINE_LOOP:
+	$GET	RAB=IN_RAB
+	CMPL	R0, #RMS$_EOF
+	BNEQ	5$
+	BRW	CLOSE_UP
+5$:	BLBS	R0, 6$
+	BRW	DONE
+6$:	MOVZWL	IN_RAB+RAB$W_RSZ, R0
+	MOVL	R0, LINELEN
+	CLRL	OUTPOS
+
+	; ---- dispatch on the leading token ----
+
+	; move line?  starts with a space (step numbers are
+	; right-justified in a 4-char field)
+	CMPL	LINELEN, #10
+	BLSS	10$
+	CMPB	INBUF, #^A/ /
+	BNEQ	10$
+	BRW	DO_MOVE
+10$:
+	CMPL	LINELEN, #5
+	BGEQ	12$
+	BRW	90$				; short: echo (e.g. "END")
+12$:
+	CMPC3	#5, INBUF, LIT_SELF		; "SELFC" -- G1 self-check mode
+	BNEQ	13$
+	BRW	DO_SELFCHECK
+13$:	CMPC3	#5, INBUF, LIT_SEED		; "SEED "
+	BNEQ	20$
+	BRW	DO_SEED
+20$:	CMPC3	#5, INBUF, LIT_PICKS		; "PICKS"
+	BNEQ	30$
+	BRW	DO_PICKS
+30$:	CMPC3	#5, INBUF, LIT_SETUP		; "SETUP"
+	BNEQ	40$
+	BRW	DO_SETUP
+40$:	CMPC3	#5, INBUF, LIT_FINAL		; "FINAL"
+	BNEQ	50$
+	BRW	DO_FINAL
+50$:	CMPC3	#5, INBUF, LIT_STATE		; "STATE"
+	BNEQ	60$
+	BRW	DO_STATE
+60$:	CMPC3	#5, INBUF, LIT_PARTY		; "PARTY"
+	BNEQ	70$
+	BRW	DO_PARTY
+70$:	CMPC3	#5, INBUF, LIT_AREA		; "AREA "
+	BNEQ	90$
+	BRW	DO_AREA
+90$:
+	; default: echo the input line verbatim
+	BSBW	ECHO_LINE
+	BRW	LINE_LOOP
+
+;
+; -- SEED n : remember n, echo ---------------------------------------
+;
+DO_SEED:
+	MOVAB	INBUF+5, R6
+	MOVL	LINELEN, R7
+	SUBL2	#5, R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_SEED
+	BSBW	ECHO_LINE
+	BRW	LINE_LOOP
+
+;
+; -- PICKS a,b,... : parse ids, echo, then start the game ------------
+;
+DO_PICKS:
+	MOVAB	INBUF+6, R6
+	MOVL	LINELEN, R7
+	SUBL2	#6, R7
+	CLRL	R8				; pick count
+15$:	BSBW	PARSE_UINT
+	TSTL	R1				; digits seen?
+	BEQL	25$
+	MOVL	R0, PICKS[R8]
+	INCL	R8
+	CMPL	R8, #MAXPICKS
+	BGEQ	25$
+	TSTL	R7				; anything left?
+	BLEQ	25$
+	CMPB	(R6), #^A/,/
+	BNEQ	25$
+	INCL	R6				; past the comma
+	DECL	R7
+	BRB	15$
+25$:	MOVL	R8, NPICKS
+	BSBW	ECHO_LINE
+
+	PUSHAL	PICKS				; picks base
+	PUSHL	NPICKS
+	PUSHL	V_SEED
+	CALLS	#3, G^ENG_NEWGAME
+	BRW	LINE_LOOP
+
+;
+; -- SETUP : emit our own line ---------------------------------------
+;
+DO_SETUP:
+	SUBL3	#1, SCAVE_MAP_PA, R2		; ARA is 0-based (engine)
+	PUSHL	SCAVE_DECK_SI			; SMALLIDX
+	PUSHL	SCAVE_DECK_LI			; LARGEIDX
+	PUSHL	SCAVE_RNG_SEED			; SEED
+	PUSHL	SCAVE_STATE_GS			; GS
+	MOVL	SCAVE_STATE_PH, R3
+	PUSHL	PH_TAB[R3]			; PH descriptor address
+	PUSHL	R2				; ARA
+	PUSHL	SCAVE_MAP_PL			; LVL
+	PUSHL	SCAVE_STATE_TN			; TRN
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SETUP
+	BSBW	FAO_AT_POS_8
+	BSBW	PUT_LINE
+	BRW	LINE_LOOP
+
+;
+; -- SELFCHECK : G1 RNG + data diagnostics (H5/H6) -------------------
+;    One line each:
+;      NEXTSEED1 <n>                     nextSeed(1); expect 1103527590 (SC-5-6)
+;      RB0 BEFORE b AFTER a VAL v         randBelow(0): a==b, v==0 (SC-5-8)
+;      DECK LARGE 60 SMALL <n>            deck sizes (expect 60 / 71 after D1)
+;      TYPES CREATURES 14 TREASURES 15 HAZARDS 5   fixed type tables (SC-3-11/12)
+;      PACK CREAT c TREAS t HAZ h TOTAL n           small-pack composition
+;      CELL <name> H <hmax> I <imax>      A.1 reaction cells (validates D4)
+;
+DO_SELFCHECK:
+	BSBW	ECHO_LINE			; echo the "SELFCHECK" line
+
+	; NEXTSEED1: seed <- 1, advance once, report.
+	MOVL	#1, SCAVE_RNG_SEED
+	CALLS	#0, G^NEXT_RAND			; R0 = nextSeed(1)
+	MOVL	R0, SC_A
+	CLRL	OUTPOS
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_SEED
+	BSBW	FAO_AT_POS_1
+	BSBW	PUT_LINE
+
+	; RB0: randBelow(0) must return 0 without advancing the seed.
+	MOVL	#12345, SCAVE_RNG_SEED
+	MOVL	SCAVE_RNG_SEED, SC_A		; before
+	CLRL	R0				; bound 0
+	CALLS	#0, G^RAND_BELOW		; R0 = value (expect 0)
+	MOVL	R0, SC_C			; value
+	MOVL	SCAVE_RNG_SEED, SC_B		; after (expect == before)
+	CLRL	OUTPOS
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_RB0
+	BSBW	FAO_AT_POS_3
+	BSBW	PUT_LINE
+
+	; DECK sizes: large is always 60 (61 area cards minus the Gateway);
+	; small is the template length symbol (source of truth for D1).
+	CLRL	OUTPOS
+	PUSHL	SCAVE_DATA_SMALL_N
+	PUSHL	#60
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_DECK
+	BSBW	FAO_AT_POS_2
+	BSBW	PUT_LINE
+
+	; TYPES (fixed literal -- the type-table sizes).
+	CLRL	OUTPOS
+	MOVAB	LIT_TYPES, R6
+	MOVL	#LIT_TYPES_L, R7
+	BSBW	APPEND
+	BSBW	PUT_LINE
+
+	; PACK composition: bucket the template by code/100 (1=cre,2=tre,3=haz).
+	CLRL	SC_A				; creatures
+	CLRL	SC_B				; treasures
+	CLRL	SC_C				; hazards
+	CLRL	R2				; index
+	MOVAB	SCAVE_DATA_SMALL_PACK, R3
+SC_PACK_L:
+	CMPL	R2, SCAVE_DATA_SMALL_N
+	BGEQ	SC_PACK_DONE
+	MOVL	(R3)[R2], R4
+	DIVL2	#100, R4
+	CMPL	R4, #1
+	BNEQ	1$
+	INCL	SC_A
+	BRB	4$
+1$:	CMPL	R4, #2
+	BNEQ	2$
+	INCL	SC_B
+	BRB	4$
+2$:	INCL	SC_C
+4$:	INCL	R2
+	BRB	SC_PACK_L
+SC_PACK_DONE:
+	ADDL3	SC_A, SC_B, R0
+	ADDL2	SC_C, R0
+	MOVL	R0, SC_D			; total
+	CLRL	OUTPOS
+	PUSHL	SC_D
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_PACK
+	BSBW	FAO_AT_POS_4
+	BSBW	PUT_LINE
+
+	; CELLS: report reaction cells for the SC_CELLS creatures.  R7 holds
+	; the loop index across SYS$FAO (which preserves R2-R11).
+	CLRL	R7
+SC_CELL_L:
+	MOVL	SC_CELLS[R7], R5		; creature index (-1 = end)
+	CMPL	R5, #-1
+	BEQL	SC_CELL_DONE
+	MOVAB	SCAVE_DATA_CR_NAME_PTR, R6
+	MOVL	(R6)[R5], SC_A			; name descriptor address (!AS)
+	MOVAB	SCAVE_DATA_CR_HOSTILE_MAX, R6
+	MOVL	(R6)[R5], SC_B
+	MOVAB	SCAVE_DATA_CR_INDIFF_MAX, R6
+	MOVL	(R6)[R5], SC_C
+	CLRL	OUTPOS
+	PUSHL	SC_C
+	PUSHL	SC_B
+	PUSHL	SC_A
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_SC_CELL
+	BSBW	FAO_AT_POS_3
+	BSBW	PUT_LINE
+	INCL	R7
+	BRB	SC_CELL_L
+SC_CELL_DONE:
+	BRW	LINE_LOOP
+
+;
+; -- move line : echo through "-> ", apply, emit checkpoint ----------
+;
+DO_MOVE:
+	; find "->" in the line
+	CLRL	R2
+35$:	ADDL3	#1, R2, R3
+	CMPL	R3, LINELEN
+	BGEQ	45$				; no arrow: echo whole line
+	CMPB	INBUF[R2], #^A/-/
+	BNEQ	37$
+	CMPB	INBUF[R3], #^A/>/
+	BEQL	55$
+37$:	INCL	R2
+	BRB	35$
+45$:	BSBW	ECHO_LINE
+	BRW	LINE_LOOP
+55$:	ADDL2	#3, R2				; include "-> "
+	MOVAB	INBUF, R6
+	MOVL	R2, R7
+	BSBW	APPEND				; echo prefix into OUTBUF
+
+	; Parse the action keyword + args, then apply.  The step number is a
+	; 4-char right-justified field, so the ACTION keyword always begins at
+	; INBUF+5.  G3 implements MOVE; other actions pass action 0 and
+	; ENG_APPLY no-ops them until their gate fills them in.
+	CLRL	V_ACT
+	CLRL	V_A1
+	CLRL	V_A2
+	CLRL	V_A3
+	CMPC3	#4, INBUF+5, LIT_MOVE		; "MOVE" -> action 1, 1 arg (dir)
+	BNEQ	60$
+	MOVL	#1, V_ACT
+	MOVAB	INBUF+9, R6			; args after the keyword
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	BSBW	PARSE_UINT			; R0 = direction
+	MOVL	R0, V_A1
+	BRW	DM_APPLY
+60$:	CMPC3	#5, INBUF+5, LIT_LEAVE		; "LEAVE" -> action 6, 0 args
+	BNEQ	61$
+	MOVL	#6, V_ACT
+	BRW	DM_APPLY
+61$:	CMPC3	#4, INBUF+5, LIT_TAKE		; "TAKE" -> action 5, 2 args (ti mi)
+	BNEQ	62$
+	MOVL	#5, V_ACT
+	MOVAB	INBUF+9, R6
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	BSBW	PARSE_UINT			; ti
+	MOVL	R0, V_A1
+	BSBW	PARSE_UINT			; mi
+	MOVL	R0, V_A2
+	BRW	DM_APPLY
+62$:	CMPC3	#8, INBUF+5, LIT_WITH		; "WITHDRAW" -> action 4, 0 args
+	BNEQ	63$
+	MOVL	#4, V_ACT
+	BRW	DM_APPLY
+63$:	CMPC3	#6, INBUF+5, LIT_ATT		; "ATTACK" -> action 12, 0 args
+	BNEQ	64$
+	MOVL	#12, V_ACT
+	BRW	DM_APPLY
+64$:	CMPC3	#8, INBUF+5, LIT_EXIT		; "EXITCAVE" -> action 3, 0 args
+	BNEQ	65$
+	MOVL	#3, V_ACT
+	BRW	DM_APPLY
+65$:	CMPC3	#4, INBUF+5, LIT_TEST		; "TEST" -> action 11, 0 args
+	BNEQ	67$
+	MOVL	#11, V_ACT
+	BRW	DM_APPLY
+67$:	CMPC3	#8, INBUF+5, LIT_CAS		; "CASUALTY <idx>" -> action 14, 1 arg
+	BNEQ	68$
+	MOVL	#14, V_ACT
+	MOVAB	INBUF+14, R6			; args after "CASUALTY "
+	MOVL	LINELEN, R7
+	SUBL2	#14, R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A1
+	BRW	DM_APPLY
+68$:	CMPC3	#9, INBUF+5, LIT_CHEST		; "OPENCHEST" -> action 17, 0 args
+	BNEQ	69$
+	MOVL	#17, V_ACT
+	BRW	DM_APPLY
+69$:	CMPC3	#3, INBUF+5, LIT_USE		; "USE <a>[ T<t>][ D<d>]" -> action 16
+	BNEQ	KW_FIGHT
+	MOVL	#16, V_ACT
+	MOVAB	INBUF+9, R6			; after "USE "
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	MNEGL	#1, V_A2			; target = -1 (none) unless a T<n> follows
+	CLRL	V_A3				; dir = 0 (none) unless a D<n> follows
+	BSBW	PARSE_UINT			; artifact id
+	MOVL	R0, V_A1
+PU_SP:	TSTL	R7				; skip spaces, then read optional T<n>/D<n>
+	BLEQ	PU_END
+	CMPB	(R6), #^A/ /
+	BNEQ	PU_TD
+	INCL	R6
+	DECL	R7
+	BRB	PU_SP
+PU_TD:	CMPB	(R6), #^A/T/
+	BEQL	PU_T
+	CMPB	(R6), #^A/D/
+	BEQL	PU_DD
+	BRB	PU_END
+PU_T:	INCL	R6
+	DECL	R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A2
+	BRB	PU_SP
+PU_DD:	INCL	R6
+	DECL	R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A3
+	BRB	PU_SP
+PU_END:	BRW	DM_APPLY
+KW_FIGHT: CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
+	BEQL	FM_BEGIN
+	BRW	DM_APPLY			; not FIGHT (DM_APPLY now far past the plan parser)
+FM_BEGIN: MOVL	#13, V_ACT
+	; Marshal the full plan grammar into FN/BN/SN + FA/FB/FD[i*MPM+j]:
+	;   <front>[+<front>][|<backer>[+..]]><stranger>[+<stranger>]  matches ';'-separated.
+	; "FIGHT -" (no digits) -> NF=0 (forced-Spectre empty plan).
+	MOVAB	INBUF+11, R6			; plan starts after "FIGHT "
+	MOVL	LINELEN, R7
+	SUBL2	#11, R7
+	CLRL	R8				; match index i
+FM_L:	MULL3	#SCAVE$_MPM, R8, R9		; R9 = row base = i*MPM
+	; -- front list --
+	CLRL	R10
+FM_FR:	BSBW	PARSE_UINT			; front slot (R0), digits R1
+	TSTL	R1
+	BNEQ	FM_F1
+	BRW	FM_DONE				; no digits here -> no (more) matches (far -> BRW)
+FM_F1:	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FA[R2]
+	INCL	R10
+	TSTL	R7
+	BGTR	FM_F2
+	BRW	FM_CLOSE			; front ran to end-of-line (far -> BRW)
+FM_F2:	CMPB	(R6), #^A/+/
+	BNEQ	FM_FRD
+	INCL	R6
+	DECL	R7
+	BRB	FM_FR
+FM_FRD:	MOVL	R10, SCAVE_FIGHT_FN[R8]
+	; -- optional backer list (after '|') --
+	CLRL	R10
+	TSTL	R7
+	BLEQ	FM_BND
+	CMPB	(R6), #^A/|/
+	BNEQ	FM_BND
+	INCL	R6
+	DECL	R7
+FM_BK:	BSBW	PARSE_UINT
+	TSTL	R1
+	BEQL	FM_BND
+	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FB[R2]
+	INCL	R10
+	TSTL	R7
+	BLEQ	FM_BND
+	CMPB	(R6), #^A/+/
+	BNEQ	FM_BND
+	INCL	R6
+	DECL	R7
+	BRB	FM_BK
+FM_BND:	MOVL	R10, SCAVE_FIGHT_BN[R8]
+	INCL	R6				; skip '>'
+	DECL	R7
+	; -- stranger list --
+	CLRL	R10
+FM_ST:	BSBW	PARSE_UINT
+	TSTL	R1
+	BEQL	FM_STD
+	ADDL3	R9, R10, R2
+	MOVL	R0, SCAVE_FIGHT_FD[R2]
+	INCL	R10
+	TSTL	R7
+	BLEQ	FM_STD
+	CMPB	(R6), #^A/+/
+	BNEQ	FM_STD
+	INCL	R6
+	DECL	R7
+	BRB	FM_ST
+FM_STD:	MOVL	R10, SCAVE_FIGHT_SN[R8]
+	INCL	R8				; match complete
+	TSTL	R7				; another match after ';'?
+	BLEQ	FM_DONE
+	CMPB	(R6), #^A/;/
+	BNEQ	FM_DONE
+	INCL	R6
+	DECL	R7
+	BRW	FM_L
+FM_CLOSE:					; front ran to end-of-line (no '>' / strangers)
+	MOVL	R10, SCAVE_FIGHT_FN[R8]
+	CLRL	SCAVE_FIGHT_BN[R8]
+	CLRL	SCAVE_FIGHT_SN[R8]
+	INCL	R8
+FM_DONE: MOVL	R8, SCAVE_FIGHT_NF		; NF = number of matches
+	BRW	DM_APPLY
+DM_APPLY:
+	PUSHL	V_A3
+	PUSHL	V_A2
+	PUSHL	V_A1
+	PUSHL	V_ACT
+	CALLS	#4, G^ENG_APPLY
+
+	; checkpoint: TRN LVL ARA PH GS SEED EV <events>
+	SUBL3	#1, SCAVE_MAP_PA, R2
+	PUSHL	SCAVE_RNG_SEED
+	PUSHL	SCAVE_STATE_GS
+	MOVL	SCAVE_STATE_PH, R3
+	PUSHL	PH_TAB[R3]
+	PUSHL	R2
+	PUSHL	SCAVE_MAP_PL
+	PUSHL	SCAVE_STATE_TN
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_CHKPT
+	BSBW	FAO_AT_POS_6
+
+	; event list: translate SCAVE_EVQ codes to names (comma-separated,
+	; emission order = SC-4-42), or "-" when the queue is empty.
+	MOVL	SCAVE_EVQ_N, R8
+	TSTL	R8
+	BNEQ	DM_EV_LOOP
+	MOVAB	LIT_DASH, R6
+	MOVL	#1, R7
+	BSBW	APPEND
+	BRB	DM_EV_END
+DM_EV_LOOP:
+	CLRL	R9				; event index
+DM_EV_ONE:
+	TSTL	R9
+	BEQL	DM_EV_NAME
+	MOVAB	LIT_COMMA, R6			; separator between names
+	MOVL	#1, R7
+	BSBW	APPEND
+DM_EV_NAME:
+	MOVL	SCAVE_EVQ[R9], R5		; event code
+	MOVAB	EV_NAME_PTR, R6
+	MOVL	(R6)[R5], R6			; name descriptor address
+	MOVZWL	(R6), R7			; descriptor length
+	MOVL	4(R6), R6			; descriptor text address
+	BSBW	APPEND
+	AOBLSS	R8, R9, DM_EV_ONE
+DM_EV_END:
+	BSBW	PUT_LINE
+	BRW	LINE_LOOP
+
+;
+; -- FINAL -----------------------------------------------------------
+;
+DO_FINAL:
+	CALLS	#0, G^COMPUTE_SCORE		; R0 = final score (SC-12)
+	MOVL	R0, SC_A
+	PUSHL	SC_A				; SCORE
+	PUSHL	SCAVE_RNG_SEED
+	PUSHL	SCAVE_DECK_SI
+	PUSHL	SCAVE_DECK_LI
+	PUSHL	SCAVE_MAP_NM			; AREAS placed
+	PUSHL	SCAVE_MAP_PL
+	PUSHL	SCAVE_STATE_TN
+	MOVL	SCAVE_STATE_PH, R3
+	PUSHL	PH_TAB[R3]
+	PUSHL	SCAVE_STATE_GS
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_FINAL
+	BSBW	FAO_AT_POS_9
+	BSBW	PUT_LINE
+	BRW	LINE_LOOP
+
+;
+; -- STATE -----------------------------------------------------------
+;
+DO_STATE:
+	PUSHL	SCAVE_STATE_SK
+	PUSHL	SCAVE_STATE_BONUS		; BONUS (Treasure Chest silver/gold/gems)
+	PUSHL	SCAVE_STATE_NC
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_STATE
+	BSBW	FAO_AT_POS_3
+
+	MOVAB	SCAVE_CHAMBER_CS, R9		; STRANGERS list
+	MOVL	SCAVE_CHAMBER_NS, R10
+	BSBW	EMIT_LIST
+
+	MOVAB	LIT_TREAS, R6
+	MOVL	#LIT_TREAS_L, R7
+	BSBW	APPEND
+	MOVAB	SCAVE_CHAMBER_CT, R9
+	MOVL	SCAVE_CHAMBER_NT, R10
+	BSBW	EMIT_LIST
+
+	MOVAB	LIT_HAZ, R6
+	MOVL	#LIT_HAZ_L, R7
+	BSBW	APPEND
+	MOVAB	SCAVE_CHAMBER_CH, R9
+	MOVL	SCAVE_CHAMBER_NH, R10
+	BSBW	EMIT_LIST
+
+	BSBW	PUT_LINE
+	BRW	LINE_LOOP
+
+;
+; -- PARTY : first sighting emits ALL our members --------------------
+;
+DO_PARTY:
+	TSTL	DIDP
+	BEQL	65$
+	BRW	LINE_LOOP			; already emitted; swallow
+65$:	MOVL	#1, DIDP
+	CLRL	R8				; member index
+PARTY_ONE:
+	CMPL	R8, SCAVE_PARTY_NP
+	BLSS	66$
+	BRW	LINE_LOOP
+66$:	CLRL	OUTPOS
+	PUSHL	SCAVE_PARTY_PK[R8]		; DK
+	PUSHL	SCAVE_PARTY_PS[R8]		; ST
+	PUSHL	SCAVE_PARTY_PC[R8]		; CID
+	PUSHL	R8				; index
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_PARTY
+	BSBW	FAO_AT_POS_4
+
+	; CARRY list: non-empty (-1 = empty) slots of this member's
+	; PT row, in slot order
+	CLRL	TMPN
+	MULL3	#SCAVE$_TREAS_PER, R8, R2	; row base index
+	CLRL	R3
+75$:	ADDL3	R2, R3, R4
+	MOVL	SCAVE_PARTY_PT[R4], R5
+	CMPL	R5, #-1
+	BEQL	76$
+	MOVL	TMPN, R4
+	MOVL	R5, TMPLIST[R4]
+	INCL	TMPN
+76$:	AOBLSS	#SCAVE$_TREAS_PER, R3, 75$
+	MOVAB	TMPLIST, R9
+	MOVL	TMPN, R10
+	BSBW	EMIT_LIST
+
+	MOVAB	LIT_BORNE, R6			; BORNE -: setBorne = G6
+	MOVL	#LIT_BORNE_L, R7
+	BSBW	APPEND
+	BSBW	PUT_LINE
+	INCL	R8
+	BRW	PARTY_ONE
+
+;
+; -- AREA : first sighting emits ALL our areas -----------------------
+;
+DO_AREA:
+	TSTL	DIDA
+	BEQL	85$
+	BRW	LINE_LOOP
+85$:	MOVL	#1, DIDA
+	CLRL	R8				; 0-based engine index
+AREA_ONE:
+	CMPL	R8, SCAVE_MAP_NM
+	BLSS	86$
+	BRW	LINE_LOOP
+86$:	CLRL	OUTPOS
+	ADDL3	#1, R8, R11			; our slots are 1-based
+
+	; FLG: the engine surfaces only AF_DESTROYED (=4); mask off
+	; this port's internal bookkeeping bits
+	BICL3	#^C<4>, SCAVE_AREA_AF[R11], R2
+
+	PUSHL	SCAVE_AREA_MIR[R11]		; MIR (mirrored-stair bits)
+	PUSHL	R2				; FLG
+	PUSHL	SCAVE_MAP_MV[R11]		; VIS
+	PUSHL	SCAVE_AREA_FU[R11]		; FU (0 = dead-end face-down)
+	PUSHL	SCAVE_MAP_ML[R11]		; COORD
+	PUSHL	SCAVE_MAP_MP[R11]		; CARD
+	PUSHL	R8				; index
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_AREA
+	BSBW	FAO_AT_POS_7
+
+	; SD: secret-door ordinal, or "-" when none (-1)
+	MOVL	SCAVE_AREA_SD[R11], R2
+	BGEQ	SD_NUM
+	MOVAB	LIT_DASH, R6
+	MOVL	#1, R7
+	BSBW	APPEND
+	BRB	SD_CONT
+SD_NUM:	PUSHL	SCAVE_AREA_SD[R11]
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_INT
+	BSBW	FAO_AT_POS_1
+SD_CONT: MOVAB	LIT_CONT, R6
+	MOVL	#LIT_CONT_L, R7
+	BSBW	APPEND
+
+	; CONT list: nonzero persisted item codes for this area
+	CLRL	TMPN
+	MULL3	#SCAVE$_AREA_ITEMS, R11, R2
+	CLRL	R3
+95$:	ADDL3	R2, R3, R4
+	MOVL	SCAVE_AREA_AC[R4], R5
+	BEQL	96$
+	MOVL	TMPN, R4
+	MOVL	R5, TMPLIST[R4]
+	INCL	TMPN
+96$:	AOBLSS	#SCAVE$_AREA_ITEMS, R3, 95$
+	MOVAB	TMPLIST, R9
+	MOVL	TMPN, R10
+	BSBW	EMIT_LIST
+
+	MOVAB	LIT_DROP, R6			; DROP list: Deep-Pool area.dropped ids
+	MOVL	#LIT_DROP_L, R7
+	BSBW	APPEND
+	MULL3	#<8*4>, R11, R2			; R9 = &DROP_PT[R11*8]
+	MOVAB	SCAVE_AREA_DROP_PT, R9
+	ADDL2	R2, R9
+	MOVL	SCAVE_AREA_DROP_N[R11], R10
+	BSBW	EMIT_LIST
+	BSBW	PUT_LINE
+	INCL	R8
+	BRW	AREA_ONE
+
+;
+; -- teardown --------------------------------------------------------
+;
+CLOSE_UP:
+	$CLOSE	FAB=IN_FAB
+	$CLOSE	FAB=OUT_FAB
+	MOVL	#SS$_NORMAL, R0
+DONE:	RET
+
+;
+; ===========================================================
+;  Helpers (JSB linkage)
+; ===========================================================
+;
+
+;
+;  PARSE_UINT -- R6 = text ptr, R7 = bytes remaining (both updated).
+;  Skips leading spaces, accumulates decimal digits.
+;  Returns R0 = value, R1 = digit count.
+;
+PARSE_UINT:
+	CLRL	R0
+	CLRL	R1
+10$:	TSTL	R7
+	BLEQ	40$
+	CMPB	(R6), #^A/ /
+	BNEQ	20$
+	INCL	R6
+	DECL	R7
+	BRB	10$
+20$:	TSTL	R7
+	BLEQ	40$
+	CMPB	(R6), #^A/0/
+	BLSSU	40$
+	CMPB	(R6), #^A/9/
+	BGTRU	40$
+	MULL2	#10, R0
+	MOVZBL	(R6)+, R2
+	SUBL2	#^A/0/, R2
+	ADDL2	R2, R0
+	INCL	R1
+	DECL	R7
+	BRB	20$
+40$:	RSB
+
+;
+;  APPEND -- copy R7 bytes at (R6) to OUTBUF+OUTPOS; OUTPOS += R7.
+;
+APPEND:
+	PUSHR	#^M<R0,R1,R2,R3,R4,R5,R6,R7>
+	MOVAB	OUTBUF, R3
+	ADDL2	OUTPOS, R3
+	MOVC3	R7, (R6), (R3)
+	POPR	#^M<R0,R1,R2,R3,R4,R5,R6,R7>
+	ADDL2	R7, OUTPOS
+	RSB
+
+;
+;  FAO_AT_POS_n -- run $FAO with n parameters already on the stack
+;  (caller pushed Pn..P1 then outbuf-dsc, outlen-addr, ctrstr-dsc),
+;  writing at OUTBUF+OUTPOS; advances OUTPOS.  Implemented as one
+;  common tail: the caller's pushes form the CALLS argument list.
+;
+FAO_AT_POS_2:	MOVL	#5, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_3:	MOVL	#6, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_4:	MOVL	#7, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_5:	MOVL	#8, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_6:	MOVL	#9, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_7:	MOVL	#10, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_8:	MOVL	#11, R2
+		BRB	FAO_COMMON
+FAO_AT_POS_9:	MOVL	#12, R2
+		BRB	FAO_COMMON
+FAO_COMMON:
+	; point the scratch descriptor at the append cursor
+	MOVAB	OUTBUF, R3
+	ADDL2	OUTPOS, R3
+	MOVL	R3, FAODSC+4
+	SUBL3	OUTPOS, #LINEMAX, R3
+	MOVW	R3, FAODSC
+	; the caller left the argument longwords on the stack, below
+	; our return address: rotate our RA out, CALLS, come back
+	POPL	R3				; our return address
+	CALLS	R2, G^SYS$FAO
+	MOVZWL	FAOLEN, R2
+	ADDL2	R2, OUTPOS
+	JMP	(R3)
+
+;
+;  EMIT_LIST -- R9 = longword array base, R10 = count.
+;  Appends "v1,v2,..." or "-" when empty.
+;
+EMIT_LIST:
+	PUSHR	#^M<R6,R7,R8,R9,R10>
+	TSTL	R10
+	BNEQ	10$
+	MOVAB	LIT_DASH, R6
+	MOVL	#1, R7
+	BSBW	APPEND
+	BRB	90$
+10$:	CLRL	R8
+20$:	TSTL	R8
+	BEQL	30$
+	MOVAB	LIT_COMMA, R6
+	MOVL	#1, R7
+	BSBW	APPEND
+30$:	PUSHL	(R9)[R8]			; the value
+	PUSHAQ	FAODSC
+	PUSHAW	FAOLEN
+	PUSHAQ	CTL_INT
+	BSBW	FAO_AT_POS_1
+	AOBLSS	R10, R8, 20$
+90$:	POPR	#^M<R6,R7,R8,R9,R10>
+	RSB
+
+FAO_AT_POS_1:	MOVL	#4, R2
+		BRW	FAO_COMMON
+
+;
+;  ECHO_LINE -- copy the whole input line to OUTBUF and $PUT it.
+;
+ECHO_LINE:
+	MOVAB	INBUF, R6
+	MOVL	LINELEN, R7
+	CLRL	OUTPOS
+	BSBW	APPEND
+	; fall through to PUT_LINE
+
+;
+;  PUT_LINE -- write OUTBUF[0..OUTPOS-1] as one record.
+;
+PUT_LINE:
+	PUSHR	#^M<R0,R1,R2,R3,R4,R5>
+	MOVW	OUTPOS, OUT_RAB+RAB$W_RSZ
+	$PUT	RAB=OUT_RAB
+	POPR	#^M<R0,R1,R2,R3,R4,R5>
+	RSB
+
+;
+; ===========================================================
+;  HELP_BROWSER -- headless stub.
+;
+;  SCCONF links SETUP.OBJ for the pure INIT_DECKS / INIT_MAP
+;  routines that ENG_NEWGAME calls (SC-5-12).  SETUP.MAR's
+;  interactive party-setup screen ALSO calls G^HELP_BROWSER
+;  (the SMG$ help browser in HELP.MAR), which the headless
+;  replayer deliberately does not link -- pulling HELP.OBJ in
+;  would cascade the whole screen-management stack into a
+;  headless image.  The replayer never enters interactive
+;  setup, so this stub only satisfies the linker; it is never
+;  reached at run time.  (When INIT_DECKS / INIT_MAP migrate to
+;  the pure ENGINE layer, SCCONF can drop SETUP.OBJ and this
+;  stub with it.)
+; ===========================================================
+;
+	.ENTRY	HELP_BROWSER, ^M<>
+	RET
+
+	.END	SCCONF

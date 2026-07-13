@@ -100,19 +100,21 @@
 	.PSECT	SCAVE_VIEW_DATA, NOEXE, WRT, LONG
 
 ;
-; Single-letter mnemonics.  Creatures: first letter where unique,
-; lowercase marks a same-initial variant.
-;   0 Hero 1 W-Hero 2 Ogre 3 Troll 4 Priest 5 Man 6 Woman 7 Dwarf
-;   8 Wizard 9 Spectre 10 Dragon 11 Sorcerer 12 Giant 13 Unicorn
+; Single-letter mnemonics, indexed by creature number.  Where creatures
+; share an initial, one takes the capital and the other lowercase.
+;   0 H Hero    1 h W-Hero   2 O Ogre      3 T Troll
+;   4 P Priest  5 M Man      6 W Woman     7 D Dwarf
+;   8 w Wizard  9 S Spectre 10 d Dragon   11 s Sorcerer
+;  12 G Giant  13 U Unicorn
 ;
-CR_LETTER:	.ASCII	/HhOTPMmDWSdsGU/
+CR_LETTER::	.ASCII	/HhOTPMWDwSdsGU/
 
 ; Treasure mnemonics (unique within the treasure set):
 ;   0 Silver 1 Gold 2 Gems 3 M.Sword 4 M.Carpet 5 L.Dust 6 H.Balm
 ;   7 Talisman 8 S.Potion 9 M.Staff 10 Ring 11 L.Ruby 12 C.Flute
 ;   13 Eye 14 Chest
 ;
-TR_LETTER:	.ASCII	"$GJWCLBTPFRYUEH"
+TR_LETTER::	.ASCII	"$GJWCLBTPFRYUEH"
 
 	.ALIGN	LONG
 DSP_ROW:	.BLKL	1
