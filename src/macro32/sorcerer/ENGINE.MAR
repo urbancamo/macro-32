@@ -2769,7 +2769,16 @@ FR_LOSE: MOVL	SCAVE_FIGHT_FN[R2], R6		; mortal fronts (Ring deferred -> all mort
 	BRW	FR_NEXT				; no front (shouldn't) -> nobody (far -> BRW)
 FL_HASF: CMPL	R6, #1
 	BGTR	FL_QUEUE
-	MOVL	SCAVE_FIGHT_FA[R9], R0		; exactly one front -> it dies now
+	MOVL	SCAVE_FIGHT_FA[R9], R0		; exactly one front -> it would die now
+	PUSHL	R0
+	BSBW	RING_INVINCIBLE			; The Ring shrugs off the killing blow?
+	TSTL	R0
+	BEQL	FL_DIE
+	MOVL	(SP)+, R0			; survives -> deathPrevented, no kill
+	MOVL	#SCAVE$_EV_DEATHPREVENTED, R0
+	BSBW	EMIT_EVENT
+	BRW	FR_NEXT
+FL_DIE:	MOVL	(SP)+, R0			; slot
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R0]
 	PUSHL	R0				; save the slot for the Eye check
 	MOVL	#SCAVE$_EV_MEMBERDIED, R0
@@ -2914,6 +2923,27 @@ EYE_FORSAKEN:
 	MOVL	#SCAVE$_EV_EYEFORSAKEN, R0
 	BSBW	EMIT_EVENT
 EF2_RET: MOVL	(SP)+, R1
+	RSB
+
+;
+; ---- RING_INVINCIBLE (JSB) -- R0 = member slot; R0 out = 1 if The Ring (id 10)
+;      shrugs off a killing die-roll for it (level >= 4, bearer, Eye not active;
+;      reference ringInvincible).  Clobbers R0; preserves R1-R11.
+;
+RING_INVINCIBLE:
+	CMPL	SCAVE_MAP_PL, #4		; only from level 4 down
+	BLSS	RI_NO
+	PUSHL	R0				; save the slot
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS			; the Eye nullifies the Ring
+	TSTL	R0
+	BNEQ	RI_POP
+	MOVL	(SP)+, R0			; restore the slot
+	MOVL	#SCAVE$_TR_RING, R1
+	BSBW	MEMBER_HOLDS			; R0 = 1 if this member bears the Ring
+	RSB
+RI_POP:	MOVL	(SP)+, R0
+RI_NO:	CLRL	R0
 	RSB
 
 ENEMY_STR:
