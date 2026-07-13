@@ -4,11 +4,25 @@
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
 **Status:** `ACTIVE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
-**Latest (I024, 2026-07-13):** VAX back; the §9 multi-front fight model BUILT + VERIFIED.
-**solo-seed174 (sorcerer) PASSES end-to-end; base-8 all still PASS = 9/9 vectors green.** The
-offline branch-hardening paid off -- only 2 more BRDESTRANGs surfaced at build (SCCONF `BNEQ DM_APPLY`
-now far past the grown plan parser; SWEEP_FALLEN `BGEQ SF_DONE`), both fixed by invert+BRW. Next gap
-vector: **seed225 (escape)** -> §7 RNG hazards (study notes below) + trap-fall relocation.
+**Latest (I032, 2026-07-13):** **11/11 vectors green** (base-8 + seed174 sorcerer + seed225 escape +
+seed2678 artifacts) held all session. Ground **seed257 (Mutiny/artifacts) from step 38 → 275** across
+6 commits: gang-up 1-front guard (38→169); Medusa hazard + Strength Potion (169→201); Flute
+dragon-lull + Ghouls Talisman ward + Unicorn depart + hazard re-park refactor (201→274); **buffer
+overflow fix** — `CT` (chamber floor set) was sized `SCAVE$_CHAMBER_MAX=8` but the reference floor is
+unbounded, so a Medusa re-fire spilling onto a laden floor overflowed `CT[8]` into the adjacent `CH`
+hazard set (corrupting Medusa id 3 → treasure id 0 → spurious Mutiny fire); bumped to 32 → 274 passes.
+
+**CURRENT BLOCKER (seed257 step 275):** `TAKE 3 5` expects the Lost-Ruby statue wrestle
+(`combatRoll,memberDied,statueAroused,itemsSpilled`) because reference `treasures[3] == 11` (Ruby);
+mine has a **different floor multiset** (`{1,1,1,1,2,2,3,4,7,10,11}` vs ref `{0,0,0,1,1,2,2,6,7,11}`).
+This is a **treasure-distribution divergence** that originated somewhere in steps 38–274 but stayed
+invisible to the conformance checks (they encode event NAMES + TRN/LVL/ARA/PH/GS/SEED, never treasure
+VALUES). The statue-wrestle code IS wired (EA_TAKE→STATUE_WRESTLE on `CT[ti]==11`); it just never
+sees the Ruby at index 3. **Next step:** instrument SCCONF to dump the full floor `CT` + each member's
+`PT` row per step, run against a matching reference dump, and bisect to the FIRST step where a
+member's carried-treasure set or the floor order first diverges (likely a spill/drop/take ordering or
+a borne-vs-carried gap — my engine doesn't model `borne`, spilling ALL carried items in PT-slot order;
+the reference preserves `m.treasure` append-order and keeps borne Sword/Staff/Ring with the body).
 
 **(resolved) prior BLOCKER (2026-07-13):** the VAX host `orac` was unreachable -- 100% ICMP loss + TCP timeout to
 orac:23 (host down/off-net, user away from home). `make vms-down/up` + retry did not help. Cannot
@@ -361,6 +375,21 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I032 | 2026-07-13 | §7/§9/§11 | seed257 grind 38→275 (Mutiny/Medusa/Potion/Flute/Ghouls/Unicorn
+  + buffer-overflow fix)** — Six committed green steps on the Mutiny/artifacts vector. (1) `2843d9e`
+  gang-up 1-front guard: `GU_ML1` now attaches a leftover foe only to a `FN[i]==1 && SN[i]==1` match
+  (ref `previewPlan`), fixing a 2-front match wrongly gaining the idle Man's fs (38→169). (2) `64f5f99`
+  Medusa (`MEDUSA_GAZE`: d6/living member, ≤2 petrifies + spills carried to `CT`, one `itemsSpilled`
+  each; Staff-Wizard ward → `medusaAverted`) + Strength Potion (`EU_POTION` sets `SCAVE_FIGHT_POTION`,
+  `FRONT_STR` +2, reset at fight start) (169→201). (3) `167b2ae` Flute passive dragon-lull
+  (`FLUTE_LULL` → new `SCAVE_CHAMBER_LULL/NLULL`, parked 100+id), Ghouls Talisman ward, Unicorn depart
+  (`RECONCILE_UNICORNS` in `FINALIZE_ROUND`, new EV 41), and hazard re-park moved to a final pass over
+  the working hazard set + `PARK_HAZARD` dedup (201→274). (4) `874c431` **buffer overflow**: `CT`/`CS`/
+  `SL`/`LULL` were `SCAVE$_CHAMBER_MAX=8`; a Medusa re-fire spilling onto a laden floor overflowed
+  `CT[8]`→`CH[0]` (Medusa 3→treasure 0→spurious Mutiny fire + lost pickup phase) — bumped MAX to 32
+  (274 passes). *Blocker:* step 275 Lost-Ruby `TAKE 3 5` — floor multiset diverges (mine
+  `{1,1,1,1,2,2,3,4,7,10,11}` vs ref `{0,0,0,1,1,2,2,6,7,11}`), a treasure-distribution divergence
+  invisible to the conformance checks; see header for the bisection plan. Regression: 11/11 throughout.
 - **I031 | 2026-07-13 | §6/§11 | AF_DESTROYED move + Flute + viper-lull + Balm + sleeping-park + trap-FU
   -- solo-seed2678 PASSES (11/11)** — Cleared the whole tail of the first artifact vector:
   **SC-6.1-5:** TRY_MOVE now dead-ends against an earthquake-collapsed (AF_DESTROYED) destination,
