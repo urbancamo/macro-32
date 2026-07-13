@@ -115,6 +115,8 @@ SCAVE_STATE_PH::	.LONG	SCAVE$_PH_EXPLORE	; interactive phase (SC-4-3)
 SCAVE_STATE_SR::	.LONG	0			; surprise-ready: fresh encounter entry (SC-4-16)
 SCAVE_STATE_IS::	.LONG	0			; indiffStreak: consecutive indifferent tests this
 							; chamber visit; 3rd pacifies (SC-8.4-3..5)
+SCAVE_STATE_FT::	.LONG	0			; fellThroughTrap: here via a one-way trap fall --
+							; no surprise, no withdraw/retreat up (SC-4-14/17/27)
 
 ;
 ; ===========================================================

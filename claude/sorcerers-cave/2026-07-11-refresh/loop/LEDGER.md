@@ -361,6 +361,21 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I025 | 2026-07-13 | §7 | Trap/Ghouls hazards + trap-fall relocation + The Ring** — Toward seed225
+  (escape). RESOLVE_HAZARDS now dispatches Earthquake/Trap/Ghouls (Medusa/Mutiny effects still
+  deferred, hazardFired only). **Trap:** a living Dwarf (FLAG_GUIDES_PAST_TRAP) -> trapAvoided; else
+  set SCAVE_MAP_FELL. EA_CHAMBER restructured into a re-resolution loop (EA_RESOLVE): on a dwarf-less
+  trap it parks the chamber (PERSIST_AREA), relocates one level down (reused MAP.MAR FALL_TO_BELOW =
+  relocateDown), emits trapSprung+moved, sets SCAVE_STATE_FT (fellThroughTrap: no surprise/withdraw/
+  retreat up), and re-resolves the area below (chains). **Ghouls:** GHOULS_FIGHT -- each living member
+  vs strength 2 (2 dice, combatRoll, loss->memberDied), then sweepFallen; PARK_HAZARD re-parks
+  Ghouls/Medusa as 300+hz so they re-fire on re-entry (REVISIT already reclassifies 300+). Wiped-check
+  after hazards -> gameOver (+petrifiedOut via PETRIFIED_CHECK if all stone). **The Ring (id 10):**
+  HAS_RING adds +1 to the party die in FIGHT_ROUND (SC-11-24) -- was the seed225 step-23 blocker (Hero
+  holds the Ring, tie not loss). *Evidence:* solo-seed225 diverged step 14 -> now **step 90**; 9/9
+  prior vectors still PASS (no regression). Remaining seed225 divergence at step 90 = a SMALLIDX
+  card-draw drift in steps 25-89 (area 29 draws strangers vs the reference's treasure) -- to trace next.
+
 - **I024 | 2026-07-13 | §9 | multi-front fight model + casualty queue + sweepFallen** — Generalized the
   reduced 1-front FIGHT_ROUND to the full reference resolvePlannedRound. STATE: 2D plan (FN/BN/SN +
   flattened FA/FB/FD[i*MPM+j], MPM=12) + casualty queue (CQN/CQ). SCCONF: full plan-grammar parser

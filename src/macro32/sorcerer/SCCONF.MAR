@@ -189,13 +189,22 @@ EV_D_PACIF:   .ASCID	/pacified/
 EV_D_UNIGRD:  .ASCID	/unicornGuards/
 EV_D_CASCH:   .ASCID	/casualtyChosen/
 EV_D_ITSPIL:  .ASCID	/itemsSpilled/
+EV_D_TSPRNG:  .ASCID	/trapSprung/
+EV_D_TAVOID:  .ASCID	/trapAvoided/
+EV_D_MGAZE:   .ASCID	/medusaGaze/
+EV_D_MUTINY:  .ASCID	/mutinied/
+EV_D_GWARD:   .ASCID	/ghoulsWarded/
+EV_D_MAVERT:  .ASCID	/medusaAverted/
+EV_D_PETOUT:  .ASCID	/petrifiedOut/
+EV_D_DPREV:   .ASCID	/deathPrevented/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
 		EV_D_FWON, EV_D_GOVER, EV_D_SORCSL, EV_D_SPECSL, EV_D_RUBY, -
 		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP, -
 		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD, EV_D_CASCH, -
-		EV_D_ITSPIL
+		EV_D_ITSPIL, EV_D_TSPRNG, EV_D_TAVOID, EV_D_MGAZE, EV_D_MUTINY, -
+		EV_D_GWARD, EV_D_MAVERT, EV_D_PETOUT, EV_D_DPREV
 
 ;
 ; ===========================================================

@@ -92,14 +92,27 @@
 	SCAVE$_EV_UNICORNGUARDS = 23
 	SCAVE$_EV_CASUALTYCHOSEN = 24
 	SCAVE$_EV_ITEMSSPILLED = 25
-	SCAVE$_EV_CASUALTYCHOSEN = 24
-	SCAVE$_EV_ITEMSSPILLED = 25
-	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices
+	SCAVE$_EV_TRAPSPRUNG = 26
+	SCAVE$_EV_TRAPAVOIDED = 27
+	SCAVE$_EV_MEDUSAGAZE = 28
+	SCAVE$_EV_MUTINIED = 29
+	SCAVE$_EV_GHOULSWARDED = 30
+	SCAVE$_EV_MEDUSAAVERTED = 31
+	SCAVE$_EV_PETRIFIEDOUT = 32
+	SCAVE$_EV_DEATHPREVENTED = 33
+	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
+	SCAVE$_HZ_MUTINY = 0
+	SCAVE$_HZ_TRAP = 1
+	SCAVE$_HZ_MEDUSA = 3
+	SCAVE$_HZ_GHOULS = 4
+	SCAVE$_CR_DWARF = 7			; guides the party past a trap
+	SCAVE$M_CR_GUIDES_PAST_TRAP = ^X08
 	SCAVE$_CR_SPECTRE = 9			; creature indices
 	SCAVE$_CR_DRAGON = 10			; single-handed kill -> dragonKills++
 	SCAVE$_CR_SORCERER = 11			; felling him -> sorcererSlain + curse lift
 	SCAVE$_CR_GIANT = 12			; the Giant (carries all heavy loot across a pool)
 	SCAVE$_TR_SWORD = 3			; Magic Sword treasure id
+	SCAVE$_TR_RING = 10			; The Ring (+1 party die in combat, SC-11-24)
 	SCAVE$_TR_RUBY = 11			; Lost Ruby treasure id
 	SCAVE$_TR_HEAVY_MAX = 2			; heavy treasure ids 0..2 (Silver, Gold, Gems)
 
@@ -282,10 +295,13 @@ EA_XPOOL:
 	CALLS	#0, DEEPPOOL_CROSSING		; Giant carries all, else drop heavy loot
 
 EA_NOCROSS:
+	CLRL	SCAVE_STATE_FT			; a normal move reaches a reachable area (SC-4-9)
 	MOVL	#SCAVE$_EV_MOVED, R0
 	BSBW	EMIT_EVENT
 
-	; Resolve the area just entered (reference resolveArea order).
+	; Resolve the area just entered (reference resolveArea).  A trap fall loops
+	; back here after relocating one level down (re-emitting moved beforehand).
+EA_RESOLVE:
 	MOVL	SCAVE_MAP_PA, R2
 	MOVL	SCAVE_MAP_MP[R2], R1
 	EXTZV	#7, #3, R1, R3			; R3 = special type (card bits 7-9)
@@ -307,8 +323,9 @@ EA_SPECIAL:
 	; deals the small-pack cards, emits drewChamber, sets ENC/PKP.  (Hazard
 	; firing + reaction rolls, and the revisit reclassify path, are gate G4.)
 EA_CHAMBER:
-	BBC	#4, R1, EA_DONE			; not a chamber (SCAVE$M_AREA_CHAMBER)
-	TSTL	SCAVE_MAP_MV[R2]
+	BBS	#4, R1, EA_CH1			; a chamber (SCAVE$M_AREA_CHAMBER) -> resolve it
+	BRW	EA_DONE				; not a chamber (far -> BRW)
+EA_CH1:	TSTL	SCAVE_MAP_MV[R2]
 	BEQL	7$
 	CALLS	#0, REVISIT_CHAMBER		; visited -> reclassify parked contents
 	CLRL	R3				; fresh = 0 (revisit)
@@ -318,13 +335,44 @@ EA_CHAMBER:
 8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
 	CALLS	#0, RESOLVE_HAZARDS		; on-draw hazards (SC-7.2)
+
+	; A hazard (Medusa / Ghouls) may leave no one able to act -> the run ends.
+	BSBW	COUNT_LIVING
+	TSTL	R0
+	BNEQ	EA_HZ_OK
+	CALLS	#0, PETRIFIED_CHECK		; all-stone -> petrifiedOut (else nothing)
+	MOVL	#SCAVE$_GS_DEAD, SCAVE_STATE_GS
+	MOVL	#SCAVE$_PH_GAMEOVER, SCAVE_STATE_PH
+	MOVL	#SCAVE$_EV_GAMEOVER, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_DONE
+EA_HZ_OK:
+	; Trap fall (SC-4-14): this chamber's strangers/treasure stay parked here;
+	; the party drops one level and re-resolves there (may chain).
+	TSTL	SCAVE_MAP_FELL
+	BEQL	EA_PHASE
+	CLRL	SCAVE_MAP_FELL
+	CALLS	#0, PERSIST_AREA
+	CALLS	#0, G^FALL_TO_BELOW		; R0 = 1 relocated, 0 pack-empty
+	BLBC	R0, EA_PHASE			; no area below -> end the turn here
+	MOVL	#1, SCAVE_STATE_FT		; one-way: no surprise / withdraw / retreat up
+	MOVL	#SCAVE$_EV_TRAPSPRUNG, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_MOVED, R0
+	BSBW	EMIT_EVENT
+	BRW	EA_RESOLVE			; re-resolve the area below
+
+EA_PHASE:
 	; phase: strangers -> encounter; else treasure -> pickup; else explore
 	TSTL	SCAVE_CHAMBER_NS
 	BEQL	5$
 	MOVL	#SCAVE$_PH_ENCOUNTER, SCAVE_STATE_PH
-	MOVL	R3, SCAVE_STATE_SR		; surpriseReady = fresh entry (SC-4-16)
-	CLRL	SCAVE_STATE_IS			; SC-8.4-5: indiffStreak resets on chamber entry
-	BRB	EA_DONE
+	MOVL	R3, SCAVE_STATE_SR		; surpriseReady = fresh entry (SC-4-16)...
+	TSTL	SCAVE_STATE_FT			; ...but never after a trap fall (SC-4-16)
+	BEQL	81$
+	CLRL	SCAVE_STATE_SR
+81$:	CLRL	SCAVE_STATE_IS			; SC-8.4-5: indiffStreak resets on chamber entry
+	BRW	EA_DONE
 5$:	TSTL	SCAVE_CHAMBER_NT
 	BEQL	EA_DONE				; hazards-only stays explore until G4
 	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
@@ -862,22 +910,31 @@ HAZ_ORDER: .LONG 2, 3, 4, 0, 1, -1		; Earthquake, Medusa, Ghouls, Mutiny, Trap
 
 	.ENTRY	RESOLVE_HAZARDS, ^M<R2,R3,R4,R5,R6>
 
+	CLRL	SCAVE_MAP_FELL			; no trap fall unless a dwarf-less Trap fires
 	MOVAB	HAZ_ORDER, R2
 RH_L:	MOVL	(R2)+, R3			; next hazard in priority order
 	CMPL	R3, #-1
-	BEQL	RH_DONE
-	CLRL	R4				; is R3 present in CH?
+	BNEQ	RH_L1
+	BRW	RH_DONE				; end of list (far -> BRW)
+RH_L1:	CLRL	R4				; is R3 present in CH?
 RH_P:	CMPL	R4, SCAVE_CHAMBER_NH
 	BGEQ	RH_L
 	CMPL	SCAVE_CHAMBER_CH[R4], R3
 	BEQL	RH_FIRE
 	INCL	R4
 	BRB	RH_P
-RH_FIRE:
+RH_FIRE:					; (Ghouls/Medusa ward checks are deferred -> §11)
 	MOVL	#SCAVE$_EV_HAZARDFIRED, R0
 	BSBW	EMIT_EVENT
-	CMPL	R3, #SCAVE$_HZ_EARTHQUAKE	; only Earthquake's effect is wired
-	BNEQ	RH_L
+	CMPL	R3, #SCAVE$_HZ_EARTHQUAKE
+	BEQL	RH_QUAKE
+	CMPL	R3, #SCAVE$_HZ_TRAP
+	BEQL	RH_TRAP
+	CMPL	R3, #SCAVE$_HZ_GHOULS
+	BEQL	RH_GHOULS
+	BRW	RH_L				; Medusa/Mutiny effects deferred (hazardFired only)
+
+RH_QUAKE:
 	MOVL	SCAVE_MAP_PP, R5		; collapse prev (if it isn't the party's area)
 	CMPL	R5, SCAVE_MAP_PA
 	BEQL	RH_L
@@ -887,10 +944,120 @@ RH_FIRE:
 RH_CLR:	ADDL3	R6, R4, R0
 	CLRL	SCAVE_AREA_AC[R0]
 	AOBLSS	#SCAVE$_AREA_ITEMS, R4, RH_CLR
-	BRB	RH_L
+	BRW	RH_L
+
+RH_TRAP:					; SC-7.2: a living Dwarf guides the party past
+	CLRL	R4
+RT_L:	CMPL	R4, SCAVE_PARTY_NP
+	BGEQ	RT_FALL
+	CMPL	SCAVE_PARTY_PS[R4], #2		; alive (0/1) only
+	BGEQ	RT_N
+	MOVL	SCAVE_PARTY_PC[R4], R5
+	MOVL	SCAVE_DATA_CR_FLAGS[R5], R6
+	BITL	#SCAVE$M_CR_GUIDES_PAST_TRAP, R6
+	BNEQ	RT_AVOID
+RT_N:	INCL	R4
+	BRB	RT_L
+RT_AVOID:
+	MOVL	#SCAVE$_EV_TRAPAVOIDED, R0
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RT_FALL:
+	MOVL	#1, SCAVE_MAP_FELL		; no guide -> the party drops a level (caller relocates)
+	BRW	RH_L
+
+RH_GHOULS:
+	CALLS	#0, GHOULS_FIGHT
+	MOVL	#SCAVE$_HZ_GHOULS, R0		; Ghouls lurk: re-park so they re-fire on re-entry
+	BSBW	PARK_HAZARD
+	BRW	RH_L
+
 RH_DONE:
 	CLRL	SCAVE_CHAMBER_NH		; hazards resolved
 	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  GHOULS_FIGHT  --  SC-7.2 Ghouls: every living member fights the ghouls
+;    (enemy strength 2, no surprise, full front strength).  Two dice per member
+;    (party then enemy), emit combatRoll; a lost match (enemy strictly higher)
+;    kills the member (Ring-invincibility deferred).  The slain then spill their
+;    carried items into the pickup (sweepFallen).  (Heavy-drop-to-floor deferred.)
+; ===========================================================
+;
+	.ENTRY	GHOULS_FIGHT, ^M<R2,R3,R4>
+	CLRL	R2
+GF_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	GF_SWEEP
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive (0/1) only
+	BGEQ	GF_N
+	MOVL	R2, R0
+	BSBW	FRONT_STR			; partyStr = fs+PK+MP
+	MOVL	R0, R3
+	CALLS	#0, G^ROLL_DIE
+	ADDL2	R0, R3				; + party die
+	MOVL	#2, R4				; enemyStr = 2 (ghouls)
+	CALLS	#0, G^ROLL_DIE
+	ADDL2	R0, R4				; + enemy die
+	MOVL	#SCAVE$_EV_COMBATROLL, R0
+	BSBW	EMIT_EVENT
+	CMPL	R4, R3
+	BLEQ	GF_N				; enemy <= party -> survives (ties survive)
+	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R2]
+	MOVL	#SCAVE$_EV_MEMBERDIED, R0
+	BSBW	EMIT_EVENT
+GF_N:	INCL	R2
+	BRB	GF_L
+GF_SWEEP:
+	PUSHL	#0				; ghoul-slain spill carried items into the pickup
+	CALLS	#1, SWEEP_FALLEN
+	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  PARK_HAZARD (JSB)  --  R0 = hazard id; append 300+hz to the party area's
+;    contents (AC, first empty slot) so a lurking Medusa/Ghouls reloads and
+;    re-fires on every re-entry (SC-7.2).  REVISIT_CHAMBER clears the slot as it
+;    reclassifies, so there is no accumulation.  Clobbers R0/R1, preserves R2/R3.
+; ===========================================================
+;
+PARK_HAZARD:
+	PUSHL	R3
+	PUSHL	R2
+	ADDL2	#300, R0			; 300+hz
+	MULL3	#SCAVE$_AREA_ITEMS, SCAVE_MAP_PA, R2	; AC row base (element index)
+	CLRL	R3
+PKH_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
+	BGEQ	PKH_RET				; row full -> drop (edge)
+	ADDL3	R2, R3, R1
+	TSTL	SCAVE_AREA_AC[R1]
+	BEQL	PKH_PUT
+	INCL	R3
+	BRB	PKH_L
+PKH_PUT: MOVL	R0, SCAVE_AREA_AC[R1]
+PKH_RET: MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	RSB
+
+;
+; ===========================================================
+;  PETRIFIED_CHECK  --  if EVERY party member is stone (status 2), emit
+;    petrifiedOut (SC-4-13).  Called when no member is left able to act.
+; ===========================================================
+;
+	.ENTRY	PETRIFIED_CHECK, ^M<R2>
+	CLRL	R2
+PC2_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	PC2_ALL
+	CMPL	SCAVE_PARTY_PS[R2], #2		; any non-stone -> not petrified-out
+	BNEQ	PC2_NO
+	INCL	R2
+	BRB	PC2_L
+PC2_ALL: MOVL	#SCAVE$_EV_PETRIFIEDOUT, R0
+	BSBW	EMIT_EVENT
+PC2_NO:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
@@ -1263,7 +1430,9 @@ RC_DONE:
 	TSTL	SCAVE_STATE_SK
 	BNEQ	1$
 	MNEGL	SCAVE_STATE_NC, R10
-1$:	CLRL	R11
+1$:	BSBW	HAS_RING			; SC-11-24: The Ring adds +1 to the party die
+	ADDL2	R0, R10
+	CLRL	R11
 	CMPL	SCAVE_FIGHT_RD, #1
 	BNEQ	4$
 	CMPL	SCAVE_FIGHT_FS, #1
@@ -1452,6 +1621,41 @@ ENEMY_STR:
 	MOVAB	SCAVE_DATA_CR_MP, R4
 	ADDL2	(R4)[R1], R5
 	MOVL	R5, R0
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  HAS_RING (JSB)  --  R0 = 1 if any living member holds The Ring (id 10),
+;    else 0.  (Eye-of-God nullification is deferred.)  Clobbers R0/R1, preserves
+;    R2-R5 across a push/pop.
+; ===========================================================
+;
+HAS_RING:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	CLRL	R2				; member slot
+HR_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	HR_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; alive (0/1) only
+	BGEQ	HR_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+HR_SL:	ADDL3	R3, R5, R0
+	CMPL	(R4)[R0], #SCAVE$_TR_RING
+	BEQL	HR_YES
+	AOBLSS	#SCAVE$_TREAS_PER, R5, HR_SL
+HR_MN:	INCL	R2
+	BRB	HR_ML
+HR_NO:	CLRL	R0
+	BRB	HR_RET
+HR_YES:	MOVL	#1, R0
+HR_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
 	MOVL	(SP)+, R4
 	MOVL	(SP)+, R5
 	RSB
