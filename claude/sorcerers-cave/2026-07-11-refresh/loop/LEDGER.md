@@ -361,6 +361,17 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I026 | 2026-07-13 | §5 | D2: splice party picks out of the small pack (SC-5-5)** — Closed the
+  long-deferred D2 gap. ENG_NEWGAME, after INIT_DECKS, removes the first `100+id` for each pick from
+  the shuffled `SCAVE_DECK_SP` (compacting, tracking the live size `SCAVE_DECK_SN`); DRAW_CHAMBER's
+  exhaustion bound now reads SCAVE_DECK_SN. This makes the MACRO small pack identical to the
+  reference's (which splices picks so a starting creature can't reappear as a stranger). *Root cause
+  found by debugger:* seed225 drew area 29 at the SAME SI=21 as the reference but got a stranger vs
+  the reference's treasure -- same index, different card = the pack was shifted by the un-removed
+  pick. *Evidence:* solo-seed225 step 90 -> **step 96**; base-8 + seed174 still **9/9 PASS** (the
+  reference vectors already assume pick-removal, so matching the pack doesn't regress them). Next
+  seed225 divergence step 96 = `annihilated` (Eye-of-God annihilates Spectres on chamber entry).
+
 - **I025 | 2026-07-13 | §7 | Trap/Ghouls hazards + trap-fall relocation + The Ring** — Toward seed225
   (escape). RESOLVE_HAZARDS now dispatches Earthquake/Trap/Ghouls (Medusa/Mutiny effects still
   deferred, hazardFired only). **Trap:** a living Dwarf (FLAG_GUIDES_PAST_TRAP) -> trapAvoided; else

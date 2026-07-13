@@ -145,6 +145,36 @@
 	CALLS	#0, G^INIT_DECKS		; large then small (SC-5-12)
 	CALLS	#0, G^INIT_MAP			; zero map, place Gateway
 
+	; SC-5-5 / D2: splice each picked creature (100+id) out of the shuffled
+	; small pack once, so a starting creature cannot reappear as a stranger.
+	; Every card after the removed one shifts down; SCAVE_DECK_SN tracks the
+	; live size (DRAW_CHAMBER's exhaustion bound).
+	MOVL	SCAVE_DATA_SMALL_N, SCAVE_DECK_SN
+	MOVL	8(AP), R2			; npicks
+	MOVL	12(AP), R3			; picks base
+	CLRL	R4				; pick index
+RP_L:	CMPL	R4, R2
+	BGEQ	RP_DONE
+	ADDL3	#100, (R3)[R4], R5		; R5 = 100 + pick id (small-pack code)
+	CLRL	R6				; scan for the first matching card
+RP_S:	CMPL	R6, SCAVE_DECK_SN
+	BGEQ	RP_NEXT				; not present (should not happen)
+	CMPL	SCAVE_DECK_SP[R6], R5
+	BEQL	RP_SPL
+	INCL	R6
+	BRB	RP_S
+RP_SPL:	MOVL	R6, R0				; splice: shift [R6+1..SN-1] down one
+RP_SH:	ADDL3	R0, #1, R1
+	CMPL	R1, SCAVE_DECK_SN
+	BGEQ	RP_SHD
+	MOVL	SCAVE_DECK_SP[R1], SCAVE_DECK_SP[R0]
+	MOVL	R1, R0
+	BRB	RP_SH
+RP_SHD:	DECL	SCAVE_DECK_SN
+RP_NEXT: INCL	R4
+	BRB	RP_L
+RP_DONE:
+
 	; Seat the party: PC[i] = picks[i], status ORIG, no kills.
 	MOVL	8(AP), R2			; R2 = npicks
 	MOVL	12(AP), R3			; R3 = picks base
@@ -851,7 +881,7 @@ DC_LOOP:
 	BLSS	10$
 	BRW	DC_DONE				; drew enough (far target -> BRW)
 10$:	MOVL	SCAVE_DECK_SI, R3
-	CMPL	R3, SCAVE_DATA_SMALL_N		; SC-7.1-4: stop when pack exhausted
+	CMPL	R3, SCAVE_DECK_SN		; SC-7.1-4: stop at the live pack size (picks spliced)
 	BLSS	11$
 	BRW	DC_DONE
 11$:	MOVL	SCAVE_DECK_SP[R3], R4		; encoded card = type*100 + index

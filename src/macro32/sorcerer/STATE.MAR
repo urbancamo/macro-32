@@ -221,6 +221,8 @@ SCAVE_DECK_LP::		.BLKL	60			; large pack -- 60 cards (gateway pulled)
 SCAVE_DECK_LI::		.LONG	0			; large-pack draw position
 SCAVE_DECK_SP::		.BLKL	SCAVE$_SMALL_COUNT	; small pack
 SCAVE_DECK_SI::		.LONG	0			; small-pack draw position
+SCAVE_DECK_SN::		.LONG	SCAVE$_SMALL_COUNT	; live small-pack size after the party
+							; picks are spliced out (SC-5-5 / D2)
 
 ;
 ; ===========================================================
