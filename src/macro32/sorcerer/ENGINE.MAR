@@ -32,7 +32,7 @@
 ;--
 
 	SCAVE$_PS_ORIG  = 0
-	SCAVE$_PARTY_MAX = 12
+	SCAVE$_PARTY_MAX = 32
 	SCAVE$_TREAS_PER = 20			; must equal STATE.MAR's value
 	SCAVE$_PH_EXPLORE = 0
 
@@ -118,6 +118,7 @@
 	SCAVE$_EV_DRAGONSLULLED = 39
 	SCAVE$_EV_VIPERSLULLED = 40
 	SCAVE$_EV_UNICORNDEPARTED = 41
+	SCAVE$_EV_WARDEDOFF = 42
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -388,6 +389,7 @@ EA_CH1:	TSTL	SCAVE_MAP_MV[R2]
 8$:	MOVL	#SCAVE$_EV_DREWCHAMBER, R0
 	BSBW	EMIT_EVENT
 	CALLS	#0, ANNIHILATE_EYE		; SC-11-35: the Eye destroys Spectres on sight
+	CALLS	#0, WARD_OFF_SPECTRES		; Talisman drives off Spectres on level >= 4
 	CALLS	#0, RESOLVE_HAZARDS		; on-draw hazards (SC-7.2)
 
 	; A hazard (Medusa / Ghouls) may leave no one able to act -> the run ends.
@@ -2760,6 +2762,38 @@ AE_N:	INCL	R2
 	BRB	AE_L
 AE_D:	MOVL	R3, SCAVE_CHAMBER_NS		; compacted count
 AE_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  WARD_OFF_SPECTRES  --  the Talisman (id 7) drives off every Spectre (cid 9)
+;    from the drawn strangers on level >= 4 (reference wardOffSpectres).  Emits
+;    wardedOff per removed Spectre; compacts CS.  (Distinct from the Eye's
+;    annihilate: warded Spectres flee, not destroyed.)
+; ===========================================================
+;
+	.ENTRY	WARD_OFF_SPECTRES, ^M<R2,R3>
+	CMPL	SCAVE_MAP_PL, #4		; only on level >= 4
+	BLSS	WO_RET
+	MOVL	#SCAVE$_TR_TALISMAN, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BEQL	WO_RET				; no living Talisman holder -> nothing
+	CLRL	R2				; read index
+	CLRL	R3				; write index
+WO_L:	CMPL	R2, SCAVE_CHAMBER_NS
+	BGEQ	WO_D
+	CMPL	SCAVE_CHAMBER_CS[R2], #SCAVE$_CR_SPECTRE
+	BNEQ	WO_KEEP
+	MOVL	#SCAVE$_EV_WARDEDOFF, R0		; drive off the Spectre, emit wardedOff
+	BSBW	EMIT_EVENT
+	BRB	WO_N
+WO_KEEP: MOVL	SCAVE_CHAMBER_CS[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	R3
+WO_N:	INCL	R2
+	BRB	WO_L
+WO_D:	MOVL	R3, SCAVE_CHAMBER_NS		; compacted count
+WO_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
