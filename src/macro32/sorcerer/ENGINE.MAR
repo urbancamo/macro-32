@@ -116,6 +116,7 @@
 	SCAVE$_EV_CARPETUSED = 37
 	SCAVE$_EV_SECRETDOORREVEALED = 38
 	SCAVE$_EV_DRAGONSLULLED = 39
+	SCAVE$_EV_VIPERSLULLED = 40
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -734,11 +735,93 @@ EA_USE:
 	BLSS	EU_BLK				; no living bearer -> blocked
 
 	CMPL	R6, #SCAVE$_TR_LOTUS
-	BEQL	EU_LOTUS
-	CMPL	R6, #SCAVE$_TR_CARPET
-	BEQL	EU_CARPET
-	BRW	EU_BLOCK			; other artifacts wired next
+	BNEQ	EUD1
+	BRW	EU_LOTUS
+EUD1:	CMPL	R6, #SCAVE$_TR_CARPET
+	BNEQ	EUD2
+	BRW	EU_CARPET
+EUD2:	CMPL	R6, #SCAVE$_TR_FLUTE
+	BNEQ	EUD3
+	BRW	EU_FLUTE
+EUD3:	CMPL	R6, #SCAVE$_TR_BALM
+	BNEQ	EU_BLK				; other artifacts wired next
+	BRW	EU_BALM
 EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
+
+;
+; -- Healing Balm (6): at rest or while looting, revive a dead member (SC-11-14).
+;
+EU_BALM:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BEQL	EB_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_PICKUP
+	BNEQ	EU_BLKB
+	BRB	EB_OK
+EU_BLKB: BRW	EU_BLOCK			; trampoline for the Balm block
+EB_OK:	TSTL	R7				; target required
+	BLSS	EU_BLKB
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKB
+	CMPL	SCAVE_PARTY_PS[R7], #SCAVE$_PS_DEAD	; must be a dead member
+	BNEQ	EU_BLKB
+	CLRL	SCAVE_PARTY_PS[R7]		; revive to status ORIG (0)
+	MOVL	R9, R2				; consume the Balm from the bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Charmed Flute (12): with a1 = UP/DOWN in explore, reveal a concealed
+;    stairway to a vertically-adjacent placed tile that carries the matching
+;    return stair (SC-11-32).  NOT consumed.  (Dragon/Viper lulling is passive,
+;    handled on entry / at the pit crossing -- without a dir the Flute is inert.)
+;
+EU_BLK3: BRW	EU_BLOCK			; trampoline for the Flute block
+EU_FLUTE:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
+	BNEQ	EU_BLK3
+	MOVL	SCAVE_MAP_PA, R2
+	MOVL	SCAVE_MAP_MP[R2], R3		; current card
+	MOVL	SCAVE_MAP_ML[R2], R4		; current coord
+	CMPL	R8, #5				; UP: reveal a stair-up, needs a stair-down above
+	BEQL	EF_UP
+	CMPL	R8, #6				; DOWN: reveal a stair-down, needs a stair-up below
+	BEQL	EF_DOWN
+	BRW	EU_BLK3
+EF_UP:	BBS	#5, R3, EU_BLK3			; already has a visible stair-up
+	SUBL2	#10000, R4			; the tile one level up
+	MOVL	#5, R5				; require its stair-DOWN (bit 6)
+	MOVL	#^X20, R6			; reveal our stair-UP (bit 5)
+	BRB	EF_FIND
+EF_DOWN: BBS	#6, R3, EU_BLK3			; already has a visible stair-down
+	ADDL2	#10000, R4			; the tile one level down
+	MOVL	#6, R5				; require its stair-UP (bit 5)
+	MOVL	#^X40, R6			; reveal our stair-DOWN (bit 6)
+EF_FIND:
+	MOVL	#1, R7				; find the vertically-adjacent placed tile
+EF_FL:	CMPL	R7, SCAVE_MAP_NM
+	BGTR	EU_BLK4				; not placed -> nothing to link to
+	CMPL	SCAVE_MAP_ML[R7], R4
+	BEQL	EF_GOT
+	INCL	R7
+	BRB	EF_FL
+EU_BLK4: BRW	EU_BLOCK			; trampoline for the lower Flute branches
+EF_GOT:	MOVL	SCAVE_MAP_MP[R7], R0		; the adjacent card
+	CMPL	R5, #5				; must carry the matching return stair
+	BNEQ	EF_D6
+	BBC	#6, R0, EU_BLK4			; UP: neighbour needs a stair-down
+	BRB	EF_REVEAL
+EF_D6:	BBC	#5, R0, EU_BLK4			; DOWN: neighbour needs a stair-up
+EF_REVEAL:
+	BISL2	R6, SCAVE_MAP_MP[R2]		; reveal the concealed stair (not consumed)
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	MOVL	#SCAVE$_EV_SECRETDOORREVEALED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
 
 ;
 ; -- Magic Carpet (4): explore only; teleport one step in a1's direction
@@ -747,17 +830,18 @@ EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
 ;
 EU_CARPET:
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
-	BNEQ	EU_BLK
+	BNEQ	EU_BLK5
 	TSTL	R8				; a direction is required
-	BLEQ	EU_BLK
+	BLEQ	EU_BLK5
 	CMPL	R8, #4				; 1..4 always valid
 	BLEQ	EC_OK
 	CMPL	R8, #6				; DOWN valid
 	BEQL	EC_OK
 	CMPL	R8, #5				; UP only above level 1
-	BNEQ	EU_BLK
+	BNEQ	EU_BLK5
 	CMPL	SCAVE_MAP_PL, #1
-	BLEQ	EU_BLK
+	BGTR	EC_OK
+EU_BLK5: BRW	EU_BLOCK			; trampoline for the Carpet block
 EC_OK:	MOVL	R9, R2				; consume the Carpet from the bearer
 	PUSHL	R6
 	PUSHL	R2
@@ -797,8 +881,11 @@ EL_OK:	TSTL	R7				; need a target
 	MOVL	#1, SCAVE_STATE_LOTUSSORC
 	BRB	EL_FIN
 EL_SLEEP:
-	; remove the stranger from CS (compact); the "sleeping" pile is display-only
-	; here (parked as 400+ on persist), so just drop it from the awake set.
+	; the creature sleeps -- inert but stays in the chamber (parked as 400+id on
+	; persist); remove it from the awake stranger set.
+	MOVL	SCAVE_CHAMBER_NSL, R0
+	MOVL	R2, SCAVE_CHAMBER_SL[R0]		; SL[NSL++] = sid
+	INCL	SCAVE_CHAMBER_NSL
 	MOVL	R7, R3				; splice CS[target]
 EL_SL:	ADDL3	#1, R3, R0
 	CMPL	R0, SCAVE_CHAMBER_NS
@@ -1504,6 +1591,15 @@ PC2_NO:	MOVL	#SS$_NORMAL, R0
 ; ===========================================================
 ;
 	.ENTRY	VIPER_CROSSING, ^M<R2,R3,R4,R5>
+	MOVL	#SCAVE$_TR_FLUTE, R1		; SC-11-31: the Charmed Flute lulls the vipers --
+	BSBW	PARTY_HOLDS			; the whole party crosses safely, no rolls
+	TSTL	R0
+	BEQL	VC_ROLL
+	MOVL	#SCAVE$_EV_VIPERSLULLED, R0
+	BSBW	EMIT_EVENT
+	BSBW	COUNT_LIVING			; R0 = survivors (everyone)
+	RET
+VC_ROLL:
 	MOVL	#SCAVE$_EV_VIPERPIT, R0
 	BSBW	EMIT_EVENT
 	CLRL	R2				; party slot
@@ -1601,7 +1697,17 @@ DP_RET:	MOVL	#SS$_NORMAL, R0
 	ADDL2	R0, R8				; R8 = &AC[PA*8]
 	MOVL	#SCAVE$_AREA_ITEMS, R3		; free slots
 
-	CLRL	R6				; strangers -> 100+cid
+	; Preserve any contents already parked on the tile (e.g. a re-parked 300+
+	; lurking Medusa/Ghouls) -- append the working set after them, don't overwrite.
+	CLRL	R6
+PA_SK:	TSTL	R3
+	BLEQ	PA_S
+	TSTL	(R8)
+	BEQL	PA_S
+	ADDL2	#4, R8
+	DECL	R3
+	BRB	PA_SK
+
 PA_S:	CMPL	R6, SCAVE_CHAMBER_NS
 	BGEQ	PA_T
 	TSTL	R3
@@ -1612,15 +1718,24 @@ PA_S:	CMPL	R6, SCAVE_CHAMBER_NS
 	BRB	PA_S
 PA_T:	CLRL	R6				; treasures -> 200+tid
 PA_TL:	CMPL	R6, SCAVE_CHAMBER_NT
-	BGEQ	PA_PAD
+	BGEQ	PA_SLP
 	TSTL	R3
-	BLEQ	PA_PAD
+	BLEQ	PA_SLP
 	MOVL	SCAVE_CHAMBER_CT[R6], R0
 	BLSS	PA_TN				; -1 consumed -> skip
 	ADDL3	#200, R0, (R8)+
 	DECL	R3
 PA_TN:	INCL	R6
 	BRB	PA_TL
+PA_SLP:	CLRL	R6				; Lotus-slept creatures -> 400+cid
+PA_SL:	CMPL	R6, SCAVE_CHAMBER_NSL
+	BGEQ	PA_PAD
+	TSTL	R3
+	BLEQ	PA_PAD
+	ADDL3	#400, SCAVE_CHAMBER_SL[R6], (R8)+
+	DECL	R3
+	INCL	R6
+	BRB	PA_SL
 PA_PAD:	TSTL	R3				; zero unused tail slots
 	BLEQ	PA_CLR
 	CLRL	(R8)+
@@ -1629,6 +1744,7 @@ PA_PAD:	TSTL	R3				; zero unused tail slots
 PA_CLR:	CLRL	SCAVE_CHAMBER_NS		; working set now lives on the area
 	CLRL	SCAVE_CHAMBER_NT
 	CLRL	SCAVE_CHAMBER_NH
+	CLRL	SCAVE_CHAMBER_NSL
 	MOVL	#SS$_NORMAL, R0
 	RET
 

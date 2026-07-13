@@ -45,6 +45,7 @@
 	.EXTRN	SCAVE_AREA_FU
 	.EXTRN	SCAVE_AREA_MIR
 	.EXTRN	SCAVE_AREA_SD
+	.EXTRN	SCAVE_AREA_AF
 	.EXTRN	SCAVE_MAP_SDN
 	.EXTRN	SCAVE_DEC_AN
 	.EXTRN	SCAVE_DEC_AE
@@ -190,6 +191,19 @@ M_FIND:
 	BRW	M_NEW
 
 M_USE_EXISTING:
+	; SC-6.1-5: an earthquake-collapsed destination is rubble -- the doorway
+	; onto it is blocked.  Prune the phantom exit and report a dead end.
+	MOVL	SCAVE_AREA_AF[R2], R0
+	BBC	#2, R0, M_UE_LIVE		; bit 2 = AF_DESTROYED (^X04); clear -> proceed
+	CMPL	R6, #4				; prune only a LATERAL exit; a stair (U/D)
+	BGTR	M_UE_RUBBLE			; is never pruned, so it re-dead-ends each try
+	MOVAB	DEAD_MASK, R0
+	MOVL	(R0)[R5], R0
+	BICL2	R0, SCAVE_MAP_MP[R7]		; clear the doorway bit on the current card
+M_UE_RUBBLE:
+	MOVL	#1, SCAVE_MAP_DEADEND
+	BRW	M_FAIL
+M_UE_LIVE:
 	; R2 = index of the existing area.  Decode it and check that
 	; the back-exit is open from our direction.
 	;
@@ -384,6 +398,7 @@ FTB_PLACE:
 	MOVL	SCAVE_MAP_NM, R2
 	MOVL	R0, SCAVE_MAP_MP[R2]
 	MOVL	R10, SCAVE_MAP_ML[R2]
+	MOVL	#1, SCAVE_AREA_FU[R2]		; a trap-fall tile is placed face up (relocateDown)
 
 FTB_USE:
 	MOVL	R7, SCAVE_MAP_PP		; PP = area we fell from

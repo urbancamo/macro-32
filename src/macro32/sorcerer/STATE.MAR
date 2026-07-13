@@ -211,6 +211,8 @@ SCAVE_CHAMBER_NH::	.LONG	0			; hazard count
 SCAVE_CHAMBER_CS::	.BLKL	SCAVE$_CHAMBER_MAX	; stranger creature indices
 SCAVE_CHAMBER_CT::	.BLKL	SCAVE$_CHAMBER_MAX	; treasure indices
 SCAVE_CHAMBER_CH::	.BLKL	SCAVE$_HAZARD_MAX	; hazard indices
+SCAVE_CHAMBER_NSL::	.LONG	0			; sleeping count (Lotus Dust, SC-11-9)
+SCAVE_CHAMBER_SL::	.BLKL	SCAVE$_CHAMBER_MAX	; sleeping creature ids (parked as 400+id)
 
 ;
 ; ===========================================================

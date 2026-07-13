@@ -361,6 +361,21 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I031 | 2026-07-13 | §6/§11 | AF_DESTROYED move + Flute + viper-lull + Balm + sleeping-park + trap-FU
+  -- solo-seed2678 PASSES (11/11)** — Cleared the whole tail of the first artifact vector:
+  **SC-6.1-5:** TRY_MOVE now dead-ends against an earthquake-collapsed (AF_DESTROYED) destination,
+  pruning only a lateral exit (stairs re-dead-end, matching pruneExit). **Charmed Flute (12):** the
+  secret-door reveal (EU_FLUTE) -- explore + UP/DOWN, reveal the concealed stair when the
+  vertically-adjacent placed tile carries the matching return stair, not consumed (SC-11-32); plus
+  the passive viper-lull in VIPER_CROSSING (party holds the Flute -> vipersLulled, no rolls, SC-11-31).
+  **Healing Balm (6):** revive a dead member at rest/loot (SC-11-14). **Lotus sleeping-pile:** slept
+  strangers now park as 400+id (new SCAVE_CHAMBER_SL, parked by PERSIST_AREA which was also fixed to
+  APPEND past existing 300+ hazard contents instead of overwriting). **Trap-fall FU:** FALL_TO_BELOW
+  now lays the fallen-into tile face up (relocateDown), fixing a non-chamber trap tile's FU. *Evidence:*
+  solo-seed2678 step 19 -> **PASS end-to-end; 11/11 vectors green.** Remaining gap vectors: seed257 /
+  seed1237 / seed2355 (artifacts) -> Potion/Staff, openChest, Medusa/Mutiny effects, Eye combat
+  nullification, dragonsLulled.
+
 - **I030 | 2026-07-13 | §7/§11 | Ghouls silent-death + heavy-drop + Magic Carpet** — Two seed2678
   blockers. **Ghouls (§7):** a lost ghoul fight now kills the member SILENTLY (removed the spurious
   memberDied -- the reference surfaces ghoul deaths only via sweepFallen -> itemsSpilled), and the
