@@ -45,7 +45,17 @@
 	SCAVE$_ACT_ATTACK = 12
 	SCAVE$_ACT_FIGHT = 13
 	SCAVE$_ACT_CASUALTY = 14
+	SCAVE$_ACT_USE = 16
+	SCAVE$_ACT_OPENCHEST = 17
 	SCAVE$_MPM = 12				; max members per side of a match (match STATE.MAR)
+
+	; artifact treasure ids (SC-11)
+	SCAVE$_TR_CARPET = 4			; Magic Carpet
+	SCAVE$_TR_LOTUS  = 5			; Lotus Dust
+	SCAVE$_TR_BALM   = 6			; Healing Balm
+	SCAVE$_TR_POTION = 8			; Strength Potion
+	SCAVE$_TR_STAFF  = 9			; Magic Staff
+	SCAVE$_TR_FLUTE  = 12			; Charmed Flute
 
 	; creature-flag masks (file-local `=` in DATA.MAR/STATE.MAR; redeclare here)
 	SCAVE$M_CR_CHARISMA = ^X02		; +1 reaction (Hero / W-Hero)
@@ -101,6 +111,11 @@
 	SCAVE$_EV_PETRIFIEDOUT = 32
 	SCAVE$_EV_DEATHPREVENTED = 33
 	SCAVE$_EV_ANNIHILATED = 34
+	SCAVE$_EV_STATUEPOWERLESS = 35
+	SCAVE$_EV_ARTIFACTUSED = 36
+	SCAVE$_EV_CARPETUSED = 37
+	SCAVE$_EV_SECRETDOORREVEALED = 38
+	SCAVE$_EV_DRAGONSLULLED = 39
 	SCAVE$_HZ_EARTHQUAKE = 2		; hazard indices (Mutiny0 Trap1 Quake2 Medusa3 Ghouls4)
 	SCAVE$_HZ_MUTINY = 0
 	SCAVE$_HZ_TRAP = 1
@@ -253,8 +268,11 @@ RP_DONE:
 	BNEQ	6$
 	BRW	EA_CASUALTY
 6$:	CMPL	R2, #SCAVE$_ACT_EXITCAVE
-	BNEQ	7$
+	BNEQ	61$
 	BRW	EA_EXITCAVE
+61$:	CMPL	R2, #SCAVE$_ACT_USE
+	BNEQ	7$
+	BRW	EA_USE
 7$:	BRW	EA_DONE				; other actions: not yet implemented
 
 ;
@@ -697,6 +715,144 @@ EA_EXITCAVE:
 	MOVL	#SCAVE$_EV_GAMEOVER, R0
 	BSBW	EMIT_EVENT
 	BRW	EA_DONE
+
+;
+; ---- USE (SC-4-34, useArtifact) ----
+;   a1 = artifact treasure id, a2 = target (member/stranger idx, -1 none),
+;   a3 = direction (0 none).  Finds a living bearer; blocked if none.  Each
+;   artifact has its own phase/target rules.  Emits artifactUsed + effect events.
+;   (Potion 8 and Staff 9 are wired but unexercised so far; Carpet/Flute/Balm/
+;   Lotus are exercised by the artifact vectors.)
+;
+EA_USE:
+	MOVL	8(AP), R6			; artifact id
+	MOVL	12(AP), R7			; target (-1 none)
+	MOVL	16(AP), R8			; dir (0 none)
+	MOVL	R6, R1
+	BSBW	FIND_BEARER			; R0 = bearer member idx, or -1
+	MOVL	R0, R9				; bearer
+	BLSS	EU_BLK				; no living bearer -> blocked
+
+	CMPL	R6, #SCAVE$_TR_LOTUS
+	BEQL	EU_LOTUS
+	BRW	EU_BLOCK			; other artifacts wired next
+EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
+
+;
+; -- Lotus Dust (5): encounter/fight, target a stranger -> sleep it (no effect
+;    on a Spectre; only weakens the Sorcerer).  When none remain awake, the
+;    party may pass: fight cleared, pickup if treasure else explore.
+;
+EU_LOTUS:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
+	BEQL	EL_OK
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BNEQ	EU_BLK
+EL_OK:	TSTL	R7				; need a target
+	BLSS	EU_BLK
+	CMPL	R7, SCAVE_CHAMBER_NS		; target in range?
+	BGEQU	EU_BLK
+	MOVL	SCAVE_CHAMBER_CS[R7], R2	; sid
+	CMPL	R2, #SCAVE$_CR_SPECTRE
+	BEQL	EU_BLK				; no effect on a Spectre
+	CMPL	R2, #SCAVE$_CR_SORCERER
+	BNEQ	EL_SLEEP
+	; Sorcerer: not slept, only weakened -- set lotusOnSorcerer, consume, done
+	MOVL	#1, SCAVE_STATE_LOTUSSORC
+	BRB	EL_FIN
+EL_SLEEP:
+	; remove the stranger from CS (compact); the "sleeping" pile is display-only
+	; here (parked as 400+ on persist), so just drop it from the awake set.
+	MOVL	R7, R3				; splice CS[target]
+EL_SL:	ADDL3	#1, R3, R0
+	CMPL	R0, SCAVE_CHAMBER_NS
+	BGEQ	EL_SD
+	MOVL	SCAVE_CHAMBER_CS[R0], SCAVE_CHAMBER_CS[R3]
+	MOVL	R0, R3
+	BRB	EL_SL
+EL_SD:	DECL	SCAVE_CHAMBER_NS
+EL_FIN:	PUSHL	R6				; consume the Lotus from the bearer
+	PUSHL	R9
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	; if no strangers remain awake, the party may proceed
+	TSTL	SCAVE_CHAMBER_NS
+	BNEQ	EU_DONE
+	MOVL	#1, SCAVE_FIGHT_RD		; fight cleared (round reset)
+	TSTL	SCAVE_CHAMBER_NT
+	BEQL	EL_EXPL
+	MOVL	#SCAVE$_PH_PICKUP, SCAVE_STATE_PH
+	BRW	EU_DONE
+EL_EXPL: CALLS	#0, PERSIST_AREA
+	MOVL	#SCAVE$_PH_EXPLORE, SCAVE_STATE_PH
+	BRW	EU_DONE
+
+EU_BLOCK: MOVL	#SCAVE$_EV_BLOCKED, R0
+	BSBW	EMIT_EVENT
+EU_DONE: BRW	EA_DONE
+
+;
+; ===========================================================
+;  FIND_BEARER (JSB)  --  R1 = artifact id; R0 = index of the first living
+;    member holding it, or -1.  Clobbers R0, preserves R1-R5.
+;  CONSUME_ARTIFACT(member, artifact) -- splice the artifact out of the member's
+;    treasure row (shift the tail down, pad -1), keeping the list contiguous so
+;    the CARRY order matches the reference.
+; ===========================================================
+;
+FIND_BEARER:
+	PUSHL	R5
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	CLRL	R2
+FB_ML:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	FB_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living/ally only
+	BGEQ	FB_MN
+	MULL3	#SCAVE$_TREAS_PER, R2, R3
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5
+FB_SL:	ADDL3	R3, R5, R0
+	CMPL	(R4)[R0], R1
+	BEQL	FB_YES
+	AOBLSS	#SCAVE$_TREAS_PER, R5, FB_SL
+FB_MN:	INCL	R2
+	BRB	FB_ML
+FB_NO:	MNEGL	#1, R0
+	BRB	FB_RET
+FB_YES:	MOVL	R2, R0
+FB_RET:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
+	MOVL	(SP)+, R5
+	RSB
+
+	.ENTRY	CONSUME_ARTIFACT, ^M<R2,R3,R4,R5,R6,R7>
+	MOVL	4(AP), R2			; member
+	MOVL	8(AP), R3			; artifact id
+	MULL3	#SCAVE$_TREAS_PER, R2, R4	; row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R5
+	CLRL	R6				; find the artifact slot
+CA_F:	CMPL	R6, #SCAVE$_TREAS_PER
+	BGEQ	CA_RET				; not present
+	ADDL3	R4, R6, R0
+	CMPL	(R5)[R0], R3
+	BEQL	CA_SH
+	INCL	R6
+	BRB	CA_F
+CA_SH:	ADDL3	R4, R6, R0			; write element index
+	ADDL3	R6, #1, R7			; next slot
+	CMPL	R7, #SCAVE$_TREAS_PER
+	BGEQ	CA_LAST
+	ADDL3	R4, R7, R1			; read element index
+	MOVL	(R5)[R1], (R5)[R0]		; shift the tail down
+	INCL	R6
+	BRB	CA_SH
+CA_LAST: MOVL	#-1, (R5)[R0]			; last slot emptied
+CA_RET:	MOVL	#SS$_NORMAL, R0
+	RET
 
 ;
 ; ---- FIGHT (SC-9.1, resolveRound) -- single 1v1 matches ----
@@ -1437,7 +1593,11 @@ TT_NO:	RET
 	MOVL	#SCAVE$_EV_BLOCKED, R0
 	BSBW	EMIT_EVENT
 	RET
-1$:	MOVL	SCAVE_PARTY_PC[R3], R4		; frontStrength = FS + PK + MP
+1$:	MOVL	#SCAVE$_TR_EYE, R1		; SC-11-28: the Eye stills the statue --
+	BSBW	PARTY_HOLDS			; take the Ruby with no fight, no RNG
+	TSTL	R0
+	BNEQ	SW_EYE
+	MOVL	SCAVE_PARTY_PC[R3], R4		; frontStrength = FS + PK + MP
 	MOVAB	SCAVE_DATA_CR_FS, R5
 	MOVL	(R5)[R4], R6
 	ADDL2	SCAVE_PARTY_PK[R3], R6
@@ -1454,7 +1614,10 @@ TT_NO:	RET
 	BGEQ	SW_WON				; fighterTotal >= enemyTotal
 	BRW	SW_LOSE
 
-SW_WON:	; the Ruby joins the taker's carried treasure, off the floor
+SW_WON:	CLRL	R7				; won the wrestle -> statue is not powerless
+	BRB	SW_CLAIM
+SW_EYE:	MOVL	#1, R7				; the Eye stilled it -> emit statuePowerless too
+SW_CLAIM: ; the Ruby joins the taker's carried treasure, off the floor
 	MULL3	#SCAVE$_TREAS_PER, R3, R4
 	MOVAB	SCAVE_PARTY_PT, R5
 	CLRL	R8
@@ -1476,7 +1639,11 @@ SW_SL:	ADDL3	#1, R8, R0
 SW_SD:	DECL	SCAVE_CHAMBER_NT
 	MOVL	#SCAVE$_EV_RUBYTAKEN, R0
 	BSBW	EMIT_EVENT
-	RET
+	TSTL	R7				; Eye path also announces statuePowerless
+	BEQL	SW_ERET
+	MOVL	#SCAVE$_EV_STATUEPOWERLESS, R0
+	BSBW	EMIT_EVENT
+SW_ERET: RET
 
 SW_LOSE: ; the taker is slain; the Ruby is left in place
 	MOVL	#SCAVE$_PS_DEAD, SCAVE_PARTY_PS[R3]

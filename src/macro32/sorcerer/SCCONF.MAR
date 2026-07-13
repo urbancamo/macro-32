@@ -198,6 +198,11 @@ EV_D_MAVERT:  .ASCID	/medusaAverted/
 EV_D_PETOUT:  .ASCID	/petrifiedOut/
 EV_D_DPREV:   .ASCID	/deathPrevented/
 EV_D_ANNIH:   .ASCID	/annihilated/
+EV_D_STPWR:   .ASCID	/statuePowerless/
+EV_D_ARTU:    .ASCID	/artifactUsed/
+EV_D_CARPU:   .ASCID	/carpetUsed/
+EV_D_SDOOR:   .ASCID	/secretDoorRevealed/
+EV_D_DRLULL:  .ASCID	/dragonsLulled/
 	.ALIGN	LONG
 EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_ENTSPEC, EV_D_FIGHTST, EV_D_CROLL, EV_D_SKILL, EV_D_MDIED, -
@@ -205,7 +210,8 @@ EV_NAME_PTR:  .ADDRESS 0, EV_D_MOVED, EV_D_DEADEND, EV_D_BLOCKED, EV_D_DREW, -
 		EV_D_STATUE, EV_D_HAZ, EV_D_XSPEC, EV_D_VIPER, EV_D_TDROP, -
 		EV_D_REACT, EV_D_JOINED, EV_D_PACIF, EV_D_UNIGRD, EV_D_CASCH, -
 		EV_D_ITSPIL, EV_D_TSPRNG, EV_D_TAVOID, EV_D_MGAZE, EV_D_MUTINY, -
-		EV_D_GWARD, EV_D_MAVERT, EV_D_PETOUT, EV_D_DPREV, EV_D_ANNIH
+		EV_D_GWARD, EV_D_MAVERT, EV_D_PETOUT, EV_D_DPREV, EV_D_ANNIH, -
+		EV_D_STPWR, EV_D_ARTU, EV_D_CARPU, EV_D_SDOOR, EV_D_DRLULL
 
 ;
 ; ===========================================================
@@ -558,11 +564,43 @@ DO_MOVE:
 	MOVL	R0, V_A1
 	BRW	DM_APPLY
 68$:	CMPC3	#9, INBUF+5, LIT_CHEST		; "OPENCHEST" -> action 17, 0 args
-	BNEQ	66$
+	BNEQ	69$
 	MOVL	#17, V_ACT
 	BRW	DM_APPLY
-	; USE (action 16) parsing is added with the artifact grind.
-66$:	CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
+69$:	CMPC3	#3, INBUF+5, LIT_USE		; "USE <a>[ T<t>][ D<d>]" -> action 16
+	BNEQ	KW_FIGHT
+	MOVL	#16, V_ACT
+	MOVAB	INBUF+9, R6			; after "USE "
+	MOVL	LINELEN, R7
+	SUBL2	#9, R7
+	MNEGL	#1, V_A2			; target = -1 (none) unless a T<n> follows
+	CLRL	V_A3				; dir = 0 (none) unless a D<n> follows
+	BSBW	PARSE_UINT			; artifact id
+	MOVL	R0, V_A1
+PU_SP:	TSTL	R7				; skip spaces, then read optional T<n>/D<n>
+	BLEQ	PU_END
+	CMPB	(R6), #^A/ /
+	BNEQ	PU_TD
+	INCL	R6
+	DECL	R7
+	BRB	PU_SP
+PU_TD:	CMPB	(R6), #^A/T/
+	BEQL	PU_T
+	CMPB	(R6), #^A/D/
+	BEQL	PU_DD
+	BRB	PU_END
+PU_T:	INCL	R6
+	DECL	R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A2
+	BRB	PU_SP
+PU_DD:	INCL	R6
+	DECL	R7
+	BSBW	PARSE_UINT
+	MOVL	R0, V_A3
+	BRB	PU_SP
+PU_END:	BRW	DM_APPLY
+KW_FIGHT: CMPC3	#5, INBUF+5, LIT_FIGHT		; "FIGHT <f>><s>" -> action 13, plan buffer
 	BEQL	FM_BEGIN
 	BRW	DM_APPLY			; not FIGHT (DM_APPLY now far past the plan parser)
 FM_BEGIN: MOVL	#13, V_ACT

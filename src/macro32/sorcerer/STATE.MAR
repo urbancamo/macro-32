@@ -117,6 +117,7 @@ SCAVE_STATE_IS::	.LONG	0			; indiffStreak: consecutive indifferent tests this
 							; chamber visit; 3rd pacifies (SC-8.4-3..5)
 SCAVE_STATE_FT::	.LONG	0			; fellThroughTrap: here via a one-way trap fall --
 							; no surprise, no withdraw/retreat up (SC-4-14/17/27)
+SCAVE_STATE_LOTUSSORC::	.LONG	0		; Lotus Dust cast on the Sorcerer this fight (-2 MP)
 
 ;
 ; ===========================================================

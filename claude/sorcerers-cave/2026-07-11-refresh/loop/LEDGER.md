@@ -361,6 +361,20 @@ e.g. extra targeted vectors (deep levels, Sorcerer kill, escape-with-loot). Non-
 
 (newest first: `I### | date | gate | item | change | evidence | result`)
 
+- **I029 | 2026-07-13 | §11 | Eye-stills-statue + USE dispatch + Lotus Dust** — Started the artifact
+  grind against seed2678 (shortest artifact vector). **statuePowerless (SC-11-28):** taking the Lost
+  Ruby while any living member holds the Eye stills the statue -- rubyTaken + statuePowerless, no
+  fight (SW_EYE path in STATUE_WRESTLE). **USE dispatch (action 16, SC-4-34):** SCCONF parses
+  `USE <a>[ T<t>][ D<d>]`; EA_USE finds a living bearer (FIND_BEARER) or blocks, then dispatches per
+  artifact; CONSUME_ARTIFACT splices the used artifact out (contiguous, matching reference CARRY
+  order). **Lotus Dust (5):** encounter/fight, sleeps the target stranger (no effect on Spectre;
+  only lotusOnSorcerer for the Sorcerer); when none remain awake -> pickup/explore. New event codes
+  36-39 (artifactUsed/carpetUsed/secretDoorRevealed/dragonsLulled) + statuePowerless(35). *Evidence:*
+  solo-seed2678 step 19 -> **step 48**; 10/10 prior vectors still PASS. *Next divergence (step 48):*
+  a Ghouls fight where the Eye is held -- needs the **Medusa hazard effect + Magic Sword bonus +
+  eyeActive nullification** all together (2 of my members die where the reference's survive). Still
+  to do for seed2678: Carpet(4)/Flute(12)/Balm(6), then those interactions.
+
 - **I028 | 2026-07-13 | §9 | §387 in-fight heavy-drop + reclaim -- solo-seed225 PASSES (10/10)** —
   The last seed225 blocker was a final-block treasure misplacement: my Hero kept Gold that the
   reference dropped during a fight. HEAVY_DROP (called first in FIGHT_ROUND): each front fighter drops
