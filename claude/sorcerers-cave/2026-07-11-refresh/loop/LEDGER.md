@@ -3,8 +3,21 @@
 > The loop's memory. Read first, update last, every iteration
 > (see [../loop-spec.md](../loop-spec.md) §5). Keep entries terse but evidenced.
 
-**Status:** `DONE`  (values: ACTIVE | DONE | NEEDS-HUMAN | BLOCKED-INFRA)
-**Latest (I034, 2026-07-13):** **ALL 14 CONFORMANCE VECTORS PASS BIT-FOR-BIT.** Engine parity
+**Status:** `DONE`  (parity) -- Tier-2 gap-closing continues
+**Latest (I035, 2026-07-13):** Post-parity Tier-2 gap-closing via a seed sweep that minted 5 new
+reference vectors (uncommitted in the reference repo, on disk under docs/specs/conformance/): chest2,
+ring, reclaim, medusaavert, petrified. **17/19 now pass** (14 parity + petrifiedOut + chest2 + ring).
+Closed this pass: **Deep-Pool Giant reclaim** (GIANT_CAN_RECOVER weight check + RECLAIM_POOL ->
+treasureReclaimed/pickup); **eyeForsaken** on death (EYE_FORSAKEN at all 5 combat death sites,
+curses++ before the body spills); **Spectre-engagement respects the Eye** (nullifies magic + Sword ->
+slay) **and the Sword-cid {0,1,5,6}** (fixed SPECTRE_CHECK -> chest2 passes); **Ring-invincibility**
+(RING_INVINCIBLE at FR_LOSE -> deathPrevented at level >=4). New EV codes 44 (treasureReclaimed), 45
+(eyeForsaken) + SCCONF names. **Remaining 2 gap vectors, both combat-strength:** seed330 (Wizard vs
+Spectre -- needs the reference memberStr special case: a caster fights a Spectre with casterMP, NOT
+frontStrength) and seed148 step 173 (fronts incl. a Giant vs an Ogre -- a separate front-strength
+divergence). Regression: the 14 parity vectors stay green throughout.
+
+**(archived) Latest (I034, 2026-07-13):** **ALL 14 CONFORMANCE VECTORS PASS BIT-FOR-BIT.** Engine parity
 achieved against every reference-minted vector (base-8 + seed174 sorcerer + seed225 escape +
 seed257/1237/2355/2678 artifacts). Final fix: pacified-attack must keep sleeping creatures parked
 in AC (new REVISIT_GUARDS reloads only strangers/treasures, not 400+/300+) so the leave-persist
