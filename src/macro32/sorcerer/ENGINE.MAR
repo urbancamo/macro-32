@@ -533,7 +533,9 @@ EA_WITHDRAW:
 ;
 EA_ATTACK:
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_ENCOUNTER
-	BEQL	EA_ATT_ENC
+	BNEQ	EA_ATT_NE
+	BRW	EA_ATT_ENC
+EA_ATT_NE:
 	; SC-4-22: attacking the parked guards of a pacified chamber from explore --
 	; un-park guards+treasure and fight, no surprise (the chamber was visited).
 	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_EXPLORE
@@ -558,6 +560,7 @@ EA_AS_GO:
 	CALLS	#0, REVISIT_CHAMBER		; load parked guards+treasure into CS/CT
 	CLRL	SCAVE_FIGHT_FS			; surprise 0
 	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
 	CLRL	SCAVE_STATE_SR
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
@@ -569,6 +572,7 @@ EA_ATT_BLK:
 	BRW	EA_DONE
 EA_ATT_ENC: MOVL SCAVE_STATE_SR, SCAVE_FIGHT_FS	; surprise (+1 fresh, else 0)
 	MOVL	#1, SCAVE_FIGHT_RD		; round 1
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
 	CLRL	SCAVE_STATE_SR			; surprise now baked into the fight
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
@@ -612,6 +616,7 @@ ET_GO:	CLRL	SCAVE_STATE_SR			; SC-8.1-6: testing forfeits surprise
 ET_HOST:					; SC-8.4-2: hostile -> fight, surprise -1
 	MOVL	#-1, SCAVE_FIGHT_FS
 	MOVL	#1, SCAVE_FIGHT_RD
+	MOVL	#-1, SCAVE_FIGHT_POTION		; fresh fight -> no potion in effect
 	CLRL	SCAVE_STATE_SR
 	MOVL	#SCAVE$_PH_FIGHT, SCAVE_STATE_PH
 	MOVL	#SCAVE$_EV_FIGHTSTARTED, R0
@@ -744,8 +749,11 @@ EUD2:	CMPL	R6, #SCAVE$_TR_FLUTE
 	BNEQ	EUD3
 	BRW	EU_FLUTE
 EUD3:	CMPL	R6, #SCAVE$_TR_BALM
-	BNEQ	EU_BLK				; other artifacts wired next
+	BNEQ	EUD4
 	BRW	EU_BALM
+EUD4:	CMPL	R6, #SCAVE$_TR_POTION
+	BNEQ	EU_BLK				; other artifacts wired next
+	BRW	EU_POTION
 EU_BLK:	BRW	EU_BLOCK			; near trampoline for the far EU_BLOCK
 
 ;
@@ -766,6 +774,38 @@ EB_OK:	TSTL	R7				; target required
 	BNEQ	EU_BLKB
 	CLRL	SCAVE_PARTY_PS[R7]		; revive to status ORIG (0)
 	MOVL	R9, R2				; consume the Balm from the bearer
+	PUSHL	R6
+	PUSHL	R2
+	CALLS	#2, CONSUME_ARTIFACT
+	MOVL	#SCAVE$_EV_ARTIFACTUSED, R0
+	BSBW	EMIT_EVENT
+	BRW	EU_DONE
+
+;
+; -- Strength Potion (8): during a fight, a living Hero/W-Hero/Man/Woman drinks
+;    it for +2 front strength until the fight ends (SC-11, potionActive).  The
+;    target member is marked in SCAVE_FIGHT_POTION; the Potion is consumed from
+;    its bearer.  Not nullified by the Eye.
+;
+EU_BLKP: BRW	EU_BLOCK			; trampoline for the Potion block
+EU_POTION:
+	CMPL	SCAVE_STATE_PH, #SCAVE$_PH_FIGHT
+	BNEQ	EU_BLKP
+	TSTL	R7				; target required
+	BLSS	EU_BLKP
+	CMPL	R7, SCAVE_PARTY_NP
+	BGEQU	EU_BLKP
+	CMPL	SCAVE_PARTY_PS[R7], #2		; target living (0/1)
+	BGEQ	EU_BLKP
+	MOVL	SCAVE_PARTY_PC[R7], R2		; boostable: Hero(0)/W-Hero(1)/Man(5)/Woman(6)
+	CMPL	R2, #1
+	BLEQ	EU_POK
+	CMPL	R2, #5
+	BLSS	EU_BLKP
+	CMPL	R2, #6
+	BGTR	EU_BLKP
+EU_POK:	MOVL	R7, SCAVE_FIGHT_POTION		; this member drinks the potion (+2)
+	MOVL	R9, R2				; consume the Potion from its bearer
 	PUSHL	R6
 	PUSHL	R2
 	CALLS	#2, CONSUME_ARTIFACT
@@ -1334,7 +1374,16 @@ RH_P:	CMPL	R4, SCAVE_CHAMBER_NH
 	BEQL	RH_FIRE
 	INCL	R4
 	BRB	RH_P
-RH_FIRE:					; (Ghouls/Medusa ward checks are deferred -> §11)
+RH_FIRE:
+	CMPL	R3, #SCAVE$_HZ_MEDUSA		; Medusa ward: a living Staff-Wizard averts the gaze
+	BNEQ	RH_FIRE2
+	CALLS	#0, HAS_STAFF_WIZARD
+	TSTL	R0
+	BEQL	RH_FIRE2
+	MOVL	#SCAVE$_EV_MEDUSAAVERTED, R0	; averted -> no hazardFired, no gaze
+	BSBW	EMIT_EVENT
+	BRW	RH_L
+RH_FIRE2:
 	MOVL	#SCAVE$_EV_HAZARDFIRED, R0
 	BSBW	EMIT_EVENT
 	CMPL	R3, #SCAVE$_HZ_EARTHQUAKE
@@ -1346,7 +1395,10 @@ RH_FIRE:					; (Ghouls/Medusa ward checks are deferred -> §11)
 	BRW	RH_GHOULS
 RHF1:	CMPL	R3, #SCAVE$_HZ_MUTINY
 	BEQL	RH_MUTINY
-	BRW	RH_L				; Medusa effect deferred (hazardFired only)
+	CMPL	R3, #SCAVE$_HZ_MEDUSA
+	BNEQ	RHF2
+	BRW	RH_MEDUSA
+RHF2:	BRW	RH_L
 
 RH_MUTINY:
 	CALLS	#0, MUTINY_FIRE			; allies desert -> revert to strangers
@@ -1355,8 +1407,9 @@ RH_MUTINY:
 RH_QUAKE:
 	MOVL	SCAVE_MAP_PP, R5		; collapse prev (if it isn't the party's area)
 	CMPL	R5, SCAVE_MAP_PA
-	BEQL	RH_L
-	BISL2	#SCAVE$M_AF_DESTROYED, SCAVE_AREA_AF[R5]
+	BNEQ	RQ_GO
+	BRW	RH_L
+RQ_GO:	BISL2	#SCAVE$M_AF_DESTROYED, SCAVE_AREA_AF[R5]
 	MULL3	#SCAVE$_AREA_ITEMS, R5, R6	; clear its AC slots
 	CLRL	R4
 RH_CLR:	ADDL3	R6, R4, R0
@@ -1387,6 +1440,12 @@ RT_FALL:
 RH_GHOULS:
 	CALLS	#0, GHOULS_FIGHT
 	MOVL	#SCAVE$_HZ_GHOULS, R0		; Ghouls lurk: re-park so they re-fire on re-entry
+	BSBW	PARK_HAZARD
+	BRW	RH_L
+
+RH_MEDUSA:
+	CALLS	#0, MEDUSA_GAZE
+	MOVL	#SCAVE$_HZ_MEDUSA, R0		; Medusa lurks: re-park so she re-fires on re-entry
 	BSBW	PARK_HAZARD
 	BRW	RH_L
 
@@ -1653,6 +1712,85 @@ RD_L:	CMPL	R3, #SCAVE$_AREA_ITEMS
 RD_N:	INCL	R3
 	BRB	RD_L
 RD_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  MEDUSA_GAZE  --  SC-7.2 Medusa: every living member rolls a d6 (party order);
+;    a 1 or 2 turns that member to stone (status 2).  A petrified member's
+;    carried items spill onto the chamber floor (CT) -- one itemsSpilled each --
+;    and the row is cleared.  medusaGaze is emitted once if any member rolled.
+;    (Borne tracking is deferred, so every carried item spills; the vectors
+;    never set borne.)  One rollDie per living member threads the seed.
+; ===========================================================
+;
+	.ENTRY	MEDUSA_GAZE, ^M<R2,R3,R4,R5,R6,R7,R8,R9>
+	CLRL	R6				; living-member roll count
+	CLRL	R2				; member slot
+MG_L:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	MG_GO
+	BRW	MG_DONE
+MG_GO:	CMPL	SCAVE_PARTY_PS[R2], #2		; living (status 0/1) only
+	BLSS	MG_ALIVE
+	BRW	MG_N
+MG_ALIVE:
+	CALLS	#0, G^ROLL_DIE			; one d6 per living member, party order
+	INCL	R6
+	CMPL	R0, #2				; 1 or 2 -> turned to stone
+	BLEQ	MG_STONE
+	BRW	MG_N
+MG_STONE:
+	MOVL	#2, SCAVE_PARTY_PS[R2]		; petrified
+	MULL3	#SCAVE$_TREAS_PER, R2, R3	; PT row base (element index)
+	MOVAB	SCAVE_PARTY_PT, R4
+	CLRL	R5				; spilled count
+	CLRL	R7				; slot in row
+MG_SL:	ADDL3	R3, R7, R8
+	MOVL	(R4)[R8], R9			; tid or -1
+	BLSS	MG_SN				; empty slot
+	MOVL	SCAVE_CHAMBER_NT, R0		; append to the chamber floor set CT
+	MOVL	R9, SCAVE_CHAMBER_CT[R0]
+	INCL	SCAVE_CHAMBER_NT
+	MOVL	#-1, (R4)[R8]			; off the body
+	INCL	R5
+MG_SN:	AOBLSS	#SCAVE$_TREAS_PER, R7, MG_SL
+	TSTL	R5
+	BEQL	MG_N
+	MOVL	#SCAVE$_EV_ITEMSSPILLED, R0
+	BSBW	EMIT_EVENT
+MG_N:	INCL	R2
+	BRW	MG_L
+MG_DONE: TSTL	R6				; any living member rolled -> emit medusaGaze
+	BEQL	MG_RET
+	MOVL	#SCAVE$_EV_MEDUSAGAZE, R0
+	BSBW	EMIT_EVENT
+MG_RET:	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  HAS_STAFF_WIZARD (CALLS)  --  R0 = 1 if a living Wizard (cid 8) holds the
+;    Magic Staff (id 9), else 0.  (Medusa ward: her gaze is powerless.)
+; ===========================================================
+;
+	.ENTRY	HAS_STAFF_WIZARD, ^M<R2>
+	CLRL	R2
+HSW_L:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	HSW_NO
+	CMPL	SCAVE_PARTY_PS[R2], #2		; living?
+	BGEQ	HSW_N
+	CMPL	SCAVE_PARTY_PC[R2], #8		; Wizard?
+	BNEQ	HSW_N
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_STAFF, R1
+	BSBW	MEMBER_HOLDS
+	TSTL	R0
+	BNEQ	HSW_YES
+HSW_N:	INCL	R2
+	BRB	HSW_L
+HSW_YES: MOVL	#1, R0
+	RET
+HSW_NO:	CLRL	R0
 	RET
 
 ;
@@ -2286,6 +2424,10 @@ FRONT_STR:
 	BRB	FS_DONE
 FS_SW2:	ADDL2	#2, R5
 FS_DONE:
+	CMPL	R2, SCAVE_FIGHT_POTION		; Strength Potion (+2), not nullified by the Eye
+	BNEQ	FS_NOPOT
+	ADDL2	#2, R5
+FS_NOPOT:
 	MOVL	R5, R0
 	MOVL	(SP)+, R2
 	MOVL	(SP)+, R3
