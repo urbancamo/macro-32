@@ -1342,8 +1342,15 @@ RH_FIRE:					; (Ghouls/Medusa ward checks are deferred -> §11)
 	CMPL	R3, #SCAVE$_HZ_TRAP
 	BEQL	RH_TRAP
 	CMPL	R3, #SCAVE$_HZ_GHOULS
-	BEQL	RH_GHOULS
-	BRW	RH_L				; Medusa/Mutiny effects deferred (hazardFired only)
+	BNEQ	RHF1
+	BRW	RH_GHOULS
+RHF1:	CMPL	R3, #SCAVE$_HZ_MUTINY
+	BEQL	RH_MUTINY
+	BRW	RH_L				; Medusa effect deferred (hazardFired only)
+
+RH_MUTINY:
+	CALLS	#0, MUTINY_FIRE			; allies desert -> revert to strangers
+	BRW	RH_L
 
 RH_QUAKE:
 	MOVL	SCAVE_MAP_PP, R5		; collapse prev (if it isn't the party's area)
@@ -1461,6 +1468,95 @@ GF_SWEEP:
 	PUSHL	#0				; the slain spill carried items into the pickup
 	CALLS	#1, SWEEP_FALLEN
 	MOVL	#SS$_NORMAL, R0
+	RET
+
+;
+; ===========================================================
+;  MUTINY_FIRE  --  SC-7.2 Mutiny: every ally (status 1) deserts, reverting to a
+;    stranger (retestable) and dropping its treasure onto the pickup floor.  If
+;    the party is ALL allies, the first stays loyal.  The party is then compacted.
+;    Emits mutinied if anyone deserted.  No RNG.
+; ===========================================================
+;
+	.ENTRY	MUTINY_FIRE, ^M<R2,R3,R4,R5,R6,R7,R8,R9,R10,R11>
+	CLRL	R9				; count originals (status 0)
+	CLRL	R2
+MF_CO:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_CD
+	TSTL	SCAVE_PARTY_PS[R2]
+	BNEQ	MF_CN
+	INCL	R9
+MF_CN:	INCL	R2
+	BRB	MF_CO
+MF_CD:	MNEGL	#1, R10				; the loyal-ally index to keep (-1 = none)
+	TSTL	R9
+	BNEQ	MF_DESERT			; some originals -> every ally deserts
+	CLRL	R2				; all allies -> the first stays loyal
+MF_FK:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_DESERT
+	CMPL	SCAVE_PARTY_PS[R2], #1
+	BNEQ	MF_FKN
+	MOVL	R2, R10
+	BRB	MF_DESERT
+MF_FKN:	INCL	R2
+	BRB	MF_FK
+MF_DESERT:
+	CLRL	R11				; deserted count
+	CLRL	R2
+MF_DL:	CMPL	R2, SCAVE_PARTY_NP
+	BLSS	MF_D1
+	BRW	MF_COMPACT
+MF_D1:	CMPL	SCAVE_PARTY_PS[R2], #1		; an ally?
+	BNEQ	MF_DN
+	CMPL	R2, R10				; the loyal one?
+	BEQL	MF_DN
+	MOVL	SCAVE_CHAMBER_NS, R3		; desert: revert to a stranger
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_CHAMBER_CS[R3]
+	INCL	SCAVE_CHAMBER_NS
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; drop its treasure to the pickup floor
+	MOVAB	SCAVE_PARTY_PT, R6
+	CLRL	R7
+MF_TL:	ADDL3	R5, R7, R0
+	MOVL	(R6)[R0], R1
+	BLSS	MF_TN				; -1 empty
+	MOVL	SCAVE_CHAMBER_NT, R8
+	MOVL	R1, SCAVE_CHAMBER_CT[R8]
+	INCL	SCAVE_CHAMBER_NT
+MF_TN:	AOBLSS	#SCAVE$_TREAS_PER, R7, MF_TL
+	MOVL	#99, SCAVE_PARTY_PS[R2]		; mark for removal from the party
+	INCL	R11
+MF_DN:	INCL	R2
+	BRB	MF_DL
+MF_COMPACT:
+	CLRL	R2				; read
+	CLRL	R3				; write
+MF_CL:	CMPL	R2, SCAVE_PARTY_NP
+	BGEQ	MF_CDONE
+	CMPL	SCAVE_PARTY_PS[R2], #99
+	BEQL	MF_CSKIP
+	CMPL	R2, R3
+	BEQL	MF_CKEEP
+	MOVL	SCAVE_PARTY_PC[R2], SCAVE_PARTY_PC[R3]
+	MOVL	SCAVE_PARTY_PS[R2], SCAVE_PARTY_PS[R3]
+	MOVL	SCAVE_PARTY_PK[R2], SCAVE_PARTY_PK[R3]
+	MULL3	#SCAVE$_TREAS_PER, R2, R5	; copy the PT row R2 -> R3
+	MULL3	#SCAVE$_TREAS_PER, R3, R6
+	MOVAB	SCAVE_PARTY_PT, R7
+	CLRL	R8
+MF_PTL:	ADDL3	R5, R8, R0
+	ADDL3	R6, R8, R1
+	MOVL	(R7)[R0], (R7)[R1]
+	AOBLSS	#SCAVE$_TREAS_PER, R8, MF_PTL
+MF_CKEEP: INCL	R3
+MF_CSKIP: INCL	R2
+	BRB	MF_CL
+MF_CDONE:
+	MOVL	R3, SCAVE_PARTY_NP		; new party size
+	TSTL	R11
+	BEQL	MF_RET
+	MOVL	#SCAVE$_EV_MUTINIED, R0
+	BSBW	EMIT_EVENT
+MF_RET:	MOVL	#SS$_NORMAL, R0
 	RET
 
 ;
@@ -2161,15 +2257,65 @@ CP_D:	MOVL	R3, SCAVE_CHAMBER_NS
 FRONT_STR:
 	PUSHL	R5
 	PUSHL	R4
-	MOVL	SCAVE_PARTY_PK[R0], R5		; dragonKills
-	MOVL	SCAVE_PARTY_PC[R0], R1		; cid
+	PUSHL	R3
+	PUSHL	R2
+	MOVL	R0, R2				; party slot
+	MOVL	SCAVE_PARTY_PK[R2], R5		; dragonKills
+	MOVL	SCAVE_PARTY_PC[R2], R3		; cid
 	MOVAB	SCAVE_DATA_CR_FS, R4
-	ADDL2	(R4)[R1], R5			; + fs
+	ADDL2	(R4)[R3], R5			; + fs
 	MOVAB	SCAVE_DATA_CR_MP, R4
-	ADDL2	(R4)[R1], R5			; + casterMP
+	ADDL2	(R4)[R3], R5			; + casterMP (base MP; Staff boost deferred)
+	; Magic Sword bonus (SC-11-1), nullified while the party holds the Eye.
+	MOVL	#SCAVE$_TR_EYE, R1
+	BSBW	PARTY_HOLDS
+	TSTL	R0
+	BNEQ	FS_DONE				; Eye active -> no Sword bonus
+	MOVL	R2, R0
+	MOVL	#SCAVE$_TR_SWORD, R1
+	BSBW	MEMBER_HOLDS			; does this member wield the Magic Sword?
+	TSTL	R0
+	BEQL	FS_DONE
+	CMPL	R3, #1				; Hero(0) / W-Hero(1) -> +2
+	BLEQ	FS_SW2
+	CMPL	R3, #5				; Man(5) / Woman(6) -> +1
+	BLSS	FS_DONE
+	CMPL	R3, #6
+	BGTR	FS_DONE
+	INCL	R5
+	BRB	FS_DONE
+FS_SW2:	ADDL2	#2, R5
+FS_DONE:
 	MOVL	R5, R0
+	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
 	MOVL	(SP)+, R4
 	MOVL	(SP)+, R5
+	RSB
+
+;
+; ===========================================================
+;  MEMBER_HOLDS (JSB)  --  R0 = party slot, R1 = treasure id; R0 = 1 if that
+;    member's treasure row holds it, else 0.  Clobbers R0, preserves R1-R4.
+; ===========================================================
+;
+MEMBER_HOLDS:
+	PUSHL	R4
+	PUSHL	R3
+	PUSHL	R2
+	MULL3	#SCAVE$_TREAS_PER, R0, R2	; PT row base
+	MOVAB	SCAVE_PARTY_PT, R3
+	CLRL	R4
+MH_L:	ADDL3	R2, R4, R0
+	CMPL	(R3)[R0], R1
+	BEQL	MH_Y
+	AOBLSS	#SCAVE$_TREAS_PER, R4, MH_L
+	CLRL	R0
+	BRB	MH_R
+MH_Y:	MOVL	#1, R0
+MH_R:	MOVL	(SP)+, R2
+	MOVL	(SP)+, R3
+	MOVL	(SP)+, R4
 	RSB
 
 ENEMY_STR:
@@ -2566,7 +2712,13 @@ GU_GANG:
 GU_ML:	CMPL	R2, SCAVE_FIGHT_NF
 	BLSS	GU_ML1
 	BRW	GU_FOLD
-GU_ML1:	MNEGL	#1, R8				; best stranger idx
+GU_ML1:	CMPL	SCAVE_FIGHT_FN[R2], #1		; only 1-front vs 1-stranger matches gang up (ref)
+	BNEQ	GU_MSKIP
+	CMPL	SCAVE_FIGHT_SN[R2], #1
+	BNEQ	GU_MSKIP
+	BRB	GU_MDO
+GU_MSKIP: BRW	GU_MN
+GU_MDO:	MNEGL	#1, R8				; best stranger idx
 	MNEGL	#1, R9				; best FS
 	CLRL	R3				; stranger s
 GU_SL:	CMPL	R3, SCAVE_CHAMBER_NS
